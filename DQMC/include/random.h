@@ -5,7 +5,7 @@
 #include "../src/xoshiro_pp.h"
 #include <random>
 #include <ctime>
-
+#include <numeric>
 
 /// <summary>
 /// Random number generator class

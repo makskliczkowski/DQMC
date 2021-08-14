@@ -1,6 +1,9 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <iostream>
+#include <ios>
+#include <sstream>
 
 /// <summary>
 /// Define a path separator for Unix and Windows systems
@@ -16,19 +19,66 @@ constexpr double PI = 3.14159265359;
 constexpr double PI_half = PI / 2.0;
 constexpr double TWO_PI = PI * 2;
 
+
+
+
 #ifndef COMMON_UTILS_H
 #define COMMON_UTILS_H
 
 
+template<class T>
+using v_3d = std::vector<std::vector<std::vector<T>>>;				// 3d double vector
+template<class T>
+using v_2d = std::vector<std::vector<T>>;							// 2d double vector
+template<class T>
+using v_1d = std::vector<T>;										// 1d double vector
 
-int myModuloEuclidean(int a, int b);														// Euclidean modulo function denoting also the negative sign
+
+/// <summary>
+/// check the sign of a value
+/// </summary>
+/// <param name="val">value to be checked</param>
+/// <returns>sign of a variable</returns>
+template <typename T> 
+inline int sgn(T val) {
+	return (T(0) < val) - (val < T(0));
+}
+
+/// <summary>
+/// Defines an euclidean modulo denoting also the negative sign
+/// </summary>
+/// <param name="a">left side of modulo</param>
+/// <param name="b">right side of modulo</param>
+/// <returns>euclidean a%b</returns>
+inline int myModuloEuclidean(int a, int b)					
+{
+	int m = a % b;
+	if (m < 0) {
+		m = (b < 0) ? m - b : m + b;
+	}
+	return m;
+}
+
 
 /* STRING RELATED FUNCTIONS */
+
+/// <summary>
+/// Changes a value to a string with a given precision
+/// </summary>
+/// <param name="a_value">Value to be transformed</param>
+/// <param name="n">Precision</param>
+/// <returns>String of a value</returns>
 template <typename T>
-std::string to_string_prec(const T a_value, const int n = 3);
-std::vector<std::string> split_str(const std::string& s, std::string delimiter = "\t");
+inline std::string to_string_prec(const T a_value, const int n = 3){
+	std::ostringstream out;
+	out.precision(n);
+	out << std::fixed << a_value;
+	return out.str();
+}
 
+v_1d<std::string> split_str(const std::string& s, std::string delimiter = "\t");
 
+v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv);
 
 
 
