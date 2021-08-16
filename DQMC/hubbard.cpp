@@ -1,10 +1,4 @@
 #include "include/hubbard.h"
-#include "src/user_interface.h"
-#include "src/common.h"
-#include <filesystem>
-#include <iostream>
-#include <chrono>
-#include "boost/log/trivial.hpp"
 /* ---------------------------- HUBBARD MODEL ---------------------------- */
 // ---- HELPERS
 /// <summary>
@@ -15,20 +9,20 @@ void hubbard::HubbardModel::av_single_step(int current_elem_i, int sign)
 {
 	// m_z
 	const double m_z2 = this->cal_mz2(sign, current_elem_i);
-	this->avs.av_M2z += m_z2;
-	this->avs.sd_M2z += m_z2 * m_z2;
+	this->avs->av_M2z += m_z2;
+	this->avs->sd_M2z += m_z2 * m_z2;
 	// m_x 
 	const double m_x2 = this->cal_mz2(sign, current_elem_i);
-	this->avs.av_M2x += m_x2;
-	this->avs.sd_M2x += m_x2 * m_x2;
+	this->avs->av_M2x += m_x2;
+	this->avs->sd_M2x += m_x2 * m_x2;
 	// occupation
 	const double occ = this->cal_occupation(sign, current_elem_i);
-	this->avs.av_occupation += occ;
-	this->avs.sd_occupation += occ * occ;
+	this->avs->av_occupation += occ;
+	this->avs->sd_occupation += occ * occ;
 	// kinetic energy
 	const double Ek = this->cal_kinetic_en(sign, current_elem_i);
-	this->avs.av_Ek += Ek;
-	this->avs.av_Ek2 += Ek * Ek;
+	this->avs->av_Ek += Ek;
+	this->avs->av_Ek2 += Ek * Ek;
 	// Correlations
 	for (int j = 0; j < this->Ns; j++) {
 		const int current_elem_j = j;
@@ -39,9 +33,9 @@ void hubbard::HubbardModel::av_single_step(int current_elem_i, int sign)
 		const int y = j_minus_i_y + this->lattice->get_Ly() - 1;
 		const int x = j_minus_i_x + this->lattice->get_Lx() - 1;
 		// normal equal - time correlations
-		this->avs.av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign,current_elem_i,current_elem_j);
-		this->avs.av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign,current_elem_i,current_elem_j);
-		this->avs.av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign,current_elem_i, current_elem_j) / (this->Ns * 2.0);
+		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign,current_elem_i,current_elem_j);
+		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign,current_elem_i,current_elem_j);
+		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign,current_elem_i, current_elem_j) / (this->Ns * 2.0);
 	}
 }
 /// <summary>
@@ -52,23 +46,23 @@ void hubbard::HubbardModel::av_single_step(int current_elem_i, int sign)
 void hubbard::HubbardModel::av_normalise(int avNum, bool times)
 {
 	const long double normalization = static_cast<long double>(avNum * this->M * this->Ns);						// average points taken
-	this->avs.av_sign = (this->pos_num - this->neg_num) / 1.0*(this->pos_num + this->neg_num);					// average sign is needed
-	this->avs.sd_sign = sqrt((1.0 - (this->avs.av_sign * this->avs.av_sign)) / normalization);					
-	const long double normalisation_sign = normalization * this->avs.av_sign;									// we divide by average sign actually
+	this->avs->av_sign = (this->pos_num - this->neg_num) / 1.0*(this->pos_num + this->neg_num);					// average sign is needed
+	this->avs->sd_sign = sqrt((1.0 - (this->avs->av_sign * this->avs->av_sign)) / normalization);					
+	const long double normalisation_sign = normalization * this->avs->av_sign;									// we divide by average sign actually
 	// with minus
-	this->avs.av_gr_down /= normalisation_sign / this->Ns;
-	this->avs.av_gr_up /= normalisation_sign / this->Ns;
+	this->avs->av_gr_down /= normalisation_sign / this->Ns;
+	this->avs->av_gr_up /= normalisation_sign / this->Ns;
 	
-	this->avs.av_occupation /= normalisation_sign;
-	this->avs.sd_occupation = sqrt((this->avs.sd_occupation / normalisation_sign - this->avs.av_occupation * this->avs.av_occupation) / normalisation_sign);
+	this->avs->av_occupation /= normalisation_sign;
+	this->avs->sd_occupation = sqrt((this->avs->sd_occupation / normalisation_sign - this->avs->av_occupation * this->avs->av_occupation) / normalisation_sign);
 	
-	this->avs.av_M2z /= normalisation_sign;
-	this->avs.sd_M2z = sqrt((this->avs.sd_M2z / normalisation_sign - this->avs.av_M2z * this->avs.av_M2z) / normalisation_sign);
-	this->avs.av_M2x /= normalisation_sign;
-	this->avs.sd_M2x = sqrt((this->avs.sd_M2x / normalisation_sign - this->avs.av_M2x * this->avs.av_M2x) / normalisation_sign);
+	this->avs->av_M2z /= normalisation_sign;
+	this->avs->sd_M2z = sqrt((this->avs->sd_M2z / normalisation_sign - this->avs->av_M2z * this->avs->av_M2z) / normalisation_sign);
+	this->avs->av_M2x /= normalisation_sign;
+	this->avs->sd_M2x = sqrt((this->avs->sd_M2x / normalisation_sign - this->avs->av_M2x * this->avs->av_M2x) / normalisation_sign);
 	// Ek
-	this->avs.av_Ek /= normalisation_sign;
-	this->avs.sd_Ek = sqrt((this->avs.av_Ek2 / normalisation_sign - this->avs.av_Ek * this->avs.av_Ek) / normalisation_sign);
+	this->avs->av_Ek /= normalisation_sign;
+	this->avs->sd_Ek = sqrt((this->avs->av_Ek2 / normalisation_sign - this->avs->av_Ek * this->avs->av_Ek) / normalisation_sign);
 	// correlations
 	for (int x = -this->lattice->get_Lx() + 1; x < this->lattice->get_Lx(); x++) {
 		for (int y = -this->lattice->get_Ly() + 1; y < this->lattice->get_Ly(); y++) {
@@ -76,15 +70,15 @@ void hubbard::HubbardModel::av_normalise(int avNum, bool times)
 				int x_pos = x + this->lattice->get_Lx() - 1;
 				int y_pos = y + this->lattice->get_Ly() - 1;
 				int z_pos = z + this->lattice->get_Lz() - 1;
-				this->avs.av_M2z_corr[x_pos][y_pos][z_pos] /= normalisation_sign;
-				this->avs.av_ch2_corr[x_pos][y_pos][z_pos] /= normalisation_sign;
-				this->avs.av_occupation_corr[x_pos][y_pos][z_pos] = this->Ns * this->avs.av_occupation_corr[x_pos][y_pos][z_pos] / normalisation_sign;
+				this->avs->av_M2z_corr[x_pos][y_pos][z_pos] /= normalisation_sign;
+				this->avs->av_ch2_corr[x_pos][y_pos][z_pos] /= normalisation_sign;
+				this->avs->av_occupation_corr[x_pos][y_pos][z_pos] = this->Ns * this->avs->av_occupation_corr[x_pos][y_pos][z_pos] / normalisation_sign;
 				//if (times) {
 					//for (int l = 0; l < this->M; l++) {
-						//this->avs.av_green_down[x_pos][y_pos][z_pos][l] /= normalisation_sign/this->M;
-						//this->avs.av_green_up[x_pos][y_pos][z_pos][l] /= normalisation_sign / this->M;
-						//this->avs.av_M2z_corr_uneqTime[x][y][z][l] /= normalisation_sign / this->M_0;
-						//this->avs.av_Charge2_corr_uneqTime[x][y][z][l] /= normalisation_sign / this->M_0;
+						//this->avs->av_green_down[x_pos][y_pos][z_pos][l] /= normalisation_sign/this->M;
+						//this->avs->av_green_up[x_pos][y_pos][z_pos][l] /= normalisation_sign / this->M;
+						//this->avs->av_M2z_corr_uneqTime[x][y][z][l] /= normalisation_sign / this->M_0;
+						//this->avs->av_Charge2_corr_uneqTime[x][y][z][l] /= normalisation_sign / this->M_0;
 				//	}
 			}
 		}
@@ -121,6 +115,11 @@ int hubbard::HubbardModel::get_M() const
 int hubbard::HubbardModel::get_M_0() const
 {
 	return this->M_0;
+}
+
+std::string hubbard::HubbardModel::get_info() const
+{
+	return this->info;
 }
 
 // ---- SETTERS
@@ -307,7 +306,7 @@ double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, i
 /* ---------------------------- HUBBARD MODEL WITH QR DECOMPOSITION ---------------------------- */
 
 // ---- CONSTRUCTORS
-hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, int M_0, double U, double mu, double beta,const std::shared_ptr<Lattice> & lattice)
+hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice)
 {
 	this->lattice = lattice;
 	this->avs = {};
@@ -334,7 +333,7 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, int M_0, double U, d
 	this->neg_num = 0;
 	/* Say hi to the world */
 #pragma omp critical
-	BOOST_LOG_TRIVIAL(info) << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << std::endl \
+	PLOG_INFO << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << std::endl \
 	// decomposition
 	<< "->M = " << this->M << std::endl \
 	<< "->M_0 = " << this->M_0 << std::endl \
@@ -622,7 +621,7 @@ int hubbard::HubbardQR::heat_bath_single_step_conf(int lat_site)
 	file_log.open(name_log);
 	file_conf.open(name_conf);
 	if(!file_conf.is_open() || !file_log.is_open()){
-		BOOST_LOG_TRIVIAL(error) << "Couldn't open either: " + name_log + " , or " + name_conf + "\n";
+		PLOG_ERROR  << "Couldn't open either: " + name_log + " , or " + name_conf + "\n";
 		throw -1;
 		exit(-1);
 	}
@@ -654,7 +653,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 	int sign = 1;
 
 	if(conf){
-		BOOST_LOG_TRIVIAL(info) << "Saving configurations of Hubbard Stratonovich fields\n";
+		PLOG_INFO << "Saving configurations of Hubbard Stratonovich fields\n";
 		ptfptr = &HubbardQR::heat_bath_single_step_conf;											// pointer to saving configs
 	}
 	else
@@ -693,12 +692,12 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	const int Ly = this->lattice->get_Ly();
 	const int Lz = this->lattice->get_Lz();
 	// Correlations - depend on the dimension - equal time
-	this->avs.av_occupation_corr = v_3d<double>(2 * Lx - 1,  v_2d<double>(2 * Ly - 1,  v_1d<double>(2 * Lz - 1, 0.0)));
-	this->avs.av_M2z_corr = this->avs.av_occupation_corr;
-	this->avs.av_ch2_corr = this->avs.av_occupation_corr;
+	this->avs->av_occupation_corr = v_3d<double>(2 * Lx - 1,  v_2d<double>(2 * Ly - 1,  v_1d<double>(2 * Lz - 1, 0.0)));
+	this->avs->av_M2z_corr = this->avs->av_occupation_corr;
+	this->avs->av_ch2_corr = this->avs->av_occupation_corr;
 	// Setting av Greens
-	this->avs.av_gr_down = arma::zeros(this->Ns, this->Ns);
-	this->avs.av_gr_up = arma::zeros(this->Ns, this->Ns);
+	this->avs->av_gr_down = arma::zeros(this->Ns, this->Ns);
+	this->avs->av_gr_up = arma::zeros(this->Ns, this->Ns);
 
 
 	for (int step = 0; step < avNum; step++) {
@@ -717,8 +716,8 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 				const int current_elem_i = i;														// set current Green i element for averages
 				this->av_single_step(current_elem_i,sign);											// collect all averages
 			}
-			this->avs.av_gr_down += this->green_down;
-			this->avs.av_gr_up += this->green_up;
+			this->avs->av_gr_down += this->green_down;
+			this->avs->av_gr_up += this->green_up;
 		}
 		// erease correlations
 		for (int corr = 0; corr < corr_time-1; corr++) {
@@ -750,14 +749,14 @@ void hubbard::HubbardQR::relaxation(impDef::algMC algorithm, int mcSteps, bool c
 		this->heat_bath_eq(mcSteps, conf, quiet);
 		break;
 	default:
-		BOOST_LOG_TRIVIAL(warning) << "Didn't choose the algorithm type\n";
+		PLOG_WARNING << "Didn't choose the algorithm type\n";
 		exit(-1);
 		break;
 	}
 
 	auto stop = std::chrono::high_resolution_clock::now();											// finishing timer for relaxation
 	if(mcSteps!=1) 
-		BOOST_LOG_TRIVIAL(info) << "Relaxation Time taken: " << \
+		PLOG_INFO << "Relaxation Time taken: " << \
 		(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() << \
 		" seconds. With average sign = " << \
 		1.0 * (this->pos_num - this->neg_num) / (this->pos_num + this->neg_num) << std::endl;
@@ -781,13 +780,13 @@ void hubbard::HubbardQR::average(impDef::algMC algorithm, int corr_time, int avN
 		this->heat_bath_av(corr_time, avNum, quiet, times);
 		break;
 	default:
-		BOOST_LOG_TRIVIAL(warning) << "Didn't choose the algorithm type\n";
+		PLOG_WARNING << "Didn't choose the algorithm type\n";
 		exit(-1);
 		break;
 	}
 	auto stop = std::chrono::high_resolution_clock::now();											// finishing timer for relaxation
 	
-	BOOST_LOG_TRIVIAL(info) << "Averages time taken: " << \
+	PLOG_INFO << "Averages time taken: " << \
 	(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() << \
 	" seconds. With average sign = " << \
 	1.0 * (this->pos_num - this->neg_num) / (this->pos_num + this->neg_num) << std::endl;

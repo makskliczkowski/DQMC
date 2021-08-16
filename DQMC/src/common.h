@@ -59,7 +59,16 @@ inline int myModuloEuclidean(int a, int b)
 	return m;
 }
 
-
+template <typename T>
+inline void printSeparated(std::ostream& output, std::vector<T> elements, std::string separtator = "\t"){
+	const int elements_size = elements.size();
+#pragma omp critical
+	for (int i = 0; i < elements_size - 1; i++) {
+		output << elements[i] << separtator;
+	}
+#pragma omp critical
+	output << elements[elements_size - 1] << std::endl;
+}
 /* STRING RELATED FUNCTIONS */
 
 /// <summary>

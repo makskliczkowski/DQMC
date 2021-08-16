@@ -27,6 +27,11 @@ double LatticeModel::getT() const
 	return this->T;
 }
 
+std::shared_ptr<averages_par> LatticeModel::get_avs() const
+{
+	return this->avs;
+}
+
 /* ------------------------------------------- LATTICE -------------------------------------------*/
 
 int Lattice::get_Ns() const
@@ -91,4 +96,12 @@ int Lattice::get_nnn_number(int lat_site) const
 int Lattice::get_coordinates(int lat_site, int axis) const
 {
 	return this->coordinates[lat_site][axis];
+}
+/// <summary>
+/// Get the string type of the lattice
+/// </summary>
+/// <returns>type of the lattice as a string</returns>
+std::string Lattice::get_type() const
+{
+	return this->type;
 }

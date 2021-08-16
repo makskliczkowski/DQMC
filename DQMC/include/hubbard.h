@@ -3,6 +3,11 @@
 #define HUBBARD_h
 
 #include "general_model.h"
+#include "plog/Log.h"
+#include "plog/Initializers/RollingFileInitializer.h"
+#include <filesystem>
+#include <iostream>
+#include <chrono>
 #include <armadillo>
 
 namespace hubbard{
@@ -38,7 +43,7 @@ namespace hubbard{
 		arma::mat green_up, green_down;															// Green's matrix up and down at given (equal) time
 		
 		// HELPING PARAMETERS
-		std::string info; 
+		std::string info;																		// info about the model for file creation
 		std::string neg_dir;																	// directory for negative configurations
 		std::string neg_log;																	// the name of negative sign log file
 		std::string pos_dir;																	// directory for positive configurations
@@ -99,6 +104,7 @@ namespace hubbard{
 		// GETTERS 
 		int get_M() const;
 		int get_M_0() const;
+		std::string get_info() const;
 		
 		// SETTERS
 		void setConfDir(std::string dir);														// sets the directory for saving configurations with a given sign
@@ -130,7 +136,7 @@ namespace hubbard{
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
 	public:
 		// CONSTRUCTORS 
-		HubbardQR(const std::vector<double>& t, int M_0, double U, double mu, double beta,const std::shared_ptr<Lattice>& lattice);
+		HubbardQR(const std::vector<double>& t, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice);
 
 		// CALCULATORS OVERRIDE
 		void relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet) override;

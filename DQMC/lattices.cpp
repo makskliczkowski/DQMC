@@ -8,6 +8,7 @@ SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 	this->dimension = dim;
 	this->Lx = Lx; this->Ly = Ly; this->Lz = Lz;
 	this->boundary_conditions = bc;
+	this->type = "square";
 	switch (this->dimension)
 	{
 	case 1:
@@ -32,17 +33,17 @@ SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 	this->calculate_coordinates();
 }
 
-int SquareLattice::get_Lx()
+int SquareLattice::get_Lx() const
 {
 	return this->Lx;
 }
 
-int SquareLattice::get_Ly()
+int SquareLattice::get_Ly() const
 {
 	return this->Ly;
 }
 
-int SquareLattice::get_Lz()
+int SquareLattice::get_Lz() const
 {
 	return this->Lz;
 }

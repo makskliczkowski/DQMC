@@ -72,6 +72,7 @@ protected:
 	/* LATTICE PARAMETERS */
 	unsigned int dimension;										// the dimensionality of the lattice 1,2,3
 	unsigned int Ns;											// number of lattice sites
+	std::string type;											// type of the lattice
 	int boundary_conditions;									// boundary conditions 0 = PBC, 1 = OBC
 	//impDef::lattice_types lattice_type;							// the type of lattice this is
 	v_2d<int> nearest_neighbors;								// vector of the nearest neighbors
@@ -82,9 +83,9 @@ protected:
 public:
 	virtual ~Lattice() = default;
 	/* VIRTUAL GETTERS */
-	virtual int get_Lx() = 0;
-	virtual int get_Ly() = 0;
-	virtual int get_Lz() = 0;
+	virtual int get_Lx() const = 0;
+	virtual int get_Ly() const = 0;
+	virtual int get_Lz() const = 0;
 	/* GETTERS */
 	int get_Ns() const;
 	int get_Dim() const;
@@ -93,6 +94,7 @@ public:
 	int get_nn_number(int lat_site) const;						// returns the number of nn
 	int get_nnn_number(int lat_site) const;						// returns the number of nnn
 	int get_coordinates(int lat_site, int axis) const;			// returns the given coordinate
+	std::string get_type() const;								// returns the type of the lattice as a string
 	/* CALCULATORS */
 	virtual void calculate_nn_pbc() = 0;
 	virtual void calculate_nnn_pbc() = 0;
@@ -111,7 +113,7 @@ protected:
 	unsigned int Ns;											// number of lattice sites
 	randomGen ran;												// consistent quick random number generator
 	std::shared_ptr<Lattice> lattice;							// contains all the information about the lattice
-	averages_par avs;											// structure containing all the averages
+	std::shared_ptr<averages_par> avs;							// structure containing all the averages
 public:
 	virtual ~LatticeModel() = default;							// pure virtual destructor
 		
@@ -123,7 +125,7 @@ public:
 	int getDim() const;
 	int getNs() const;
 	double getT() const;
-
+	std::shared_ptr<averages_par> get_avs() const;
 	/* SETTERS */
 
 

@@ -1,6 +1,51 @@
 #include "src/user_interface.h"
 
+
+
 /* ----------------------- USER INTERFACE --------------------- */
+
+template<typename T>
+void user_interface::set_option(T& value,const v_1d<std::string>& argv, std::string choosen_option, bool geq_0)
+{
+	if(std::string option = this->getCmdOption(argv,choosen_option); option != "")			
+		value = static_cast<T>(stod(option));												// set value to an option
+	if(geq_0 && value <= 0)																	// if the variable shall be bigger equal 0
+		this->set_default_msg(value,choosen_option.substr(1),\
+			choosen_option + " cannot be negative\n", hubbard::default_params);
+}
+
+/// <summary>
+/// Set 
+/// </summary>
+/// <typeparam name="T"></typeparam>
+/// <param name="value"></param>
+/// <param name="option"></param>
+/// <param name="message"></param>
+template<typename T>
+inline void user_interface::set_default_msg(T& value, std::string option, std::string message, const std::unordered_map <std::string, std::string>& map) const
+{
+	PLOG_WARNING << message;																// print warning
+	std::string value_str = "";																// we will set this to value
+	auto it = map.find(argument);
+	if (it != map.end()) {
+			value_str = it->second;															// if in table - we take the enum 
+		}
+	value = stod(value_str);
+}
+/// <summary>
+/// Find a given option in a vector of string given from cmd parser
+/// </summary>
+/// <param name="vec">vector of strings from cmd</param>
+/// <param name="option">the option that we seek</param>
+/// <returns>value for given option if exists, if not an empty string</returns>
+std::string user_interface::getCmdOption(const v_1d<std::string>& vec, std::string option) const
+{
+    if (auto itr = std::find(vec.begin(), vec.end(), option); itr != vec.end() && ++itr != vec.end())
+    {
+        return *itr;
+    }
+    return std::string();
+}
 /// <summary>
 /// If the commands are given from file, we must treat them the same as arguments
 /// </summary>
@@ -11,23 +56,38 @@ std::vector<std::string> user_interface::parseInputFile(std::string filename){
 	std::ifstream inputFile(filename);
 	std::string line = "";
 	if(!inputFile.is_open()){
-		std::cout << "Cannot open a file " + filename + " that I could parse. Setting all parameters to default. Sorry :c \n";
+		PLOG_WARNING << "Cannot open a file " + filename + " that I could parse. Setting all parameters to default. Sorry :c \n";
 		this->set_default();
 	}
 	else{
 		if(std::getline(inputFile, line)){
-			commands = split_str(line, " ");														// saving lines to out vector if it can be done, then the parser shall treat them normally
+			commands = split_str(line, " ");										// saving lines to out vector if it can be done, then the parser shall treat them normally
 		}
 	}
 	return std::vector<std::string>(commands.begin(),commands.end()); 
 }
 /* ----------------------- HUBBARD ----------------------- */
-// --- CONSTRUCTOR
+// ---- CONSTRUCTOR
+
+/// <summary>
+/// Using plog library for loging
+/// https://github.com/SergiusTheBest/plog
+/// </summary>
+/// <param name="argc">number of cmd parameters</param>
+/// <param name="argv">cmd parameters</param>
 hubbard::ui::ui(int argc, char** argv)
 {
-	this->set_default();
-	this->parseModel(argc, change_input_to_vec_of_str(argc, argv));
+	auto input = change_input_to_vec_of_str(argc, argv);									// change standard input to vec of strings
+	input = std::vector<std::string>(input.begin()++, input.end());							// skip the first element which is the name of file
+
+	plog::init(plog::info, "log.txt");														// initialize logger
+	if(std::string option = this->getCmdOption(input,"-f"); option != ""){
+		input = this->parseInputFile(option);												// parse input from file
+	}
+	this->parseModel(input.size(), input);													// parse input from CMD directly
 }
+
+// ---- PARSERS
 /// <summary>
 /// Prints help for a Hubbard interface
 /// </summary>
@@ -36,20 +96,26 @@ void hubbard::ui::exit_with_help()
 	printf(
 		"Usage: name [options] outputDir \n"
 		"options:\n"
-		"-m monte carlo steps : bigger than 0 (default 300)\n"
-		"-d dimension : set dimension (default 2)\n"
+		" The input can be both introduced with [options] described below or with giving the input directory \n"
+		" (which also is the flag in the options) \n"
+		" options:\n"
+		"-f input file for all of the options : (default none) \n"
+		"-m monte carlo steps : bigger than 0 (default 300) \n"
+		"-d dimension : set dimension (default 2) \n"
 		"	1 -- 1D \n"
 		"	2 -- 2D \n"
 		"	3 -- 3D -> NOT IMPLEMENTED YET \n"
 		"-l lattice type : (default square) -> CHANGE NOT IMPLEMENTED YET \n"
 		"   square \n"
-		"-t exchange constant : set hopping (default -1) -> NEED TO MAKE IT MORE UNIVERSAL FOR VECTOR\n"
-		"-a averages number : set tolerance for statistics, bigger than 0 (default 50)\n"
-		"-c correlation time : whether to wait to collect observables, bigger than 0 (default 1)\n"
+		"-t exchange constant : set hopping (default 1) \n"
+		"   is numeric? - constant value \n"
+		"   'r' - uniform random on each (NOT IMPLEMENTED YET) \n"
+		"-a averages number : set tolerance for statistics, bigger than 0 (default 50) \n"
+		"-c correlation time : whether to wait to collect observables, bigger than 0 (default 1) \n"
 		"-M0 all Trotter slices sections : this sets how many slices in division our Trotter times number has, bigger than 0 (default 10)\n"
-		"-dt dtau : Trotter step (default beta/2*M_0)\n"
-		"-dts dtau : Trotter step step (default beta/2*M_0)\n"
-		"-dtn dtau : Trotter steps number(default beta/2*M_0)\n"
+		"-dt dtau : Trotter step (default 0.1)\n"
+		"-dts dtau : Trotter step step (default 0)\n"
+		"-dtn dtau : Trotter steps number(default 1)\n"
 		// SIMULATIONS STEPS
 		"-lx x-length : bigger than 0(default 4)\n"
 		"-lxs x-length step : integer, bigger than 0 (default 1)\n"
@@ -85,350 +151,13 @@ void hubbard::ui::exit_with_help()
 		"\n"
 		"-sf use self-learning : 0(default) - do not use, 1 (just train parameters and exit), 2 (just make simulation from the existing network)\n"
 		"-sfn - the number of configurations saved to train(default 50)\n"
+		"-h - help\n"
 	);
 	std::exit(1);
 }
 /// <summary>
-/// Hubbard model parser
+/// Setting Hubbard parameters to default
 /// </summary>
-/// <param name="argc">number of line arguments</param>
-/// <param name="argv">line arguments</param>
-void hubbard::ui::parseModel(int argc, v_1d<std::string> argv)
-{
-	double T = 1/this->beta;
-	int i = 1;
-	for (i = 1; i < argc; i++)
-	{
-		/* BREAKERS */
-		if (argv[i][0] != '-') break;
-		//if (reading_from_file) break;
-		if (++i >= argc)
-			this->exit_with_help();
-
-		/* PARSE COMANDS */
-		std::string argument = ((argv[i - 1])).substr(1, (argv[i - 1]).size() - 1);			// taking the argument to string
-		auto it = table.find(argument);														// looking for argument iterator in map parser
-		parsers enum_arg;																	// creating an instance of the enum class for switch-case
-		if (it != table.end()) {
-			enum_arg = it->second;															// if in table - we take the enum 
-		}
-		else {
-			enum_arg = parsers::q;
-			fprintf(stderr, "Unknown option: -%c\n", argv[i - 1][1]);						// exit if item is not in the parser
-			exit_with_help();
-		}
-		switch (enum_arg)
-		{
-		case hubbard::parsers::m:
-			/* MONTE CARLO STEPS */
-			this->mcSteps = stoi(argv[i]);
-			if (this->mcSteps <= 0) {
-				std::cout << "Can't be negative! Setting default!\n";
-				mcSteps = 300;
-			}
-			if (this->mcSteps <= 1) {
-				this->mcSteps = 1;
-				std::cout << "Min is 1!\n";
-			}
-			break;
-		case hubbard::parsers::d:
-			/* DIMENSION */
-			this->dim = stoi(argv[i]);
-			if (dim >= 3 || dim < 1) {
-				std::cout << "Bad input! Setting default!\n";
-				this->dim = 2;
-			}
-			break;
-		case hubbard::parsers::c:
-			/* DIMENSION */
-			this->corrTime = stoi(argv[i]);
-			if (this->corrTime < 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->corrTime = 1;
-			}
-			break;
-		case hubbard::parsers::l:
-			/* LATTICE TYPE */
-			//type = stoi(argv[i]);
-			break;
-		case hubbard::parsers::t:
-			/* EXCHANGE CONSTANT */
-			this->t[0] = stof(argv[i]);
-			break;
-		case hubbard::parsers::a:
-			/* AVERAGES NUMBER */
-			this->avsNum = stoi(argv[i]);
-			if (this->avsNum <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->avsNum = 50;
-			}
-			break;
-		case hubbard::parsers::M0:
-			/* M0 */
-			this->M_0 = stoi(argv[i]);
-			if (this->M_0 <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->M_0 = 10;
-			}
-			break;
-		case hubbard::parsers::dt:
-			/* TROTTER STEP -> NOT IMPLEMENTED YET FOR CHANGING EVERY TIME */
-			this->dtau = stof(argv[i]);
-			if (this->dtau <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->dtau = 0.15;
-			}
-			break;
-		case hubbard::parsers::dtn:
-			this->dtau_num = stoi(argv[i]);
-			if (this->dtau_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->dtau_num = 1;
-			}
-			break;
-		case hubbard::parsers::dts:
-			this->dtau_step = stof(argv[i]);
-			if (this->dtau_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->dtau_num = 1;
-				this->dtau_step = 0.1;
-			}
-			break;
-			//--------//
-		case hubbard::parsers::lx:
-			/* lx */
-			this->lx = stoi(argv[i]);
-			if (this->lx <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->lx = 4;
-			}
-			break;
-		case hubbard::parsers::lxs:
-			/* lx STEP */
-			this->lx_step = stoi(argv[i]);
-			if (this->lx_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->lx_step = 1;
-			}
-			break;
-		case hubbard::parsers::lxn:
-			/* lx NUMBER */
-			this->lx_num = stoi(argv[i]);
-			if (this->lx_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->lx_num = 1;
-			}
-			break;
-		case hubbard::parsers::ly:
-			/* ly */
-			this->ly = stoi(argv[i]);
-			if (this->ly <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->ly = 4;
-			}
-			break;
-		case hubbard::parsers::lys:
-			/* ly STEP */
-			this->ly_step = stoi(argv[i]);
-			if (this->ly_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->ly_step = 1;
-			}
-			break;
-		case hubbard::parsers::lyn:
-			/* ly NUMBER */
-			this->ly_num = stoi(argv[i]);
-			if (this->ly_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->ly_num = 1;
-			}
-			break;
-		case hubbard::parsers::lz:
-			/* lz */
-			this->lz = stoi(argv[i]);
-			if (this->lz <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->lz = 1;
-			}
-			break;
-		case hubbard::parsers::lzs:
-			/* lz STEP */
-			this->lz_step = stoi(argv[i]);
-			if (this->lz_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->lz_step = 1;
-			}
-			break;
-		case hubbard::parsers::lzn:
-			/* lz NUMBER */
-			this->lz_num = stoi(argv[i]);
-			if (this->lz_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->lz_num = 1;
-			}
-			break;
-		case hubbard::parsers::b:
-			/* BETA */
-			this->beta = stof(argv[i]);
-			if (this->beta <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->beta = 6;
-			}
-			T = 1.0 / beta;
-			break;
-		case hubbard::parsers::bs:
-			/* BETA STEP */
-			this->beta_step = stof(argv[i]);
-			if (this->beta_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->beta_step = 1;
-			}
-			break;
-		case hubbard::parsers::bn:
-			/* BETA NUMBER */
-			beta_num = stoi(argv[i]);
-			if (beta_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				beta_num = 1;
-			}
-			break;
-		case hubbard::parsers::u:
-			/* INTERACTION */
-			this->U = stof(argv[i]);
-			break;
-		case hubbard::parsers::us:
-			/* INTERACTION STEP */
-			this->U_step = stof(argv[i]);
-			if (this->U_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->U_step = 1;
-			}
-			break;
-		case hubbard::parsers::un:
-			/* INTERACTION NUMBER */
-			this->U_num = stoi(argv[i]);
-			if (this->U_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->U_num = 1;
-			}
-			break;
-		case hubbard::parsers::mu:
-			/* CHEMICAL POTENTIAL */
-			this->mu = stof(argv[i]);
-			break;
-		case hubbard::parsers::mus:
-			/* CHEMICAL POTENTIAL STEP */
-			this->mu_step = stof(argv[i]);
-			if (this->mu_step <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->mu_step = 1;
-			}
-			break;
-		case hubbard::parsers::mun:
-			/* CHEMICAL POTENTIAL NUMBER */
-			this->mu_num = stoi(argv[i]);
-			if (this->mu_num <= 0) {
-				std::cout << "Bad input! Setting default!\n";
-				this->mu_num = 1;
-			}
-			break;
-		case hubbard::parsers::q:
-			/* QUIET MODE -> NOT READY YET */
-			this->quiet = bool(stoi(argv[i]));
-			break;
-		case hubbard::parsers::th:
-			/* OUTER THREADS NUMBER */
-			this->outer_threads = stoi(argv[i]);
-			if (this->outer_threads <= 0 || this->outer_threads > this->thread_number)
-			{
-				std::cout << "Bad input! Setting default!\n";
-				this->outer_threads = 1;
-			}
-			break;
-		case hubbard::parsers::ti:
-			/* INNER THREADS NUMBER */
-			this->inner_threads = stoi(argv[i]);
-			if (this->inner_threads <= 0 || this->outer_threads * this->inner_threads > this->thread_number)
-			{
-				std::cout << "Bad input! Setting default!\n";
-				this->inner_threads = 1;
-			}
-			break;
-		case hubbard::parsers::qr:
-			this->qr_dec = bool(stoi(argv[i]));
-			break;
-		case hubbard::parsers::times:
-			this->cal_times = bool(stoi(argv[i]));
-			break;
-		case hubbard::parsers::config:
-			this->save_conf = bool(stoi(argv[i]));
-			break;
-		case hubbard::parsers::self_learn:
-			this->sf = stoi(argv[i]);
-			if(this->sf <0 && sf > 2)
-			{
-				this->sf = 0;
-				std::cout << "WRONG OPTION FOR SF! SETTING DEFAULT\n";
-			}
-			break;
-		case hubbard::parsers::self_learn_n:
-			this->sfn = stoi(argv[i]);
-			if (sfn <= 0)
-			{
-				this->sfn = 50;
-				std::cout << "WRONG OPTION FOR SF NUMBER! SETTING DEFAULT\n";
-			}
-			break;
-		default:
-			fprintf(stderr, "Unknown option: -%c\n", argv[i - 1][1]);
-			//cout << "Setting default training model parameters\n";
-			exit_with_help();
-		}
-	}
-	if ((!((argv[i]).size()))==0){
-		std::filesystem::create_directories(saving_dir);													// creating the directory for saving the files with results
-		this->saving_dir = (argv[i]);
-	}
-
-	int Ns = lx*ly*lz;
-	t = v_1d<double>(Ns, t[0]);
-	std::cout << "USING OUTER THREADS = " << outer_threads << std::endl;
-	omp_set_num_threads(outer_threads);
-	#pragma omp parallel for num_threads(outer_threads) collapse(5)
-	for (int bi = 0; bi < beta_num; bi++) {
-		// over different betas
-		for (int ui = 0; ui < U_num; ui++) {
-			// over interactions
-			for (int mui = 0; mui < mu_num; mui++) {
-				// over chemical potentials
-				for (int Li = 0; Li < lx_num; Li++) {
-					// over lattice sizes
-					/* PARAMS LOCALLY FOR THREADS */
-					for (int dtau_i = 0; dtau_i < dtau_num; dtau_i++) {
-						int Lxi = lx + Li * lx_step;
-						int Lyi = ly + Li * ly_step;
-						int Lzi = 1;
-						double betai = beta + bi * beta_step;
-						double Ui = U + ui * U_step;
-						double muii = mu + mui * mu_step;
-						double dtauii = dtau + dtau_i * dtau_step;
-						/* TROTTER */
-						//long double dtaui = dtau;//sqrt(0.125 / Ui);
-						int M0i = M_0;
-						int Mi = static_cast<double>(1.0 * betai / dtauii);
-						int pi = int(1.0 * Mi / M0i);
-						Mi = pi * M0i;
-						dtauii = 1.0 * betai / static_cast<double>(Mi);
-						/* CALCULATE */
-						//collectAvs(save_dir, quiet, qr_dec, save_config, mcSteps, dimension, t, Ui, avsNum, corrTime, M_0, dtauii, pi, betai, muii, Lxi, Lyi, Lzi, col_times,sf ,sfn);
-					}
-				}
-			}
-		}
-	}
-	std::cout << "FINISHED EVERY THREAD" << std::endl;
-}
-
 void hubbard::ui::set_default()
 {
 	this->inner_threads = 1;
@@ -478,4 +207,374 @@ void hubbard::ui::set_default()
 	this->mcSteps = 300;
 	this->avsNum = 50;
 	this->corrTime = 1;
+}
+/// <summary>
+/// Hubbard model parser
+/// </summary>
+/// <param name="argc">number of line arguments</param>
+/// <param name="argv">line arguments</param>
+void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
+{
+	this->set_default();
+
+	std::string choosen_option = "";
+
+	//---------- SIMULATION PARAMETERS	
+	// monte carlo steps
+	choosen_option = "-m";																	
+	this->set_option(this->mcSteps,argv,choosen_option);
+	// dimension
+	choosen_option = "-d";																	
+	this->set_option(this->dim,argv,choosen_option, false);
+	if (this->dim  >= 3 || this->dim  < 1) 
+		this->set_default_msg(this->dim ,choosen_option.substr(1),\
+			"Wrong dimmension\n", hubbard::default_params);
+	// correlation time 
+	choosen_option = "-c";																	
+	this->set_option(this->corrTime,argv,choosen_option);
+	// number of averages
+	choosen_option = "-a";																	
+	this->set_option(this->avsNum,argv,choosen_option);
+	// Trotter subintervals
+	choosen_option = "-m0";																	
+	this->set_option(this->M_0,argv,choosen_option);
+	// ---------- Trotter time difference
+	choosen_option = "-dt";																	
+	this->set_option(this->dtau,argv,choosen_option);
+	// Trotter time differences number
+	choosen_option = "-dtn";																
+	this->set_option(this->dtau_num,argv,choosen_option);
+	// Trotter time differences step
+	choosen_option = "-dts";																
+	this->set_option(this->dtau_step,argv,choosen_option);
+	// ---------- beta
+	choosen_option = "-b";																
+	this->set_option(this->beta,argv,choosen_option);
+	// beta step
+	choosen_option = "-bs";																
+	this->set_option(this->beta_step,argv,choosen_option);
+	// betas number
+	choosen_option = "-bn";																
+	this->set_option(this->beta_num,argv,choosen_option);
+	// ---------- U
+	choosen_option = "-u";																
+	this->set_option(this->U,argv,choosen_option,false);
+	// U step
+	choosen_option = "-us";																
+	this->set_option(this->U_step,argv,choosen_option,false);
+	// U number
+	choosen_option = "-un";																
+	this->set_option(this->U_num,argv,choosen_option);
+	// ---------- mu
+	choosen_option = "-mu";																
+	this->set_option(this->mu,argv,choosen_option,false);
+	// mu step
+	choosen_option = "-mus";																
+	this->set_option(this->mu_step,argv,choosen_option,false);
+	// mu number
+	choosen_option = "-mun";																
+	this->set_option(this->mu_num,argv,choosen_option);
+	// ---------- LATTICE PARAMETERS 
+	// lx
+	choosen_option = "-lx";																
+	this->set_option(this->lx,argv,choosen_option);
+	// lx_step
+	choosen_option = "-lxs";																
+	this->set_option(this->lx_num,argv,choosen_option);
+	// lx_num
+	choosen_option = "-lxn";																
+	this->set_option(this->lx_step,argv,choosen_option);
+	// ly
+	choosen_option = "-ly";																
+	this->set_option(this->ly,argv,choosen_option);
+	// ly_step
+	choosen_option = "-lys";																
+	this->set_option(this->ly_num,argv,choosen_option);
+	// ly_num
+	choosen_option = "-lyn";																
+	this->set_option(this->ly_step,argv,choosen_option);
+	// lz
+	choosen_option = "-lz";																
+	this->set_option(this->lz,argv,choosen_option);
+	// lz_step
+	choosen_option = "-lzs";																
+	this->set_option(this->lz_num,argv,choosen_option);
+	// lz_num
+	choosen_option = "-lzn";																
+	this->set_option(this->lz_step,argv,choosen_option);
+
+	double T = 1/this->beta;
+	int Ns = this->lx*this->ly*this->lz;
+	//---------- OTHERS
+	// quiet
+	choosen_option = "-q";																
+	this->set_option(this->quiet,argv,choosen_option, false);
+	// outer thread number
+	choosen_option = "-th";																
+	this->set_option(this->outer_threads,argv,choosen_option, false);
+	if (this->outer_threads <= 0 || this->outer_threads * this->inner_threads > this->thread_number)
+		this->set_default_msg(this->outer_threads ,choosen_option.substr(1),\
+			"Wrong number of threads\n", hubbard::default_params);
+	// inner thread number
+	choosen_option = "-ti";																
+	this->set_option(this->inner_threads,argv,choosen_option, false);
+	if (this->inner_threads <= 0 || this->outer_threads * this->inner_threads > this->thread_number)
+		this->set_default_msg(this->inner_threads ,choosen_option.substr(1),\
+			"Wrong number of threads\n", hubbard::default_params);
+	// qr
+	choosen_option = "-qr";																
+	this->set_option(this->qr_dec,argv,choosen_option, false);
+	// calculate different times
+	choosen_option = "-ct";																
+	this->set_option(this->cal_times,argv,choosen_option, false);
+	// save configurations
+	choosen_option = "-cg";																
+	this->set_option(this->save_conf,argv,choosen_option, false);
+	// self learning
+	choosen_option = "-sf";																
+	this->set_option(this->sf,argv,choosen_option, false);
+	if (this->sf <0 && this->sf > 2)
+		this->set_default_msg(this->sf ,choosen_option.substr(1),\
+			"Wrong input for self learning\n", hubbard::default_params);
+	// self learning number
+	choosen_option = "-sfn";																
+	this->set_option(this->sfn,argv,choosen_option, false);
+	// hopping coefficients
+	choosen_option = "-t";																	
+	this->set_option(this->t_fill,argv,choosen_option, false);
+	this->t = std::vector<double>(Ns, t_fill);
+	// get help
+	choosen_option = "-h";		
+	if(std::string option = this->getCmdOption(argv,choosen_option); option != "")			
+		exit_with_help();
+
+	if (argv[argc-1].size() != 0 && argc % 2 != 0){
+		// only if the last command is non-even
+		std::filesystem::create_directories(saving_dir);				// creating the directory for saving the files with results
+		this->saving_dir = argv[argc-1];
+	}
+	omp_set_num_threads(outer_threads);
+
+}
+
+
+void hubbard::ui::make_simulation()
+{
+	PLOG_INFO << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << std::endl;
+	#pragma omp parallel for num_threads(outer_threads) collapse(5)
+	for (int bi = 0; bi < this->beta_num; bi++) {
+		// over different betas
+		for (int ui = 0; ui < this->U_num; ui++) {
+			// over interactions
+			for (int mui = 0; mui < this->mu_num; mui++) {
+				// over chemical potentials
+				for (int Li = 0; Li < this->lx_num; Li++) {
+					// over lattice sizes (currently square)
+					for (int dtaui = 0; dtaui < this->dtau_num; dtaui++) {
+						// PARAMS LOCALLY FOR THREADS 
+						auto Lx_i = this->lx + Li * this->lx_step;
+						auto Ly_i = this->ly + Li * this->ly_step;
+						auto Lz_i = 1;
+
+						auto beta_i = this->beta + bi * this->beta_step;
+						auto U_i = this->U + ui * this->U_step;
+						auto mu_i = this->mu + mui * mu_step;
+						auto dtau_i = this->dtau + dtaui * this->dtau_step;
+						/* TROTTER */
+						//long double dtaui = dtau;//sqrt(0.125 / Ui);
+						auto M0_i = M_0;
+						auto M_i = static_cast<int>(1.0 * beta_i / dtau_i);
+						auto p_i = int(1.0 * M_i / M0_i);
+						M_i = p_i * M0_i;
+						dtau_i = 1.0 * beta_i / (M_i);
+						/* CALCULATE */
+						//collectAvs(save_dir, quiet, qr_dec, save_config, mcSteps, dimension, t, Ui, avsNum, corrTime, M_0, dtauii, pi, betai, muii, Lxi, Lyi, Lzi, col_times,sf ,sfn);
+					}
+				}
+			}
+		}
+	}
+	PLOG_INFO << "FINISHED EVERY THREAD" << std::endl;
+}
+
+
+// ---- HELPERS
+
+void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz)
+{
+	using namespace std;
+	auto start = chrono::high_resolution_clock::now();
+	// parameters and constants
+	const auto M = static_cast<int>(beta / dtau);
+	const auto Ns = Lx * Ly * Lz;
+	const auto T = 1.0/beta;
+	std::shared_ptr<averages_par> avs;
+	// model
+	std::shared_ptr<Lattice> lat;
+	// ------------------------------- set lattice --------------------------------
+	switch(this->lattice_type){
+	case 0:
+		lat = std::make_shared<SquareLattice>(Lx,Ly,Lz,dim, this->boundary_conditions);
+		break;
+	default:
+		lat = std::make_shared<SquareLattice>(Lx,Ly,Lz,dim, this->boundary_conditions);
+		break;
+	}
+	// ------------------------------- set model --------------------------------
+	std::unique_ptr<hubbard::HubbardModel> model;
+	if(this->qr_dec){
+		model = std::make_unique<hubbard::HubbardQR>(this->t,M_0,U,mu,beta,lat);
+	}
+	// ------------------------------- file handler --------------------------------
+	std::string LxLyLz = "Lx=" + to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
+	std::ofstream fileLog, fileP, fileP_time,fileGup, fileGdown;
+
+	std::string lat_type = lat->get_type() + std::string(kPSep);																		// making folder for given lattice type
+	std::string working_dir = this->saving_dir + lat_type + to_string(dim) + "D" + std::string(kPSep) + LxLyLz + std::string(kPSep);	// name of the working directory
+	/* CREATE DIRECTORIES */
+	std::string fourier_dir = working_dir + "fouriers";		
+	std::filesystem::create_directories(fourier_dir);																					// create folder for fourier based parameters
+	std::filesystem::create_directories(fourier_dir + std::string(kPSep) + "times");													// and with different times
+	fourier_dir += std::string(kPSep);																					
+
+	std::string params_dir = working_dir + "params";																					// rea; space based parameters directory
+	//std::string greens_dir = params_dir + std::string(kPSep) + "greens";																		// greens directory
+	std::filesystem::create_directories(params_dir);
+	std::filesystem::create_directories(params_dir + std::string(kPSep) + "times");
+	//std::filesystem::create_directories(greens_dir);
+	params_dir += std::string(kPSep);
+	//greens_dir += std::string(kPSep);
+
+	std::string conf_dir = working_dir + "configurations"  + std::string(kPSep);
+	model->setConfDir(conf_dir);																										// setting directory for saving configurations
+
+	// FILES
+	std::string info = model->get_info();																								// information about the current model
+	std::string nameFouriers = fourier_dir  + info+ ".dat";
+	std::string nameFouriersTime = fourier_dir + std::string(kPSep) + "times" + std::string(kPSep) +  info + ".dat";
+	std::string nameNormal = params_dir + info+ ".dat";
+	std::string nameNormalTime = params_dir + std::string(kPSep) + "times" + std::string(kPSep) + info+ ".dat";
+	std::string nameLog = working_dir + "HubbardLog.dat";
+
+	// RELAX
+	if (sf == 0)																														// without using machine learning to self learn																								
+	{
+		model->relaxation(impDef::algMC::heat_bath, this->mcSteps, this->quiet, this->save_conf);										// this can also handle saving configurations
+		if(!this->save_conf){
+			// FILES
+			fileLog.open(nameLog);
+			if(!fileLog.is_open()) throw "couldn't open a file: " + nameLog + "\n";
+			fileLog << "mcsteps\tavsNum\tcorrTime\tM\tM0\tdtau\tLx\tLy\tLz\tbeta\tT\tU\tmu\toccupation\tsd_occupation\taverage_sign\tsd_sign\tavE_kin\tsd_E_kin\tav_m2z\tav_m2x\tcalculations_time\n";
+			fileP.open(nameNormal);
+			if(!fileP.is_open()) throw "couldn't open a file: " + nameLog + "\n";
+			fileP << "x\ty\tz\tavM2z_corr\tavCharge_corr" << endl;
+			// REST
+			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet, this->cal_times);
+			avs = model->get_avs();
+			v_1d<std::string> log_vec = {
+				to_string(this->mcSteps), to_string(this->avsNum), to_string(this->corrTime), to_string(M), to_string(M_0), to_string_prec(dtau),
+				to_string(Lx), to_string(Ly), to_string(Lz), to_string_prec(beta), to_string_prec(T), to_string_prec(U),
+				to_string_prec(mu), to_string_prec(avs->av_occupation, 4), to_string_prec(avs->sd_occupation, 4),
+				to_string_prec(avs->av_sign, 5), to_string_prec(avs->sd_sign, 4),to_string_prec(avs->av_Ek,4),to_string_prec(avs->sd_Ek,4),
+				to_string_prec(avs->av_M2z), to_string_prec(avs->av_M2x),
+				to_string((chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count())
+			};
+			printSeparated(fileLog, log_vec);
+			PLOG_INFO << "\t--- Average occupation is n = " << avs->av_occupation << "\t---Average sign is sign= " << avs->av_sign << "\t---Average local moment is m_z^2= " << avs->av_M2z << "---" << endl << endl;
+			// FILES CORRELATIONS
+			for (int x = -Lx + 1; x < Lx; x++) {
+				for (int y = -Ly + 1; y < Ly; y++) {
+					for (int z = -Lz + 1; z < Lz; z++) {
+						int x_pos = x + Lx - 1;
+						int y_pos = y + Ly - 1;
+						int z_pos = z + Lz - 1;
+						fileP << x << "\t" << y << "\t" << z << "\t" << (avs->av_M2z_corr[x_pos][y_pos][z_pos]) << "\t" << (avs->av_ch2_corr[x_pos][y_pos][z_pos]) << endl;
+						//if (times) {
+						//	for (int i = 0; i < M; i++) {
+								//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << (avs.av_M2z_corr_uneqTime[x_pos][y_pos][z_pos][i]) << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
+								//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << this->gree << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
+						//	}
+					}
+				}
+			}
+			fileP.close();
+			fileLog.close();
+			this->collectFouriers(nameFouriersTime, nameFouriers, Lx, Ly, Lz, M, avs);
+		}
+	}
+	PLOG_INFO << "FINISHED EVERYTHING - Time taken: " << (chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count() << " seconds" << endl;
+}
+
+void hubbard::ui::collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, std::shared_ptr<averages_par> avs)
+{
+	using namespace std;
+	std::ofstream file_fouriers, file_fouriers_time;
+	file_fouriers.open(name);
+	/*if (times) {
+		file_fouriers_time.open(filenameTimes + "_time.dat");
+		if (!file_fouriers_time.is_open()) {
+			cout << "Couldn't open a file\n";
+			exit(-1);
+		}
+		//file_fouriers_time << "kx\tky\tkz\tdtau\toccupation_fourier\tgreen_up\tgreen_down\tmagnetic_susc\tcharge_susc" << endl;
+		file_fouriers_time << "kx\tky\tkz\ttau\tgreen_up\tgreen_down" << endl;
+	}*/
+	if (!file_fouriers.is_open()) throw "couldn't open a file: " + name + "\n";
+	file_fouriers << "kx\tky\tkz\toccupation_fourier\tspin_structure_factor\tcharge_structure_factor" << endl;
+	
+	int kx_num = Lx; int ky_num = Ly; int kz_num = Lz;
+	int N = kx_num * ky_num * kz_num;
+	const auto two_pi_over_Lx = 2 * PI / kx_num;
+	const auto two_pi_over_Ly = 2 * PI / ky_num;
+	const auto two_pi_over_Lz = 2 * PI / kz_num;
+
+	for (int qx = 0; qx < kx_num; qx++) {
+		double kx = -PI + two_pi_over_Lx * qx;
+		for (int qy = 0; qy < ky_num; qy++) {
+			double ky = -PI + two_pi_over_Ly * qy;
+			for (int qz = 0; qz < kz_num; qz++) {
+				double kz = -PI + two_pi_over_Lz * qz;
+				/* Fourier occupation */
+
+				arma::cx_double spin_structure_factor = 0;
+				arma::cx_double charge_structure_factor = 0;
+				//arma::cx_double charge_susc = 0;
+				//arma::cx_double mag_susc = 0;
+				arma::cx_double occupation_fourier = 0;
+				arma::cx_vec green_up(M_0, arma::fill::zeros);
+				arma::cx_vec green_down(M_0,arma::fill::zeros);
+				for (int i = -kx_num + 1; i < kx_num; i++) {
+					for (int j = -ky_num + 1; j < ky_num; j++) {
+						for (int k = -kz_num + 1; k < kz_num; k++) {
+							int x = i + kx_num - 1;
+							int y = j + ky_num - 1;
+							int z = k + kz_num - 1;
+							arma::cx_double expa = exp(1i * (kx * i + ky * j + kz * k));
+
+							occupation_fourier += expa * ((avs->av_occupation_corr[x][y][z]));
+							spin_structure_factor += expa * avs->av_M2z_corr[x][y][z];
+							charge_structure_factor += expa * avs->av_ch2_corr[x][y][z];
+							//spin_structure_factor += expa * avs.avM2z_corr[x][y][z];
+							//if (times) {
+							//	for (int l = 0; l < M_0; l++) {
+									/* DODAC LICZENIE TYCH WSZYSTKICH CZASOWYCH */
+							//		green_up[l] += expa * avs.av_green_up[x][y][z][l];
+							//		green_down[l] += expa * avs.av_green_down[x][y][z][l];
+									//avs.av_green_down[x][y][z][0] + avs.av_green_up[x][y][z][0]
+							//	}
+							//}
+						}
+					}
+				}
+				file_fouriers << kx << "\t" << ky << "\t" << kz << "\t" << 1 - occupation_fourier.real() << "\t" << spin_structure_factor.real() << "\t" << charge_structure_factor.real() << endl;
+				//if (times) {
+				//	for (int l = 0; l < M_0; l++) {
+				//		file_fouriers_time << kx << "\t" << ky << "\t" << kz << "\t" << l << "\t" << green_up[l] << "\t" << green_down[l] << endl;
+				//	}
+				//}
+
+			}
+		}
+	}
+	file_fouriers.close();
 }
