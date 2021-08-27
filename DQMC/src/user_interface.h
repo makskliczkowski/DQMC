@@ -8,6 +8,8 @@
 #include "../include/plog/Initializers/RollingFileInitializer.h"
 #include "../include/lattices.h"
 #include "../include/hubbard.h"
+#include "random.h"
+
 #include <stdlib.h>
 #include <string>
 #include <iostream>
@@ -17,27 +19,6 @@
 #include <filesystem>
 #include <omp.h>
 #include <iostream>
-/// <summary>
-/// Here we will state all the already implemented definitions that will help us building the user interfrace
-/// </summary>
-namespace impDef{
-	/// <summary>
-	/// Different Monte Carlo algorithms that can be provided inside the classes (for simplicity in enum form)
-	/// </summary>
-	enum class algMC {
-		metropolis,
-		heat_bath,
-		self_learning
-	};
-	/// <summary>
-	/// Types of implemented lattice types
-	/// </summary>
-	enum class lattice_types {
-		square
-		//triangle,
-		//hexagonal
-	};
-}
 
 // Make a User interface class
 
@@ -54,10 +35,12 @@ protected:
 	template <typename T>
 	void set_default_msg(T& value,std::string option, std::string message,\
 		const std::unordered_map <std::string, std::string>& map) const;									// setting value to default and sending a message							 		
-	// std::unique_ptr<LatticeModel> model;															 		// a unique pointer to the model used
+	// std::unique_ptr<LatticeModel> model;															 			// a unique pointer to the model used
 
 
 public:
+	virtual ~user_interface() = default;
+
 	virtual void make_simulation() = 0;
 
 	virtual void exit_with_help() = 0;

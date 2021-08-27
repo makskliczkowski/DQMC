@@ -1,5 +1,4 @@
 #include "include/lattices.h"
-#include "src/common.h"
 /* ---------------------------- SQUARE LATTICE ---------------------------- */
 
 
@@ -113,6 +112,7 @@ void SquareLattice::calculate_nnn_pbc()
 void SquareLattice::calculate_coordinates()
 {
 	const int LxLy = Lx * Ly;
+	this->coordinates = v_2d<int>(this->Ns, v_1d<int>(3,0));
 	for (int i = 0; i < Ns; i++) {
 		this->coordinates[i][0] = i % Lx;												// x axis coordinate
 		this->coordinates[i][1] = (static_cast<int>(1.0 * i / Lx)) % Ly;				// y axis coordinate

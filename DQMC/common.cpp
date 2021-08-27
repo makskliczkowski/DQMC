@@ -13,8 +13,8 @@
 v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv)
 {
 	std::vector<std::string> tmp(argc-1,"");															// -1 because first is the name of the file
-	for(int i = 1; i <argc;i++ ){
-		tmp[i] = argv[i];
+	for(int i = 0; i <argc-1;i++ ){
+		tmp[i] = argv[i+1];
 	}
 	return tmp;
 }

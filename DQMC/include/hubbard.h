@@ -3,12 +3,7 @@
 #define HUBBARD_h
 
 #include "general_model.h"
-#include "plog/Log.h"
-#include "plog/Initializers/RollingFileInitializer.h"
-#include <filesystem>
-#include <iostream>
-#include <chrono>
-#include <armadillo>
+
 
 namespace hubbard{
 	class HubbardModel: public LatticeModel{
@@ -136,7 +131,7 @@ namespace hubbard{
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
 	public:
 		// CONSTRUCTORS 
-		HubbardQR(const std::vector<double>& t, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice);
+		HubbardQR(const std::vector<double>& t,double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice);
 
 		// CALCULATORS OVERRIDE
 		void relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet) override;

@@ -1,23 +1,52 @@
 #pragma once
-#ifndef GENERAL_H
-#define GENERAL_H
 
-#include "../src/user_interface.h"
-#include "random.h"
+#include "../include/plog/Log.h"
+#include "../include/plog/Initializers/RollingFileInitializer.h"
 #include "../src/common.h"
-#include <iostream>
-#include <vector>
+#include "random.h"
+
+#include <chrono>
 #include <armadillo>
-
-
-
-
-
+#include <filesystem>
+#include <stdlib.h>
 
 // In this file we define the virtual class for Monte Carlo simulations models of condensed matter systems
 
 
 struct averages_par{
+	averages_par(int Lx, int Ly, int Lz){
+		const int Ns = Lx*Ly*Lz;
+
+		C =0;
+		sd_C = 0;
+		Xi = 0;
+		sd_Xi = 0;
+		av_M = 0;
+		sd_M = 0;
+		av_M2 = 0; 
+		sd_M2 = 0; 
+		av_M2z = 0; 
+		av_M2x = 0; 
+		sd_M2z = 0; 
+		sd_M2x = 0;
+		av_E= 0;
+		av_E2 = 0; 
+		av_Ek = 0; 
+		av_Ek2 = 0; 
+		sd_E = 0;
+		sd_Ek = 0; 
+		av_sign = 0;
+		av_occupation = 0; 
+		sd_occupation = 0;
+		// Correlations - depend on the dimension - equal time
+		this->av_occupation_corr = v_3d<double>(2 * Lx - 1,  v_2d<double>(2 * Ly - 1,  v_1d<double>(2 * Lz - 1, 0.0)));
+		this->av_M2z_corr = this->av_occupation_corr;
+		this->av_ch2_corr = this->av_occupation_corr;
+		// Setting av Greens
+		this->av_gr_down = arma::zeros(Ns, Ns);
+		this->av_gr_up = arma::zeros(Ns, Ns);
+	}
+
 	// Specific heat related parameters
 	double C;																// specific heat
 	double sd_C;															// standard deviation C
@@ -131,8 +160,3 @@ public:
 
 };
 
-
-
-
-
-#endif

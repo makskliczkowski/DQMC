@@ -1,6 +1,5 @@
 #pragma once
-#ifndef LATTICES_H
-#define LATTICES_H
+
 
 #include "general_model.h"
 
@@ -24,8 +23,3 @@ public:
 
 };
 
-
-
-
-
-#endif // !LATTICES_H

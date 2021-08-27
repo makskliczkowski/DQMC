@@ -4,6 +4,8 @@
 #include <iostream>
 #include <ios>
 #include <sstream>
+#include <cmath>
+#include <filesystem>
 
 /// <summary>
 /// Define a path separator for Unix and Windows systems
@@ -14,16 +16,45 @@ static const char* kPSep =
 #else
 "/";
 #endif
+namespace fs = std::filesystem;
+
 
 constexpr double PI = 3.14159265359;
 constexpr double PI_half = PI / 2.0;
 constexpr double TWO_PI = PI * 2;
 
+/// <summary>
+/// Here we will state all the already implemented definitions that will help us building the user interfrace
+/// </summary>
+namespace impDef{
+	/// <summary>
+	/// Different Monte Carlo algorithms that can be provided inside the classes (for simplicity in enum form)
+	/// </summary>
+	enum class algMC {
+		metropolis,
+		heat_bath,
+		self_learning
+	};
+	/// <summary>
+	/// Types of implemented lattice types
+	/// </summary>
+	enum class lattice_types {
+		square
+		//triangle,
+		//hexagonal
+	};
+}
 
 
 
 #ifndef COMMON_UTILS_H
 #define COMMON_UTILS_H
+
+
+
+
+
+
 
 
 template<class T>

@@ -4,6 +4,14 @@
 
 /* ----------------------- USER INTERFACE --------------------- */
 
+/// <summary>
+/// 
+/// </summary>
+/// <typeparam name="T"></typeparam>
+/// <param name="value"></param>
+/// <param name="argv"></param>
+/// <param name="choosen_option"></param>
+/// <param name="geq_0"></param>
 template<typename T>
 void user_interface::set_option(T& value,const v_1d<std::string>& argv, std::string choosen_option, bool geq_0)
 {
@@ -13,7 +21,6 @@ void user_interface::set_option(T& value,const v_1d<std::string>& argv, std::str
 		this->set_default_msg(value,choosen_option.substr(1),\
 			choosen_option + " cannot be negative\n", hubbard::default_params);
 }
-
 /// <summary>
 /// Set 
 /// </summary>
@@ -22,11 +29,11 @@ void user_interface::set_option(T& value,const v_1d<std::string>& argv, std::str
 /// <param name="option"></param>
 /// <param name="message"></param>
 template<typename T>
-inline void user_interface::set_default_msg(T& value, std::string option, std::string message, const std::unordered_map <std::string, std::string>& map) const
+void user_interface::set_default_msg(T& value, std::string option, std::string message, const std::unordered_map <std::string, std::string>& map) const
 {
 	PLOG_WARNING << message;																// print warning
 	std::string value_str = "";																// we will set this to value
-	auto it = map.find(argument);
+	auto it = map.find(option);
 	if (it != map.end()) {
 			value_str = it->second;															// if in table - we take the enum 
 		}
@@ -41,9 +48,7 @@ inline void user_interface::set_default_msg(T& value, std::string option, std::s
 std::string user_interface::getCmdOption(const v_1d<std::string>& vec, std::string option) const
 {
     if (auto itr = std::find(vec.begin(), vec.end(), option); itr != vec.end() && ++itr != vec.end())
-    {
         return *itr;
-    }
     return std::string();
 }
 /// <summary>
@@ -163,13 +168,13 @@ void hubbard::ui::set_default()
 	this->inner_threads = 1;
 	this->outer_threads = 1;
 	this->thread_number = std::thread::hardware_concurrency();
-	this->saving_dir = "";
+	this->saving_dir = "."+ std::string(kPSep);
 	this->sf = 0;
 	this->sfn = 50;
 	this->quiet = 0;
 
 	this->save_conf = false;
-	this->qr_dec = false;
+	this->qr_dec = true;
 	this->cal_times = false;
 
 	this->dim = 2;
@@ -182,6 +187,7 @@ void hubbard::ui::set_default()
 	this->lx_num = 1;
 	this->ly_num = 1;
 	this->lz_num = 1;
+	this->boundary_conditions = 0;
 
 	this->beta = 6;
 	this->beta_step = 1;
@@ -195,6 +201,7 @@ void hubbard::ui::set_default()
 	this->mu_step = 1;
 	this->mu_num = 1;
 	std::vector<double> t(lx*ly*lz,1.0);
+	this->t_fill = 1.0;
 	// trotter
 	this->M_0 = 10;
 	this->p = 2;
@@ -303,7 +310,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	choosen_option = "-lzn";																
 	this->set_option(this->lz_step,argv,choosen_option);
 
-	double T = 1/this->beta;
+	// double T = 1/this->beta;
 	int Ns = this->lx*this->ly*this->lz;
 	//---------- OTHERS
 	// quiet
@@ -333,7 +340,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	// self learning
 	choosen_option = "-sf";																
 	this->set_option(this->sf,argv,choosen_option, false);
-	if (this->sf <0 && this->sf > 2)
+	if (this->sf <0 || this->sf > 2)
 		this->set_default_msg(this->sf ,choosen_option.substr(1),\
 			"Wrong input for self learning\n", hubbard::default_params);
 	// self learning number
@@ -348,19 +355,26 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	if(std::string option = this->getCmdOption(argv,choosen_option); option != "")			
 		exit_with_help();
 
-	if (argv[argc-1].size() != 0 && argc % 2 != 0){
+	std::string folder = "."+std::string(kPSep) + "results" + std::string(kPSep);
+	if (!argv[argc-1].empty() && argc % 2 != 0){
 		// only if the last command is non-even
-		std::filesystem::create_directories(saving_dir);				// creating the directory for saving the files with results
-		this->saving_dir = argv[argc-1];
+		folder =  argv[argc-1];
+		if(fs::create_directories(folder))											// creating the directory for saving the files with results
+			this->saving_dir = folder;																// if can create dir this is is
 	}
+	else{
+		this->saving_dir = folder;																	// if can create dir this is is
+	}
+	//omp_set_num_threads(outer_threads);
 	omp_set_num_threads(outer_threads);
-
 }
 
-
+/// <summary>
+/// 
+/// </summary>
 void hubbard::ui::make_simulation()
 {
-	PLOG_INFO << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << std::endl;
+	std::cout  << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << std::endl;
 	#pragma omp parallel for num_threads(outer_threads) collapse(5)
 	for (int bi = 0; bi < this->beta_num; bi++) {
 		// over different betas
@@ -388,13 +402,13 @@ void hubbard::ui::make_simulation()
 						M_i = p_i * M0_i;
 						dtau_i = 1.0 * beta_i / (M_i);
 						/* CALCULATE */
-						//collectAvs(save_dir, quiet, qr_dec, save_config, mcSteps, dimension, t, Ui, avsNum, corrTime, M_0, dtauii, pi, betai, muii, Lxi, Lyi, Lzi, col_times,sf ,sfn);
+						collectAvs(U_i,M0_i,dtau_i,p_i,beta_i,mu_i,Lx_i,Ly_i,Lz_i);
 					}
 				}
 			}
 		}
 	}
-	PLOG_INFO << "FINISHED EVERY THREAD" << std::endl;
+	std::cout  << "FINISHED EVERY THREAD" << std::endl;
 }
 
 
@@ -404,11 +418,12 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 {
 	using namespace std;
 	auto start = chrono::high_resolution_clock::now();
+	plog::init(plog::debug, "logger.txt");																			// initialize plogger
 	// parameters and constants
 	const auto M = static_cast<int>(beta / dtau);
 	const auto Ns = Lx * Ly * Lz;
 	const auto T = 1.0/beta;
-	std::shared_ptr<averages_par> avs;
+	std::shared_ptr<averages_par> avs;// = std::make_shared<averages_par>(Lx,Ly,Lz);
 	// model
 	std::shared_ptr<Lattice> lat;
 	// ------------------------------- set lattice --------------------------------
@@ -421,10 +436,8 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 		break;
 	}
 	// ------------------------------- set model --------------------------------
-	std::unique_ptr<hubbard::HubbardModel> model;
-	if(this->qr_dec){
-		model = std::make_unique<hubbard::HubbardQR>(this->t,M_0,U,mu,beta,lat);
-	}
+	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t,dtau,M_0,U,mu,beta,lat);
+
 	// ------------------------------- file handler --------------------------------
 	std::string LxLyLz = "Lx=" + to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
 	std::ofstream fileLog, fileP, fileP_time,fileGup, fileGdown;
@@ -454,7 +467,7 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 	std::string nameFouriersTime = fourier_dir + std::string(kPSep) + "times" + std::string(kPSep) +  info + ".dat";
 	std::string nameNormal = params_dir + info+ ".dat";
 	std::string nameNormalTime = params_dir + std::string(kPSep) + "times" + std::string(kPSep) + info+ ".dat";
-	std::string nameLog = working_dir + "HubbardLog.dat";
+	std::string nameLog = working_dir + "HubbardLog.csv";
 
 	// RELAX
 	if (sf == 0)																														// without using machine learning to self learn																								
@@ -480,7 +493,7 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 				to_string((chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count())
 			};
 			printSeparated(fileLog, log_vec);
-			PLOG_INFO << "\t--- Average occupation is n = " << avs->av_occupation << "\t---Average sign is sign= " << avs->av_sign << "\t---Average local moment is m_z^2= " << avs->av_M2z << "---" << endl << endl;
+			std::cout  << "\t--- Average occupation is n = " << avs->av_occupation << "\t---Average sign is sign= " << avs->av_sign << "\t---Average local moment is m_z^2= " << avs->av_M2z << "---" << endl << endl;
 			// FILES CORRELATIONS
 			for (int x = -Lx + 1; x < Lx; x++) {
 				for (int y = -Ly + 1; y < Ly; y++) {
@@ -502,7 +515,7 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 			this->collectFouriers(nameFouriersTime, nameFouriers, Lx, Ly, Lz, M, avs);
 		}
 	}
-	PLOG_INFO << "FINISHED EVERYTHING - Time taken: " << (chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count() << " seconds" << endl;
+	std::cout  << "FINISHED EVERYTHING - Time taken: " << (chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count() << " seconds" << endl;
 }
 
 void hubbard::ui::collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, std::shared_ptr<averages_par> avs)
