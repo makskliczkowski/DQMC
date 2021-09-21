@@ -7,6 +7,7 @@
 #include <cmath>
 #include <filesystem>
 
+#define stout std::cout << std::setprecision(16) << std::fixed						// standard out
 /// <summary>
 /// Define a path separator for Unix and Windows systems
 /// </summary>
@@ -18,7 +19,6 @@ static const char* kPSep =
 #endif
 namespace fs = std::filesystem;
 
-
 constexpr double PI = 3.14159265359;
 constexpr double PI_half = PI / 2.0;
 constexpr double TWO_PI = PI * 2;
@@ -26,7 +26,7 @@ constexpr double TWO_PI = PI * 2;
 /// <summary>
 /// Here we will state all the already implemented definitions that will help us building the user interfrace
 /// </summary>
-namespace impDef{
+namespace impDef {
 	/// <summary>
 	/// Different Monte Carlo algorithms that can be provided inside the classes (for simplicity in enum form)
 	/// </summary>
@@ -45,17 +45,8 @@ namespace impDef{
 	};
 }
 
-
-
 #ifndef COMMON_UTILS_H
 #define COMMON_UTILS_H
-
-
-
-
-
-
-
 
 template<class T>
 using v_3d = std::vector<std::vector<std::vector<T>>>;				// 3d double vector
@@ -64,13 +55,12 @@ using v_2d = std::vector<std::vector<T>>;							// 2d double vector
 template<class T>
 using v_1d = std::vector<T>;										// 1d double vector
 
-
 /// <summary>
 /// check the sign of a value
 /// </summary>
 /// <param name="val">value to be checked</param>
 /// <returns>sign of a variable</returns>
-template <typename T> 
+template <typename T>
 inline int sgn(T val) {
 	return (T(0) < val) - (val < T(0));
 }
@@ -81,7 +71,7 @@ inline int sgn(T val) {
 /// <param name="a">left side of modulo</param>
 /// <param name="b">right side of modulo</param>
 /// <returns>euclidean a%b</returns>
-inline int myModuloEuclidean(int a, int b)					
+inline int myModuloEuclidean(int a, int b)
 {
 	int m = a % b;
 	if (m < 0) {
@@ -91,7 +81,7 @@ inline int myModuloEuclidean(int a, int b)
 }
 
 template <typename T>
-inline void printSeparated(std::ostream& output, std::vector<T> elements, std::string separtator = "\t"){
+inline void printSeparated(std::ostream& output, std::vector<T> elements, std::string separtator = "\t") {
 	const int elements_size = elements.size();
 #pragma omp critical
 	for (int i = 0; i < elements_size - 1; i++) {
@@ -109,7 +99,7 @@ inline void printSeparated(std::ostream& output, std::vector<T> elements, std::s
 /// <param name="n">Precision</param>
 /// <returns>String of a value</returns>
 template <typename T>
-inline std::string to_string_prec(const T a_value, const int n = 3){
+inline std::string to_string_prec(const T a_value, const int n = 3) {
 	std::ostringstream out;
 	out.precision(n);
 	out << std::fixed << a_value;
@@ -119,8 +109,5 @@ inline std::string to_string_prec(const T a_value, const int n = 3){
 v_1d<std::string> split_str(const std::string& s, std::string delimiter = "\t");
 
 v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv);
-
-
-
 
 #endif // COMMON_UTILS_H

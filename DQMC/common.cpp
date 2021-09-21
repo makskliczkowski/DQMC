@@ -1,8 +1,5 @@
 #include "src/common.h"
 
-
-
-
 /* STRING RELATED HELPERS */
 /// <summary>
 /// We want to handle files so let's make the c-way input a string
@@ -12,9 +9,9 @@
 /// <returns></returns>
 v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv)
 {
-	std::vector<std::string> tmp(argc-1,"");															// -1 because first is the name of the file
-	for(int i = 0; i <argc-1;i++ ){
-		tmp[i] = argv[i+1];
+	std::vector<std::string> tmp(argc - 1, "");															// -1 because first is the name of the file
+	for (int i = 0; i < argc - 1; i++) {
+		tmp[i] = argv[i + 1];
 	}
 	return tmp;
 }

@@ -4,8 +4,8 @@
 
 #include "common.h"
 #include "../include/general_model.h"
-#include "../include/plog/Log.h"
-#include "../include/plog/Initializers/RollingFileInitializer.h"
+//#include "../include/plog/Log.h"
+//#include "../include/plog/Initializers/RollingFileInitializer.h"
 #include "../include/lattices.h"
 #include "../include/hubbard.h"
 #include "random.h"
@@ -22,21 +22,20 @@
 
 // Make a User interface class
 
-class user_interface{
+class user_interface {
 protected:
 	int thread_number;																				 		// number of threads
-	int boundary_conditions;																		 		// boundary conditions - 0 - PBC, 1 - OBC, 2 - ABC,... 
+	int boundary_conditions;																		 		// boundary conditions - 0 - PBC, 1 - OBC, 2 - ABC,...
 	std::string saving_dir;
 
 	std::string getCmdOption(const v_1d<std::string>& vec, std::string option) const;				 		// get the option from cmd input
 	template <typename T>
-	void set_option(T& value,const v_1d<std::string>& argv, std::string choosen_option, bool geq_0 = true);	// set an option
-		
-	template <typename T>
-	void set_default_msg(T& value,std::string option, std::string message,\
-		const std::unordered_map <std::string, std::string>& map) const;									// setting value to default and sending a message							 		
-	// std::unique_ptr<LatticeModel> model;															 			// a unique pointer to the model used
+	void set_option(T& value, const v_1d<std::string>& argv, std::string choosen_option, bool geq_0 = true);	// set an option
 
+	template <typename T>
+	void set_default_msg(T& value, std::string option, std::string message, \
+		const std::unordered_map <std::string, std::string>& map) const;									// setting value to default and sending a message
+	// std::unique_ptr<LatticeModel> model;															 			// a unique pointer to the model used
 
 public:
 	virtual ~user_interface() = default;
@@ -44,20 +43,15 @@ public:
 	virtual void make_simulation() = 0;
 
 	virtual void exit_with_help() = 0;
-/* REAL PARSING */
+	/* REAL PARSING */
 	virtual void parseModel(int argc, const v_1d<std::string>& argv) = 0;									 // the function to parse the command line
 /* HELPING FUNCIONS */
 	virtual void set_default() = 0;																	 		// set default parameters
 /* NON-VIRTUALS */
 	v_1d<std::string> parseInputFile(std::string filename);													// if the input is taken from file we need to make it look the same way as the command line does
-
-
 };
 
-
-
-
-namespace hubbard{
+namespace hubbard {
 	// MAP OF DEFAULTS FOR HUBBARD
 	std::unordered_map <std::string, std::string> const default_params = {
 		{"m","300"},
@@ -97,8 +91,8 @@ namespace hubbard{
 		{"sf","0"},
 		{"sfn","1"}
 	};
-	
-	class ui: public user_interface{
+
+	class ui : public user_interface {
 	private:
 		v_1d<double> t;																						// hopping coefficients
 		int lattice_type; 																					// for non_numeric data
@@ -108,9 +102,9 @@ namespace hubbard{
 		bool quiet, save_conf, qr_dec, cal_times;															// bool flags
 		int dim, lx, ly, lz, lx_step, ly_step, lz_step, lx_num, ly_num, lz_num;								// real space proprties
 		double beta, beta_step, U, U_step, mu, mu_step, dtau, dtau_step;									// physical params
-		int U_num, mu_num, dtau_num, beta_num;	
+		int U_num, mu_num, dtau_num, beta_num;
 		int M_0, p, M, mcSteps, avsNum, corrTime;															// time properties
-	
+
 		// HELPER FUNCTIONS
 		// void create_directories(std::string dir, int Lx, int Ly, int Lz, double U, double beta, double dtau, double mu);
 		void collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz);
@@ -127,12 +121,7 @@ namespace hubbard{
 		void set_default() override;																		// set default parameters
 		// SIMULATION
 		void make_simulation() override;
-	
 	};
-
 }
 
-
 #endif // !UI_H
-
-

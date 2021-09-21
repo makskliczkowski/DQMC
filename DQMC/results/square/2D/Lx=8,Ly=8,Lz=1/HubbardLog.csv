@@ -1,3 +1,2 @@
 mcsteps	avsNum	corrTime	M	M0	dtau	Lx	Ly	Lz	beta	T	U	mu	occupation	sd_occupation	average_sign	sd_sign	avE_kin	sd_E_kin	av_m2z	av_m2x	calculations_time
-1000	1000	1	40	10	0.150	8	8	1	6.000	0.167	6.000	-2.000	0.7029	0.0011	0.87339	0.0003	-2.7939	0.0066	0.713	0.713	192
-
+1500	1500	1	70	10	0.129	8	8	1	9.000	0.111	2.000	0.000	1.0000	0.0000	1.00000	0.0000	-3.0606	0.0003	0.625	0.625	791

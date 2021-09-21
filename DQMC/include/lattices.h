@@ -1,9 +1,8 @@
 #pragma once
 
-
 #include "general_model.h"
 
-class SquareLattice : public Lattice{
+class SquareLattice : public Lattice {
 private:
 	int Lx;																		// spatial x-length
 	int Ly;																		// spatial y-length
@@ -13,13 +12,11 @@ public:
 	SquareLattice() = default;
 	SquareLattice(int Lx, int Ly = 1, int Lz = 1, int dim = 1, int bc = 0);		// general constructor
 	/* GETTERS */
-	int get_Lx() const override;
-	int get_Ly() const override;
-	int get_Lz() const override;
+	int get_Lx() const override { return this->Lx; };
+	int get_Ly() const override { return this->Ly; };
+	int get_Lz() const override { return this->Lz; };
 	/* CALCULATORS */
-	void calculate_nn_pbc() override;									
+	void calculate_nn_pbc() override;
 	void calculate_nnn_pbc() override;
 	void calculate_coordinates() override;
-
 };
-
