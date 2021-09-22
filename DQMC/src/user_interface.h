@@ -20,7 +20,7 @@
 #include <omp.h>
 #include <iostream>
 
-// Make a User interface class
+// -------------------------------------------------------- Make a User interface class --------------------------------------------------------
 
 class user_interface {
 protected:
@@ -43,16 +43,19 @@ public:
 	virtual void make_simulation() = 0;
 
 	virtual void exit_with_help() = 0;
-	/* REAL PARSING */
+	// ----------------------- REAL PARSING 
 	virtual void parseModel(int argc, const v_1d<std::string>& argv) = 0;									 // the function to parse the command line
-/* HELPING FUNCIONS */
+	// ----------------------- HELPING FUNCIONS 
 	virtual void set_default() = 0;																	 		// set default parameters
-/* NON-VIRTUALS */
+	// ----------------------- NON-VIRTUALS 
 	v_1d<std::string> parseInputFile(std::string filename);													// if the input is taken from file we need to make it look the same way as the command line does
 };
 
+// -------------------------------------------------------- HUBBARD USER INTERFACE --------------------------------------------------------
+
 namespace hubbard {
-	// MAP OF DEFAULTS FOR HUBBARD
+	// -------------------------------------------------------- MAP OF DEFAULTS FOR HUBBARD
+
 	std::unordered_map <std::string, std::string> const default_params = {
 		{"m","300"},
 		{"d","2"},
@@ -92,6 +95,7 @@ namespace hubbard {
 		{"sfn","1"}
 	};
 
+	// -------------------------------------------------------- CLASS
 	class ui : public user_interface {
 	private:
 		v_1d<double> t;																						// hopping coefficients
@@ -105,21 +109,20 @@ namespace hubbard {
 		int U_num, mu_num, dtau_num, beta_num;
 		int M_0, p, M, mcSteps, avsNum, corrTime;															// time properties
 
-		// HELPER FUNCTIONS
-		// void create_directories(std::string dir, int Lx, int Ly, int Lz, double U, double beta, double dtau, double mu);
+		// -------------------------------------------------------- HELPER FUNCTIONS
 		void collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz);
-		void collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, std::shared_ptr<averages_par> avs);
+		void collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, double beta, std::shared_ptr<averages_par> avs);
 	public:
-		// CONSTRUCTORS
+		// ----------------------- CONSTRUCTORS
 		ui() = default;
 		ui(int argc, char** argv);
-		// PARSER FOR HELP
+		// ----------------------- PARSER FOR HELP
 		void exit_with_help() override;
-		// REAL PARSER
+		// ----------------------- REAL PARSER
 		void parseModel(int argc, const v_1d<std::string>& argv) override;									// the function to parse the command line
-		// HELPERS
+		// ----------------------- HELPERS
 		void set_default() override;																		// set default parameters
-		// SIMULATION
+		// ----------------------- SIMULATION
 		void make_simulation() override;
 	};
 }

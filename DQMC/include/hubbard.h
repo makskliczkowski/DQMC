@@ -35,6 +35,7 @@ namespace hubbard {
 		arma::mat int_exp_up, int_exp_down;														// exponentials of up and down spin interaction matrices at all times
 		std::vector<arma::mat> b_mat_up, b_mat_down;											// up and down B matrices vector
 		arma::mat green_up, green_down;															// Green's matrix up and down at given (equal) time
+		arma::mat tempGreen_up; arma::mat tempGreen_down;										// temporary Green's for wrap updating
 
 		// -------------------------- HELPING PARAMETERS
 		std::string info;																		// info about the model for file creation
@@ -110,14 +111,29 @@ namespace hubbard {
 	/// </summary>
 	class HubbardQR : public HubbardModel {
 	private:
+		// -------------------------- HELPING MATRICES FOR QR
+		arma::mat Q_down;
+		arma::mat Q_up;
+		arma::umat P_down;																								// permutation matrix for spin down
+		arma::umat P_up;																								// permutation matrix for spin up
+		arma::mat R_down;																								// right triangular matrix down
+		arma::mat R_up;																									// right triangular matrix up
+		arma::vec D_down;
+		arma::vec D_up;
+		arma::mat T_down;
+		arma::mat T_up;
+		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector for QR DECOMPOSITION
+
 		// -------------------------- HELPING FUNCTIONS
 		std::tuple<double, double> cal_gamma(int lat_site) const override;												// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
 		std::tuple<double, double> cal_proba(int lat_site, double gamma_up, double gamma_down) const override;			// calculate probability for both spins (0 <-> up index, 1 <-> down index)
+
 		// -------------------------- UPDATERS
 		void upd_int_exp(int lat_site, double delta_sigma, short sigma) override;
 		void upd_B_mat(int lat_site, double delta_up, double delta_down) override;
 		void upd_equal_green(int lat_site, double prob_up, double prob_down, double gamma_up, double gamma_down) override;
 		void upd_next_green(int which_time) override;
+		void cal_B_mat_cond(int which_sector);
 
 		// -------------------------- CALCULATORS
 		void cal_green_mat(int which_time) override;
@@ -130,7 +146,7 @@ namespace hubbard {
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
 	public:
 		// -------------------------- CONSTRUCTORS
-		HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice);
+		HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1);
 
 		// -------------------------- CALCULATORS OVERRIDE
 		void relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet) override;

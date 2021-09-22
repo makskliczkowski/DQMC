@@ -1,6 +1,6 @@
 #include "src/user_interface.h"
 
-/* ----------------------- USER INTERFACE --------------------- */
+// -------------------------------------------------------- USER INTERFACE -------------------------------------------------------- 
 
 /// <summary>
 ///
@@ -19,6 +19,7 @@ void user_interface::set_option(T& value, const v_1d<std::string>& argv, std::st
 		this->set_default_msg(value, choosen_option.substr(1), \
 			choosen_option + " cannot be negative\n", hubbard::default_params);
 }
+
 /// <summary>
 /// Set
 /// </summary>
@@ -37,6 +38,7 @@ void user_interface::set_default_msg(T& value, std::string option, std::string m
 	}
 	value = stod(value_str);
 }
+
 /// <summary>
 /// Find a given option in a vector of string given from cmd parser
 /// </summary>
@@ -49,6 +51,7 @@ std::string user_interface::getCmdOption(const v_1d<std::string>& vec, std::stri
 		return *itr;
 	return std::string();
 }
+
 /// <summary>
 /// If the commands are given from file, we must treat them the same as arguments
 /// </summary>
@@ -69,12 +72,11 @@ std::vector<std::string> user_interface::parseInputFile(std::string filename) {
 	}
 	return std::vector<std::string>(commands.begin(), commands.end());
 }
-/* ----------------------- HUBBARD ----------------------- */
-// ---- CONSTRUCTOR
+
+// -------------------------------------------------------- HUBBARD -------------------------------------------------------- 
+// -------------------------------------------------------- CONSTRUCTOR
 
 /// <summary>
-/// Using plog library for loging
-/// https://github.com/SergiusTheBest/plog
 /// </summary>
 /// <param name="argc">number of cmd parameters</param>
 /// <param name="argv">cmd parameters</param>
@@ -90,7 +92,8 @@ hubbard::ui::ui(int argc, char** argv)
 	this->parseModel(input.size(), input);													// parse input from CMD directly
 }
 
-// ---- PARSERS
+// -------------------------------------------------------- PARSERS
+
 /// <summary>
 /// Prints help for a Hubbard interface
 /// </summary>
@@ -158,6 +161,7 @@ void hubbard::ui::exit_with_help()
 	);
 	std::exit(1);
 }
+
 /// <summary>
 /// Setting Hubbard parameters to default
 /// </summary>
@@ -198,7 +202,7 @@ void hubbard::ui::set_default()
 	this->mu = 0.5 * U;
 	this->mu_step = 1;
 	this->mu_num = 1;
-	std::vector<double> t(lx * ly * lz, 1.0);
+	this->t = std::vector<double>(lx * ly * lz, 1.0);
 	this->t_fill = 1.0;
 	// trotter
 	this->M_0 = 10;
@@ -213,6 +217,7 @@ void hubbard::ui::set_default()
 	this->avsNum = 50;
 	this->corrTime = 1;
 }
+
 /// <summary>
 /// Hubbard model parser
 /// </summary>
@@ -364,7 +369,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 		this->saving_dir = folder;																	// if can create dir this is is
 	}
 	//omp_set_num_threads(outer_threads);
-	omp_set_num_threads(outer_threads);
+	omp_set_num_threads(outer_threads*inner_threads);
 }
 
 /// <summary>
@@ -372,8 +377,8 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 /// </summary>
 void hubbard::ui::make_simulation()
 {
-	std::cout << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << std::endl;
-#pragma omp parallel for num_threads(outer_threads) collapse(5)
+	std::cout << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << ", INNER THREADS = " << inner_threads << std::endl;
+/*#pragma omp parallel for num_threads(outer_threads) collapse(5)
 	for (int bi = 0; bi < this->beta_num; bi++) {
 		// over different betas
 		for (int ui = 0; ui < this->U_num; ui++) {
@@ -392,20 +397,24 @@ void hubbard::ui::make_simulation()
 						auto U_i = this->U + ui * this->U_step;
 						auto mu_i = this->mu + mui * mu_step;
 						auto dtau_i = this->dtau + dtaui * this->dtau_step;
-						/* TROTTER */
 						//double dtaui = dtau;//sqrt(0.125 / Ui);
 						auto M0_i = M_0;
 						auto M_i = static_cast<int>(1.0 * beta_i / dtau_i);
-						auto p_i = int(1.0 * M_i / M0_i);
+						auto p_i = std::ceil(1.0 * M_i / M0_i);
 						M_i = p_i * M0_i;
 						dtau_i = 1.0 * beta_i / (M_i);
-						/* CALCULATE */
 						collectAvs(U_i, M0_i, dtau_i, p_i, beta_i, mu_i, Lx_i, Ly_i, Lz_i);
 					}
 				}
 			}
 		}
 	}
+	*/
+	this->M = static_cast<int>(1.0 * this->beta / this->dtau);
+	this->p = std::ceil(1.0 * M / M_0);
+	M = p * M_0;
+	dtau = beta / double(M);
+	collectAvs(this->U, this->M_0, dtau, p, beta, mu, this->lx, this->ly, this->lz);
 	std::cout << "FINISHED EVERY THREAD" << std::endl;
 }
 
@@ -433,7 +442,7 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 		break;
 	}
 	// ------------------------------- set model --------------------------------
-	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, dtau, M_0, U, mu, beta, lat);
+	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, dtau, M_0, U, mu, beta, lat, this->inner_threads);
 
 	// ------------------------------- file handler --------------------------------
 	std::string LxLyLz = "Lx=" + to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
@@ -509,16 +518,17 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 			}
 			fileP.close();
 			fileLog.close();
-			this->collectFouriers(nameFouriersTime, nameFouriers, Lx, Ly, Lz, M, avs);
+			this->collectFouriers(nameFouriersTime, nameFouriers, Lx, Ly, Lz, M,beta, avs);
+
 		}
 	}
 	std::cout << "FINISHED EVERYTHING - Time taken: " << (chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count() << " seconds" << endl;
 }
 
-void hubbard::ui::collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, std::shared_ptr<averages_par> avs)
+void hubbard::ui::collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, double beta, std::shared_ptr<averages_par> avs)
 {
 	using namespace std;
-	std::ofstream file_fouriers, file_fouriers_time;
+	std::ofstream file_fouriers, file_fouriers_time, file_response;
 	file_fouriers.open(name);
 	/*if (times) {
 		file_fouriers_time.open(filenameTimes + "_time.dat");
@@ -561,7 +571,7 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 							int z = k + kz_num - 1;
 							arma::cx_double expa = exp(-1i * (kx * i + ky * j + kz * k));
 
-							occupation_fourier += expa * ((avs->av_occupation_corr[x][y][z]));
+							occupation_fourier += expa * avs->av_occupation_corr[x][y][z];
 							spin_structure_factor += expa * avs->av_M2z_corr[x][y][z];
 							charge_structure_factor += expa * avs->av_ch2_corr[x][y][z];
 							//spin_structure_factor += expa * avs.avM2z_corr[x][y][z];
@@ -576,7 +586,12 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 						}
 					}
 				}
-				file_fouriers << kx << "\t" << ky << "\t" << kz << "\t" << 1 - occupation_fourier.real() << "\t" << spin_structure_factor.real() << "\t" << charge_structure_factor.real() << endl;
+				file_fouriers << kx << "\t" << ky << "\t" << kz << "\t" << 1 - occupation_fourier.real()/(2.0*N) << "\t" << spin_structure_factor.real() << "\t" << charge_structure_factor.real() << endl;
+				if (qx == 0 && qy == 0) {
+					file_response.open(this->saving_dir + "response_" + to_string_prec(this->U, 2) + ".dat", std::ofstream::out | std::ofstream::app);
+					file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
+					file_response.close();
+				}
 				//if (times) {
 				//	for (int l = 0; l < M_0; l++) {
 				//		file_fouriers_time << kx << "\t" << ky << "\t" << kz << "\t" << l << "\t" << green_up[l] << "\t" << green_down[l] << endl;

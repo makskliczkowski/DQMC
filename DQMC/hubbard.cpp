@@ -13,7 +13,7 @@ void hubbard::HubbardModel::av_single_step(int current_elem_i, int sign)
 	this->avs->av_M2z += m_z2;
 	this->avs->sd_M2z += m_z2 * m_z2;
 	// m_x
-	const double m_x2 = this->cal_mz2(sign, current_elem_i);
+	const double m_x2 = this->cal_mx2(sign, current_elem_i);
 	this->avs->av_M2x += m_x2;
 	this->avs->sd_M2x += m_x2 * m_x2;
 	// occupation
@@ -47,10 +47,10 @@ void hubbard::HubbardModel::av_single_step(int current_elem_i, int sign)
 /// <param name="times">If the non-equal time properties were calculated</param>
 void hubbard::HubbardModel::av_normalise(int avNum, bool times)
 {
-	const double normalization = static_cast<double>(avNum * this->M * this->Ns);						// average points taken
+	const double normalization = static_cast<double>(avNum * this->M * this->Ns);								// average points taken
 	this->avs->av_sign /= normalization;																		// average sign is needed
 	this->avs->sd_sign = sqrt((1.0 - (this->avs->av_sign * this->avs->av_sign)) / normalization);
-	const double normalisation_sign = normalization * this->avs->av_sign;									// we divide by average sign actually
+	const double normalisation_sign = normalization * this->avs->av_sign;										// we divide by average sign actually
 	// with minus
 	this->avs->av_gr_down /= normalisation_sign / this->Ns;
 	this->avs->av_gr_up /= normalisation_sign / this->Ns;
@@ -129,11 +129,13 @@ void hubbard::HubbardModel::setConfDir(std::string dir)
 // -------------------------------------------------------- GETTERS
 
 // -------------------------------------------------------- CALCULATORS
+
 /// <summary>
 /// Function to calculate the hopping matrix exponential (with nn for now)
 /// </summary>
 void hubbard::HubbardModel::cal_hopping_exp()
 {
+#pragma omp parallel for num_threads(this->inner_threads)
 	for (int i = 0; i < this->Ns; i++) {
 		this->hopping_exp(i, i) = this->dtau * this->mu;													// diagonal elements
 		const int n_of_neigh = this->lattice->get_nn_number(i);												// take number of nn at given site
@@ -143,9 +145,20 @@ void hubbard::HubbardModel::cal_hopping_exp()
 		}
 	}
 	//this->hopping_exp.print("hopping before exponentiation");
-	this->hopping_exp = arma::expmat(this->hopping_exp);													// take the exponential
+	//arma::vec eigval;
+	//arma::mat eigvec;
+	//arma::eig_sym(eigval, eigvec, this->hopping_exp);
+	//stout << "eigenvalues:\n" << eigval.t() << std::endl;
+	//arma::mat jordan = eigvec.i() * this->hopping_exp * eigvec;
+	//jordan = arma::expmat_sym(jordan);
+	//this->hopping_exp = eigvec * this->hopping_exp * eigvec.i();
+
+
+	stout << "condition number of hopping matrix is : " << arma::cond(this->hopping_exp) << std::endl;
+	this->hopping_exp = arma::expmat_sym(this->hopping_exp);												// take the exponential
 	//this->hopping_exp.print("hopping after exponentiation");
 }
+
 /// <summary>
 /// Function to calculate the interaction exponential at all times, each column represents the given Trotter time
 /// </summary>
@@ -153,11 +166,12 @@ void hubbard::HubbardModel::cal_int_exp() {
 	if (this->U > 0) {
 		const double exp_plus = exp(this->lambda);				// plus exponent for faster computation
 		const double exp_minus = exp(-this->lambda);			// minus exponent for faster computation
-		/* Repulsive case */
+		// Repulsive case 
+//#pragma omp parallel for collapse(2) num_threads(this->inner_threads)
 		for (int l = 0; l < this->M; l++) {
-			/* Trotter times */
+			// Trotter times 
 			for (int i = 0; i < this->Ns; i++) {
-				/* Lattice sites */
+				// Lattice sites 
 				if (hsFields[l][i] > 0) {
 					this->int_exp_up(i, l) = exp_plus;			// diagonal up spin channel
 					this->int_exp_down(i, l) = exp_minus;		// diagonal down spin channel
@@ -185,10 +199,12 @@ void hubbard::HubbardModel::cal_int_exp() {
 		this->int_exp_up = arma::eye(this->Ns, this->Ns);
 	}
 }
+
 /// <summary>
 /// Function to calculate all B exponents for a given model. Those are used for the Gibbs weights
 /// </summary>
 void hubbard::HubbardModel::cal_B_mat() {
+#pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		/* Trotter times */
 		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
@@ -199,6 +215,21 @@ void hubbard::HubbardModel::cal_B_mat() {
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }
 
+/// <summary>
+/// Precalculate the multiplications of B matrices
+/// </summary>
+/// <param name="which_sector"></param>
+void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
+{
+	int tim = which_sector*this->M_0;
+	this->b_down_condensed[which_sector] = this->b_mat_down[tim];
+	this->b_up_condensed[which_sector] = this->b_mat_up[tim];
+#pragma omp parallel for num_threads(this->inner_threads)
+	for (int i = 1; i < this->M_0; i++) {
+		this->b_down_condensed[which_sector] = this->b_mat_down[tim + i] * this->b_down_condensed[which_sector];
+		this->b_up_condensed[which_sector] = this->b_mat_up[tim + i] * this->b_up_condensed[which_sector];
+	}
+}
 // -------------------------------------------------------- PRINTERS
 
 /// <summary>
@@ -306,33 +337,39 @@ double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, i
 // -------------------------------------------------------- HUBBARD MODEL WITH QR DECOMPOSITION --------------------------------------------------------
 
 // -------------------------------------------------------- CONSTRUCTORS
-hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice)
+
+hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads)
 {
 	this->lattice = lattice;
+	this->inner_threads = threads;
 	int Lx = this->lattice->get_Lx();
 	int Ly = this->lattice->get_Ly();
 	int Lz = this->lattice->get_Lz();
 	this->avs = std::make_shared<averages_par>(Lx, Ly, Lz);
-
 	this->t = t;
-	/* Params */
+
+	// Params 
 	this->U = U;
 	this->mu = mu;
 	this->beta = beta;
 	this->T = 1.0 / this->beta;
 	this->Ns = this->lattice->get_Ns();
 	this->ran = randomGen();																// random number generator initialization
-	/* Trotter */
+
+	// Trotter 
 	this->dtau = dtau;
 	this->M = static_cast<int>(this->beta / this->dtau);									// number of Trotter times
 	this->M_0 = M_0;
 	this->p = (this->M / this->M_0);														// number of QR decompositions
-	/* Calculate alghorithm parameters */
-	this->lambda = std::acosh(std::exp((abs(this->U) * this->dtau) / 2));
-	/* Calculate changing exponents before, not to calculate exp all the time */
+
+	// Calculate alghorithm parameters 
+	this->lambda = std::acosh(std::exp((abs(this->U) * this->dtau) / 2.0));
+
+	// Calculate changing exponents before, not to calculate exp all the time 
 	this->gammaExp = { std::exp(2 * this->lambda), std::exp(-2 * this->lambda) };			// 0 -> sigma * hsfield = -1, 1 -> sigma * hsfield = 1
-	/* Helping params */
-	this->from_scratch = 10;
+
+	// Helping params 
+	this->from_scratch = this->M_0;
 	this->pos_num = 0;
 	this->neg_num = 0;
 	this->neg_dir = std::string();
@@ -365,28 +402,53 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 		",beta=" + to_string_prec(this->beta) + ",U=" + to_string_prec(this->U) + \
 		",mu=" + to_string_prec(this->mu);
 
-	/* Initialize memory */
-	this->hopping_exp = arma::mat(this->Ns, this->Ns, arma::fill::zeros);
+	// Initialize memory 
+	this->hopping_exp.zeros(this->Ns, this->Ns);
+
 	// interaction for all times
-	this->int_exp_down = arma::mat(this->Ns, this->M, arma::fill::zeros);
-	this->int_exp_up = arma::mat(this->Ns, this->M, arma::fill::zeros);
+	this->int_exp_down.zeros(this->Ns, this->M);
+	this->int_exp_up.zeros(this->Ns, this->M);
+
 	// all times exponents multiplication
 	this->b_mat_up = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
 	this->b_mat_down = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+
 	// all times hs fields for real spin up and down
 	this->hsFields = std::vector(this->M, std::vector<short>(this->Ns, 1));
+
 	// Green's function matrix
-	this->green_up = arma::eye(this->Ns, this->Ns);
-	this->green_down = arma::eye(this->Ns, this->Ns);
-	/* Set HS fields */
+	this->green_up.zeros(this->Ns, this->Ns);
+	this->green_down.zeros(this->Ns, this->Ns);
+	this->tempGreen_up.zeros(this->Ns, this->Ns);
+	this->tempGreen_down.zeros(this->Ns, this->Ns);
+	this->Q_up.zeros(this->Ns, this->Ns);
+	this->Q_down.zeros(this->Ns, this->Ns);
+	this->P_up.zeros(this->Ns, this->Ns);
+	this->P_down.zeros(this->Ns, this->Ns);
+	this->R_up.zeros(this->Ns, this->Ns);
+	this->R_down.zeros(this->Ns, this->Ns);
+	this->D_down.zeros(this->Ns);
+	this->D_up.zeros(this->Ns);
+	this->T_down.zeros(this->Ns, this->Ns);
+	this->T_up.zeros(this->Ns, this->Ns);
+
+	// Set HS fields
 	this->set_hs();
-	/* Calculate something */
+
+	// Calculate something
 	this->cal_hopping_exp();
 	this->cal_int_exp();
 	this->cal_B_mat();
+	// Precalculate the multipliers of B matrices for convinience
+	for (int i = 0; i < this->p; i++) {
+		this->cal_B_mat_cond(i);
+	}
 }
 
 // -------------------------------------------------------- OTHER METHODS
+
 /// <summary>
 /// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023
 /// For more look into :
@@ -395,60 +457,89 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 /// </summary>
 /// <param name="which_time"></param>
 void hubbard::HubbardQR::cal_green_mat(int which_time) {
-	/* QR HELPING MATRICES */
-	arma::mat Q_down(this->Ns, this->Ns, arma::fill::eye);
-	arma::mat Q_up(this->Ns, this->Ns, arma::fill::eye);
-
-	arma::vec D_down(this->Ns, arma::fill::ones);
-	arma::vec D_up(this->Ns, arma::fill::ones);
-
-	arma::mat T_down(this->Ns, this->Ns, arma::fill::eye);
-	arma::mat T_up(this->Ns, this->Ns, arma::fill::eye);
-
-	arma::umat P_down;														// permutation matrix for spin down
-	arma::umat P_up;														// permutation matrix for spin up
-	arma::mat R_down;														// right triangular matrix down
-	arma::mat R_up;															// right triangular matrix up
-	int time = which_time;
-	// Stable solutions of linear systems involving long chain of matrix multiplications: doi:10.1016/j.laa.2010.06.023
-
-	for (int i = 0; i < this->p; i++)
-	{
-		// starting the multiplication
-		this->green_up = this->b_mat_up[time];
-		this->green_down = this->b_mat_down[time];
-		//stout << time << std::endl;
-		time = (time == (this->M - 1)) ? 0 : time + 1;						// LEFT INCREASE
-		//time = (time == 0) ? M - 1 : time-1;									// RIGHT DECREASE;
-		// multiplication is taken from higher time on left to lower on the right
-		for (int j = 1; j < this->M_0; j++) {
-			//stout << time << std::endl;
-			this->green_up = this->b_mat_up[time] * this->green_up;			// up multiplication (LEFT INCREASE) from time, time + 1.... M-1,...time - 1
-			this->green_down = this->b_mat_down[time] * this->green_down;	// down multiplication (LEFT INCREASE) from time, time + 1.... M-1,...time - 1
-			//this->green_up = this->green_up*this->b_mat_up[time];				// up multiplication (RIGHT DECREASE) from time, time-1.... M-1,...time + 1
-			//this->green_down = this->green_down*this->b_mat_down[time];			// down multiplication (RIGHT DECREASE) from time, time-1.... M-1,...time + 1
-
-			time = (time == (this->M - 1)) ? 0 : time + 1;					// LEFT INCREASE
-			//time = (time == 0) ? M - 1 : time-1;								// RIGHT DECREASE;
-		}
-		this->green_up = (this->green_up * Q_up) * diagmat(D_up);			// multiply by the former ones
-		this->green_down = (this->green_down * Q_down) * diagmat(D_down);	// multiply by the former ones
-		//this->green_down.print();
-
-		if (!arma::qr(Q_up, R_up, P_up, this->green_up)) throw "decomposition failed\n";
-		if (!arma::qr(Q_down, R_down, P_down, this->green_down)) throw "decomposition failed\n";
-
-		D_up = diagvec(R_up);
+	//stout << "STARTING CALCULATING GREEN FOR : " << which_time << std::endl;
+	// if we can use precalculated version we do!
+	if (which_time % this->M_0 == 0) {
+		// find the sector to start
+		int sector = static_cast<int>(which_time / (1.0 * this->M_0));
+		//stout << sector << std::endl;
+		if (!arma::qr(Q_up, R_up, P_up, this->b_up_condensed[sector], "matrix")) throw "decomposition failed\n";
+		if (!arma::qr(Q_down, R_down, P_down, this->b_down_condensed[sector], "matrix")) throw "decomposition failed\n";
 		D_down = diagvec(R_down);
-		//D_up.print();
+		D_up = diagvec(R_up);
+		T_down = (diagmat(D_down).i()) * R_down * (P_down.t());
+		T_up = (diagmat(D_up).i()) * R_up * (P_up.t());
 
-		T_up = ((diagmat(D_up).i() * R_up) * P_up.t()) * T_up;
-		T_down = ((diagmat(D_down).i() * R_down) * P_down.t()) * T_down;
+		for (int i = 1; i < this->p; i++) {
+			sector++;
+			if(sector == this->p) sector = 0;
+			//stout << sector << std::endl;
+
+			this->green_up = (this->b_up_condensed[sector] * Q_up) * diagmat(D_up);				// multiply by the former ones
+			this->green_down = (this->b_down_condensed[sector] * Q_down) * diagmat(D_down);		// multiply by the former ones
+
+			if (!arma::qr(Q_up, R_up, P_up, this->green_up)) throw "decomposition failed\n";
+			if (!arma::qr(Q_down, R_down, P_down, this->green_down)) throw "decomposition failed\n";
+
+			D_up = diagvec(R_up);
+			D_down = diagvec(R_down);
+
+			T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
+			T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
+		}
+	}
+	else {
+		auto multiplier = [&](auto& tim) mutable {
+			this->green_up = this->b_mat_up[tim];
+			this->green_down = this->b_mat_down[tim];
+			//stout << tim << std::endl;
+			for (int j = 1; j < this->M_0; j++) {
+				tim++;
+				if (tim == this->M) tim = 0;
+				//stout << tim << std::endl;
+				this->green_up = this->b_mat_up[tim] * this->green_up;
+				this->green_down = this->b_mat_down[tim] * this->green_down;
+				//this->green_up = this->green_up * this->b_mat_up[tim];
+				//this->green_down = this->green_down * this->b_mat_down[tim];
+			}
+			//stout << std::endl;
+		};
+		int tim = (which_time);
+		multiplier(tim);
+
+		if (!arma::qr(Q_up, R_up, P_up, this->green_up, "matrix")) throw "decomposition failed\n";
+		if (!arma::qr(Q_down, R_down, P_down, this->green_down, "matrix")) throw "decomposition failed\n";
+
+		D_down = diagvec(R_down);
+		D_up = diagvec(R_up);
+		T_down = (diagmat(D_down).i()) * R_down * (P_down.t());
+		T_up = (diagmat(D_up).i()) * R_up * (P_up.t());
+
+		for (int i = 1; i < this->p; i++)
+		{
+			// starting the multiplication
+			tim = (which_time + i * this->M_0) % this->M;
+			multiplier(tim);
+			this->green_up = (this->green_up * Q_up) * diagmat(D_up);				// multiply by the former ones
+			this->green_down = (this->green_down * Q_down) * diagmat(D_down);		// multiply by the former ones
+			//this->green_down.print();
+
+			if (!arma::qr(Q_up, R_up, P_up, this->green_up)) throw "decomposition failed\n";
+			if (!arma::qr(Q_down, R_down, P_down, this->green_down)) throw "decomposition failed\n";
+
+			D_up = diagvec(R_up);
+			D_down = diagvec(R_down);
+			//D_up.print();
+
+			T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
+			T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
+		}
 	}
 	//stout << std::endl;
-
+	this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(D_up)).i()*Q_up.t();
+	this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(D_down)).i()*Q_down.t();
 	/* Correction terms */
-	
+	/*
 	arma::vec Ds_up = D_up;
 	arma::vec Ds_down = D_down;
 
@@ -469,12 +560,14 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	}
 	this->green_up = arma::solve(diagmat(Db_up).i() * Q_up.st() + diagmat(Ds_up) * T_up, diagmat(Db_up).i()*Q_up.st());
 	this->green_down = arma::solve(diagmat(Db_down).i() * Q_down.st() + diagmat(Ds_down) * T_down, diagmat(Db_down).i()*Q_down.st());
+	*/
 	//this->green_down = T_down.i() * (Q_down.st() * T_down.i() + diagmat(D_down)).i() * Q_down.st();
 	//this->green_up = T_up.i() * (Q_up.st() * T_up.i() + diagmat(D_up)).i() * Q_up.st();
 	//
 	//this->green_down = arma::solve((T_down.t().i() * Q_down.t() * diagmat(Db_down) + diagmat(Ds_down)).t(), diagmat(Db_down) * Q_down.t());
 	//this->green_up = arma::solve((T_up.t().i() * Q_up.t() * diagmat(Db_up) + diagmat(Ds_up)).t(), diagmat(Db_up) * Q_up.t());
 }
+
 /// <summary>
 /// Function to calculate the change in the potential exponential
 /// Attractive case needs to be done
@@ -487,19 +580,16 @@ std::tuple<double, double> hubbard::HubbardQR::cal_gamma(int lat_site) const
 	if (this->U > 0) {
 		// Repulsive case
 		if (this->hsFields[this->current_time][lat_site] > 0)
-		{
 			tmp = std::make_tuple(this->gammaExp[1] - 1.0, this->gammaExp[0] - 1.0);
-		}
 		else
-		{
 			tmp = std::make_tuple(this->gammaExp[0] - 1.0, this->gammaExp[1] - 1.0);
-		}
 	}
 	else {
 		/* Attractive case */
 	}
 	return tmp;
 }
+
 /// <summary>
 /// Return probabilities of spin flip for both spin channels
 /// </summary>
@@ -520,6 +610,7 @@ std::tuple<double, double> hubbard::HubbardQR::cal_proba(int lat_site, double ga
 
 	return std::make_tuple(p_up, p_down);
 }
+
 /// <summary>
 /// Update the interaction matrix for current spin whenever the given lattice site HS field is changed
 /// Only for testing purpose
@@ -536,6 +627,7 @@ void hubbard::HubbardQR::upd_int_exp(int lat_site, double delta_sigma, short sig
 		this->int_exp_down(lat_site, this->current_time) *= delta_sigma;
 	}
 }
+
 /// <summary>
 /// After accepting spin change update the B matrix by multiplying it by diagonal element ( the delta )
 /// </summary>
@@ -543,12 +635,14 @@ void hubbard::HubbardQR::upd_int_exp(int lat_site, double delta_sigma, short sig
 /// <param name="delta_up"></param>
 /// <param name="delta_down"></param>
 void hubbard::HubbardQR::upd_B_mat(int lat_site, double delta_up, double delta_down) {
+#pragma omp parallel for num_threads(this->inner_threads)
 	for (int j = 0; j < this->Ns; j++)
 	{
 		this->b_mat_up[this->current_time](j, lat_site) *= delta_up;			// spin up
 		this->b_mat_down[this->current_time](j, lat_site) *= delta_down;		// spin down
 	}
 }
+
 /// <summary>
 /// After changing one spin we need to update the Green matrices via the Dyson equation
 /// </summary>
@@ -562,18 +656,22 @@ void hubbard::HubbardQR::upd_equal_green(int lat_site, double prob_up, double pr
 	const double gamma_over_prob_up = gamma_up / prob_up;
 	const double gamma_over_prob_down = gamma_down / prob_down;
 	// create temporaries as the elements cannot change inplace
-	const arma::mat tempGreen_up = this->green_up;
-	const arma::mat tempGreen_down = this->green_down;
+	this->tempGreen_up = this->green_up;
+	this->tempGreen_down = this->green_down;
+#pragma omp parallel for num_threads(this->inner_threads)
 	for (int a = 0; a < this->Ns; a++) {
 		const int delta = (lat_site == a) ? 1 : 0;
 		for (int b = 0; b < this->Ns; b++) {
 			// SPIN UP
-			this->green_up(a, b) += ((tempGreen_up(a, lat_site) - delta) * gamma_over_prob_up * tempGreen_up(lat_site, b));
+			this->green_up(a,b) = tempGreen_up(a,b) - (delta - tempGreen_up(a,lat_site))*gamma_over_prob_up * tempGreen_up(lat_site,b);
+			//this->green_up(a, b) += ((tempGreen_up(a, lat_site) - delta) * gamma_over_prob_up * tempGreen_up(lat_site, b));
 			// SPIN DOWN
-			this->green_down(a, b) += ((tempGreen_down(a, lat_site) - delta) * gamma_over_prob_down * tempGreen_down(lat_site, b));
+			this->green_down(a,b) = tempGreen_down(a,b) - (delta - tempGreen_down(a,lat_site))*gamma_over_prob_down * tempGreen_down(lat_site,b);
+			//this->green_down(a, b) += ((tempGreen_down(a, lat_site) - delta) * gamma_over_prob_down * tempGreen_down(lat_site, b));
 		}
 	}
 }
+
 /// <summary>
 /// Update the Green's matrices after going to next Trotter time, remember, the time is taken to be the previous one
 /// <param name="which_time">updating to which_time + 1</param>
@@ -601,8 +699,8 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	double proba = proba_up * proba_down;															// Metropolis probability
 	//double multiplier = exp(2*hsFields[current_time][lat_site]*lambda);									// https://iopscience.iop.org/article/10.1088/1742-6596/1483/1/012002/pdf
 	proba = proba / (1.0 + proba);																	// heat-bath probability
-	//int sign = 0;
-	if (this->ran.randomReal_uni() <= abs(proba)) {
+	const int sign = proba >= 0 ? 1 : -1;
+	if (this->ran.randomReal_uni() < sign * proba) {
 		this->upd_B_mat(lat_site, gamma_up + 1, gamma_down + 1);									// update the B matrices
 		this->upd_equal_green(lat_site, proba_up, proba_down, gamma_up, gamma_down);				// update Greens via Dyson
 		this->hsFields[this->current_time][lat_site] = -this->hsFields[this->current_time][lat_site];
@@ -610,7 +708,7 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 
 	}
 	//else this->hsFields[this->current_time][lat_site] = -this->hsFields[this->current_time][lat_site];
-	return sgn(proba);
+	return sign;
 }
 
 /// <summary>
@@ -692,11 +790,10 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 {
 	this->neg_num = 0;																				// counter of negative signs
 	this->pos_num = 0;																				// counter of positive signs
-	int (HubbardQR:: * ptfptr)(int);																// pointer to a single step function depending on
-	int sign = 1;
+	int (HubbardQR:: * ptfptr)(int);																// pointer to a single step function depending on whether we do configs or not
 
 	if (conf) {
-		std::cout << "Saving configurations of Hubbard Stratonovich fields\n";
+		stout << "Saving configurations of Hubbard Stratonovich fields\n";
 		ptfptr = &HubbardQR::heat_bath_single_step_conf;											// pointer to saving configs
 	}
 	else
@@ -704,27 +801,19 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 
 	for (int step = 0; step < mcSteps; step++) {
 		// Monte Carlo steps
-		bool scratch = true;
-		for (int time_im = 0; time_im < this->M; ++time_im) {
+		for (int time_im = 0; time_im < this->M; time_im++) {
 			// imaginary Trotter times
 			//stout << "mc_step = " << step << ", time_im = " << time_im << std::endl;
 			this->current_time = time_im;
-			if (scratch) {
-				//stout << "calculating from scratch at t = " << this->current_time << std::endl;
-				this->cal_green_mat(this->current_time);											// calculate the Greens from scratch
-				scratch = false;																		// tell the program to update to next time normally
+			if (this->current_time % this->from_scratch == 0) {
+				this->cal_B_mat_cond(static_cast<int>(this->current_time / double(this->M_0)));
+				this->cal_green_mat(this->current_time);
 			}
-
-			for (int i = 0; i < this->Ns; i++) {
-				// go through the lattice
-				sign = (this->*ptfptr)(i);															// get current sign and make single step
+			else
+				this->upd_next_green(this->current_time-1);
+			for (int j = 0; j < this->Ns; j++) {
+				int sign = (this->*ptfptr)(j);															// get current sign and make single step
 				sign > 0 ? this->pos_num++ : this->neg_num++;										// increase sign
-			}
-			if ((time_im + 1) % this->from_scratch == 0) scratch = true;							// not to calculate update unnecessarly
-			if (!scratch && time_im != this->M - 1) {
-				//stout << " updating by wrapping from t = " << this->current_time\
-					<< "to t = " << this->current_time + 1 << std::endl;
-				this->upd_next_green(this->current_time);											// update to next time
 			}
 		}
 	}
@@ -741,7 +830,6 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 {
 	this->neg_num = 0;																				// counter of negative signs
 	this->pos_num = 0;																				// counter of positive signs
-	int sign = 1;
 
 	// For future purposes
 	//const int Lx = this->lattice->get_Lx();
@@ -754,19 +842,21 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 		for (int time_im = 0; time_im < this->M; ++time_im) {
 			// imaginary Trotter times
 			this->current_time = time_im;
-			if (scratch) {
-				this->cal_green_mat(this->current_time);											// calculate the Greens from scratch
-				scratch = false;																	// tell the program to update to next time normally
+			if (this->current_time % this->from_scratch == 0) {
+				this->cal_B_mat_cond(static_cast<int>(this->current_time / double(this->M_0)));
+				this->cal_green_mat(this->current_time);
 			}
+			else
+				this->upd_next_green(this->current_time-1);
 			for (int i = 0; i < this->Ns; i++) {
 				// go through the lattice
-				sign = this->heat_bath_single_step(i);										// get current sign and make single step
+				int sign = this->heat_bath_single_step(i);
+				sign >= 0 ? this->pos_num++ : this->neg_num++;										// increase sign
 				this->av_single_step(i, sign);														// collect all averages
 			}
 			this->avs->av_gr_down += this->green_down;
 			this->avs->av_gr_up += this->green_up;
 
-			if ((time_im + 1) % this->from_scratch == 0) scratch = true;							// not to calculate update unnecessarly
 			if (!scratch && time_im != this->M - 1)
 				this->upd_next_green(this->current_time);											// update to next time
 		}
@@ -838,7 +928,8 @@ void hubbard::HubbardQR::average(impDef::algMC algorithm, int corr_time, int avN
 	stout << "For: " << this->get_info() << "->\n\t\tAverages time taken: " << \
 		(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() << \
 		" seconds. With average sign = " << \
-		this->avs->av_sign << std::endl;
+		this->avs->av_sign << "\nor with other measure : " << (static_cast<long long>(this->pos_num) - static_cast<long long>(this->neg_num)) / (1.0*static_cast<long long>(this->pos_num + this->neg_num)) \
+		<<  std::endl;
 }
 
 /* ---------------------------- HUBBARD MODEL WITH SPACE TIME FORMULATION ---------------------------- */

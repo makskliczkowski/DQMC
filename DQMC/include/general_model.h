@@ -29,8 +29,8 @@ struct averages_par {
 		this->av_M2z_corr = this->av_occupation_corr;
 		this->av_ch2_corr = this->av_occupation_corr;
 		// Setting av Greens
-		this->av_gr_down = arma::zeros(Ns, Ns);
-		this->av_gr_up = arma::zeros(Ns, Ns);
+		this->av_gr_down.zeros(Ns, Ns);
+		this->av_gr_up.zeros(Ns, Ns);
 	}
 
 	// Specific heat related parameters
@@ -40,14 +40,14 @@ struct averages_par {
 	double Xi = 0;																// suscability
 	double sd_Xi = 0;															// standard deviation suscability
 	// Magnetisation related parameters
-	double av_M = 0;															// average M
-	double sd_M = 0;															// standard deviation M
-	double av_M2 = 0;															// average M^2
-	double sd_M2 = 0;															// standard deviation of M^2
-	double av_M2z = 0;															// average squared z-th magnetization component
-	double sd_M2z = 0;															// sd of it
-	double av_M2x = 0;															// averaxe squared mg x-th component
-	double sd_M2x = 0;															// sd of it
+	long double av_M = 0;															// average M
+	long double sd_M = 0;															// standard deviation M
+	long double av_M2 = 0;															// average M^2
+	long double sd_M2 = 0;															// standard deviation of M^2
+	long double av_M2z = 0;															// average squared z-th magnetization component
+	long double sd_M2z = 0;															// sd of it
+	long double av_M2x = 0;															// averaxe squared mg x-th component
+	long double sd_M2x = 0;															// sd of it
 	v_3d<double> av_M2z_corr;												// equal time magnetic correlation
 	//timeCorrel av_M2z_corr_uneqTime;											// unequal time magnetic correlation
 	//std::vector<std::vector<std::vector<double>>>spin_structure_factor;			// equal time magnetic structure factor
@@ -55,17 +55,17 @@ struct averages_par {
 	v_3d<double> av_ch2_corr;												// equal time charge correlations
 	//timeCorrel av_Charge2_corr_uneqTime;										// unequal time charge correlations
 	// Energy related parameters
-	double av_E = 0;															// average E
-	double av_E2 = 0;															// average E^2
-	double sd_E = 0;															// standard deviation E
-	double av_Ek = 0;															// average kinetic energy
-	double av_Ek2 = 0;															// average square of kinetic energy
-	double sd_Ek = 0;															// std of kinetic energy
+	long double av_E = 0;															// average E
+	long double av_E2 = 0;															// average E^2
+	long double sd_E = 0;															// standard deviation E
+	long double av_Ek = 0;															// average kinetic energy
+	long double av_Ek2 = 0;															// average square of kinetic energy
+	long double sd_Ek = 0;															// std of kinetic energy
 
 	// Occupation related parameters
-	double av_sign = 0;															// average sign for probabilities
+	long double av_sign = 0;													// average sign for probabilities
 	double sd_sign = 0;															// sd of it
-	double av_occupation = 0;													// average site ocupation -> varies from 0 to 2 for one band fermions
+	long double av_occupation = 0;													// average site ocupation -> varies from 0 to 2 for one band fermions
 	double sd_occupation = 0;													// sd of it
 	// Green functions
 	arma::mat av_gr_up;														// average Green up matrix
@@ -75,13 +75,13 @@ struct averages_par {
 	v_3d<double> av_occupation_corr;										// \sum _sigma <c_jsigma c_isigma> -> AVERAGE OF EQUAL TIME GREEN FUNCTION ELEMENTS
 };
 
-/* GENERAL LATTICE */
+// ---------------------------------------------- GENERAL LATTICE ----------------------------------------------
 /// <summary>
 /// Pure virtual lattice class, it will allow to distinguish between different geometries in the model
 /// </summary>
 class Lattice {
 protected:
-	/* LATTICE PARAMETERS */
+	// ----------------------- LATTICE PARAMETERS 
 	unsigned int dimension;										// the dimensionality of the lattice 1,2,3
 	unsigned int Ns;											// number of lattice sites
 	std::string type;											// type of the lattice
@@ -93,31 +93,37 @@ protected:
 
 public:
 	virtual ~Lattice() = default;
-	/* VIRTUAL GETTERS */
+	// ----------------------- VIRTUAL GETTERS 
 	virtual int get_Lx() const = 0;
 	virtual int get_Ly() const = 0;
 	virtual int get_Lz() const = 0;
-	/* GETTERS */
+
+	// ----------------------- GETTERS 
 	int get_Ns() const { return this->Ns; };
 	int get_Dim() const { return this->dimension; };
-	int get_nn(int lat_site, int nei_num) const { return this->nearest_neighbors[lat_site][nei_num]; };				// returns given nearest nei at given lat site
+	int get_nn(int lat_site, int nei_num) const { return this->nearest_neighbors[lat_site][nei_num]; };					// returns given nearest nei at given lat site
 	int get_nnn(int lat_site, int nei_num) const { return this->next_nearest_neighbors[lat_site][nei_num]; };			// returns given next nearest nei at given lat site
-	int get_nn_number(int lat_site) const { return this->nearest_neighbors[lat_site].size(); };						// returns the number of nn
+	int get_nn_number(int lat_site) const { return this->nearest_neighbors[lat_site].size(); };							// returns the number of nn
 	int get_nnn_number(int lat_site) const { return this->next_nearest_neighbors[lat_site].size(); };					// returns the number of nnn
 	int get_coordinates(int lat_site, int axis) const { return this->coordinates[lat_site][axis]; };					// returns the given coordinate
 	std::string get_type() const { return this->type; };																// returns the type of the lattice as a string
-	/* CALCULATORS */
+
+	// ----------------------- CALCULATORS 
 	virtual void calculate_nn_pbc() = 0;
 	virtual void calculate_nnn_pbc() = 0;
 	virtual void calculate_coordinates() = 0;
 };
+
+// ---------------------------------------------- LATTICE MODEL ----------------------------------------------
 
 /// <summary>
 /// A general abstract class for models on a lattice that use Monte Carlo
 /// </summary>
 class LatticeModel {
 protected:
-	/* Certain physical parameters */
+	int inner_threads;											// threads for the inner loops
+	// ----------------------- Certain physical parameters
+
 	double T;
 	double beta;												// in kB units
 	unsigned int Ns;											// number of lattice sites
@@ -127,14 +133,14 @@ protected:
 public:
 	virtual ~LatticeModel() = default;							// pure virtual destructor
 
-	// CALCULATORS
+	// ----------------------- CALCULATORS
 	virtual void relaxation(impDef::algMC algorithm, int mc_steps, bool conf, bool quiet) = 0;
 	virtual void average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet, int times = 0) = 0;
 
-	// GETTERS
+	// ----------------------- GETTERS
 	int getDim() const { return this->lattice->get_Dim(); };
 	int getNs() const { return this->Ns; };
 	double getT() const { return this->T; };
 	std::shared_ptr<averages_par> get_avs() const { return this->avs; };
-	// SETTERS
+	// ----------------------- SETTERS
 };
