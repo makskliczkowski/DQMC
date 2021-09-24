@@ -9,8 +9,8 @@ namespace hubbard {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
 		int from_scratch;																		// number of Trotter times for Green to be calculated from scratch
-		uint64_t pos_num;																		// helps with number of positive signs
-		uint64_t neg_num;																		// helps with number of negative signs
+		long int pos_num;																		// helps with number of positive signs
+		long int neg_num;																		// helps with number of negative signs
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
 		std::vector<double> t;																	// hopping integral vector
 		double U;																				// Coulomb force strength
@@ -64,12 +64,16 @@ namespace hubbard {
 
 		// -------------------------- CALCULATORS
 		virtual void cal_green_mat(int which_time) = 0;											// calculates the Green matrices
+		virtual void compare_green_direct(int tim, double toll, bool print_greens) = 0;			// compares Green's function from stability formulation to direct evaluation
+		virtual void cal_B_mat_cond(int which_sector) = 0;
 		void cal_int_exp();																		// calculates interaction exponents at all times
 		void cal_B_mat();																		// calculates B matrices
+		void cal_B_mat(int which_time);															// recalculates the B matrix at a given time
+
 		void cal_hopping_exp();																	// calculates hopping exponent for nn
 
 		// -------------------------- UPDATERS
-		virtual void upd_int_exp(int lat_site, double delta_sigma, short sigma) = 0;
+		virtual void upd_int_exp(int lat_site, double delta_up, double delta_down) = 0;
 		virtual void upd_B_mat(int lat_site, double delta_up, double delta_down) = 0;
 		virtual void upd_equal_green(int lat_site, double prob_up, double prob_down, \
 			double gamma_up, double gamma_down) = 0;									// updates Greens at the same time after spin flip
@@ -129,14 +133,15 @@ namespace hubbard {
 		std::tuple<double, double> cal_proba(int lat_site, double gamma_up, double gamma_down) const override;			// calculate probability for both spins (0 <-> up index, 1 <-> down index)
 
 		// -------------------------- UPDATERS
-		void upd_int_exp(int lat_site, double delta_sigma, short sigma) override;
+		void upd_int_exp(int lat_site, double delta_up, double delta_down) override;
 		void upd_B_mat(int lat_site, double delta_up, double delta_down) override;
 		void upd_equal_green(int lat_site, double prob_up, double prob_down, double gamma_up, double gamma_down) override;
 		void upd_next_green(int which_time) override;
-		void cal_B_mat_cond(int which_sector);
+		void cal_B_mat_cond(int which_sector) override;
 
 		// -------------------------- CALCULATORS
 		void cal_green_mat(int which_time) override;
+		void compare_green_direct(int tim, double toll, bool print_greens) override;
 
 		// -------------------------- HEAT-BATH
 		int heat_bath_single_step(int lat_site) override;																// single step with updating

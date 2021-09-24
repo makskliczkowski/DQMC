@@ -7,6 +7,9 @@
 #include <ctime>
 #include <numeric>
 
+
+// -------------------------------------------------------- RANDOM NUMBER CLASS --------------------------------------------------------
+
 /// <summary>
 /// Random number generator class
 /// </summary>

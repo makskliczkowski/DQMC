@@ -1,5 +1,5 @@
 #include "include/lattices.h"
-/* ---------------------------- SQUARE LATTICE ---------------------------- */
+// -------------------------------------------------------- SQUARE LATTICE -------------------------------------------------------- 
 
 SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 {

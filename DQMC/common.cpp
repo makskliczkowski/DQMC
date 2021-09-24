@@ -1,6 +1,7 @@
 #include "src/common.h"
 
-/* STRING RELATED HELPERS */
+// -------------------------------------------------------- STRING RELATED HELPERS --------------------------------------------------------
+
 /// <summary>
 /// We want to handle files so let's make the c-way input a string
 /// </summary>
@@ -15,6 +16,7 @@ v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv)
 	}
 	return tmp;
 }
+
 /// <summary>
 /// Splits string according to the delimiter
 /// </summary>

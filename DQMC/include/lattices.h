@@ -2,6 +2,8 @@
 
 #include "general_model.h"
 
+// -------------------------------------------------------- SQUARE LATTICE --------------------------------------------------------
+
 class SquareLattice : public Lattice {
 private:
 	int Lx;																		// spatial x-length
@@ -20,3 +22,5 @@ public:
 	void calculate_nnn_pbc() override;
 	void calculate_coordinates() override;
 };
+
+// -------------------------------------------------------- OTHER LATTICES --------------------------------------------------------

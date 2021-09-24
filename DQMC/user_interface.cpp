@@ -377,8 +377,8 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 /// </summary>
 void hubbard::ui::make_simulation()
 {
-	std::cout << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << ", INNER THREADS = " << inner_threads << std::endl;
-/*#pragma omp parallel for num_threads(outer_threads) collapse(5)
+	stout << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << ", INNER THREADS = " << inner_threads << std::endl;
+#pragma omp parallel for num_threads(outer_threads) collapse(5)
 	for (int bi = 0; bi < this->beta_num; bi++) {
 		// over different betas
 		for (int ui = 0; ui < this->U_num; ui++) {
@@ -409,16 +409,17 @@ void hubbard::ui::make_simulation()
 			}
 		}
 	}
-	*/
+	/*
 	this->M = static_cast<int>(1.0 * this->beta / this->dtau);
 	this->p = std::ceil(1.0 * M / M_0);
 	M = p * M_0;
 	dtau = beta / double(M);
 	collectAvs(this->U, this->M_0, dtau, p, beta, mu, this->lx, this->ly, this->lz);
+	*/
 	std::cout << "FINISHED EVERY THREAD" << std::endl;
 }
 
-// ---- HELPERS
+// -------------------------------------------------------- HELPERS
 
 void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz)
 {
@@ -588,7 +589,7 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 				}
 				file_fouriers << kx << "\t" << ky << "\t" << kz << "\t" << 1 - occupation_fourier.real()/(2.0*N) << "\t" << spin_structure_factor.real() << "\t" << charge_structure_factor.real() << endl;
 				if (qx == 0 && qy == 0) {
-					file_response.open(this->saving_dir + "response_" + to_string_prec(this->U, 2) + ".dat", std::ofstream::out | std::ofstream::app);
+					file_response.open(this->saving_dir + "response_U=" + to_string_prec(this->U, 2) +",occ=" + to_string_prec(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
 					file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
 					file_response.close();
 				}

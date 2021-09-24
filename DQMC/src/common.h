@@ -1,27 +1,35 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <algorithm> // for std::ranges::copy depending on lib support
 #include <iostream>
 #include <ios>
 #include <sstream>
 #include <cmath>
 #include <filesystem>
+#include <complex>
 
-#define stout std::cout << std::setprecision(16) << std::fixed						// standard out
-/// <summary>
-/// Define a path separator for Unix and Windows systems
-/// </summary>
+// -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
+
+#define stout std::cout << std::setprecision(8) << std::fixed						// standard out
+#define im cpx(0.0,1.0)
+
 static const char* kPSep =
 #ifdef _WIN32
 "\\";
 #else
 "/";
 #endif
-namespace fs = std::filesystem;
 
-constexpr double PI = 3.14159265359;
-constexpr double PI_half = PI / 2.0;
-constexpr double TWO_PI = PI * 2;
+namespace fs = std::filesystem;
+using clk = std::chrono::steady_clock;
+using cpx = std::complex<double>;
+
+constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
+constexpr long double TWO = 2 * 3.141592653589793238462643383279502884L;	// it is me, 2pi
+constexpr long double PI_half = PI / 2.0;
+
+// -------------------------------------------------------- ALGORITHMS FOR MC --------------------------------------------------------
 
 /// <summary>
 /// Here we will state all the already implemented definitions that will help us building the user interfrace
@@ -45,6 +53,7 @@ namespace impDef {
 	};
 }
 
+// -------------------------------------------------------- COMMON UTILITIES --------------------------------------------------------
 #ifndef COMMON_UTILS_H
 #define COMMON_UTILS_H
 
@@ -54,6 +63,14 @@ template<class T>
 using v_2d = std::vector<std::vector<T>>;							// 2d double vector
 template<class T>
 using v_1d = std::vector<T>;										// 1d double vector
+
+// ----------------------------------------------------------------------------- TIME FUNCTIONS -----------------------------------------------------------------------------
+inline double tim_s(clk::time_point start) {
+	return double(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration(\
+		std::chrono::high_resolution_clock::now() - start)).count()) / 1000.0;
+}
+
+// ----------------------------------------------------------------------------- TOOLS -----------------------------------------------------------------------------
 
 /// <summary>
 /// check the sign of a value
@@ -90,7 +107,22 @@ inline void printSeparated(std::ostream& output, std::vector<T> elements, std::s
 #pragma omp critical
 	output << elements[elements_size - 1] << std::endl;
 }
-/* STRING RELATED FUNCTIONS */
+
+/// <summary>
+/// Print vector separated by commas
+/// </summary>
+template <typename T>
+std::ostream& operator<< (std::ostream& out, const v_1d<T>& v) {
+    if ( !v.empty() ) {
+        out << '[';
+        for(int i = 0; i < v.size(); i++)
+			out << v[i] << ", ";
+        out << "\b\b]"; // use two ANSI backspace characters '\b' to overwrite final ", "
+    }
+    return out;
+}
+
+// -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
 
 /// <summary>
 /// Changes a value to a string with a given precision
@@ -109,5 +141,45 @@ inline std::string to_string_prec(const T a_value, const int n = 3) {
 v_1d<std::string> split_str(const std::string& s, std::string delimiter = "\t");
 
 v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv);
+
+
+class pBar {
+public:
+	void update(double newProgress) {
+        currentProgress += newProgress;
+        amountOfFiller = (int)((currentProgress / neededProgress)*(double)pBarLength);
+    }
+	void print() {
+        currUpdateVal %= pBarUpdater.length();
+        stout << "\r";															// Bring cursor to start of line
+		stout << firstPartOfpBar;												// Print out first part of pBar
+        for (int a = 0; a < amountOfFiller; a++) {								// Print out current progress
+            stout << pBarFiller;
+        }
+        stout << pBarUpdater[currUpdateVal];
+        for (int b = 0; b < pBarLength - amountOfFiller; b++) {					// Print out spaces
+            stout << " ";
+        }
+        stout << lastPartOfpBar;												// Print out last part of progress bar
+        stout << " (" << (int)(100*(currentProgress/neededProgress)) << "%)";	// This just prints out the percent
+        stout << std::flush;
+        currUpdateVal += 1;
+    }
+private:
+	// --------------------------- STRING ENDS
+	std::string firstPartOfpBar = "\t\t\t\t[";
+    std::string lastPartOfpBar = "]";
+    std::string pBarFiller = "|";
+    std::string pBarUpdater = "/-\\|";
+	// --------------------------- PROGRESS
+	int amountOfFiller;															// length of filled elements
+	int pBarLength = 50;														// length of a progress bar
+    int currUpdateVal = 0;														// 
+	double currentProgress = 0;													// current progress
+    double neededProgress = 100;												// final progress
+
+};
+
+
 
 #endif // COMMON_UTILS_H

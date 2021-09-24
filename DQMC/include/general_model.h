@@ -10,7 +10,7 @@
 #include <filesystem>
 #include <stdlib.h>
 
-// armadillo definitions
+// -------------------------------------------------------- armadillo definitions --------------------------------------------------------
 #define ARMA_USE_WRAPPER
 #define ARMA_BLAS_CAPITALS
 #define ARMA_BLAS_UNDERSCORE
@@ -19,6 +19,7 @@
 #define ARMA_USE_MKL_ALLOC
 #define ARMA_USE_MKL_TYPES1
 #define ARMA_DONT_USE_OPENMP
+
 // In this file we define the virtual class for Monte Carlo simulations models of condensed matter systems
 
 struct averages_par {
@@ -75,7 +76,7 @@ struct averages_par {
 	v_3d<double> av_occupation_corr;										// \sum _sigma <c_jsigma c_isigma> -> AVERAGE OF EQUAL TIME GREEN FUNCTION ELEMENTS
 };
 
-// ---------------------------------------------- GENERAL LATTICE ----------------------------------------------
+// -------------------------------------------------------- GENERAL LATTICE --------------------------------------------------------
 /// <summary>
 /// Pure virtual lattice class, it will allow to distinguish between different geometries in the model
 /// </summary>
@@ -114,7 +115,7 @@ public:
 	virtual void calculate_coordinates() = 0;
 };
 
-// ---------------------------------------------- LATTICE MODEL ----------------------------------------------
+// -------------------------------------------------------- LATTICE MODEL --------------------------------------------------------
 
 /// <summary>
 /// A general abstract class for models on a lattice that use Monte Carlo
