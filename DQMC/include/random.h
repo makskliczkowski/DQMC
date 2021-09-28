@@ -28,12 +28,15 @@ public:
 		return z ^ (z >> 31);
 	}
 
-	/* WRAPPERS ON RANDOM FUNCTIONS */
+	// WRAPPERS ON RANDOM FUNCTIONS
 	double randomReal_uni(double _min = 0, double _max = 1) {
 		return std::uniform_real_distribution<double>(_min, _max)(engine);
 	}
 	uint64_t randomInt_uni(int _min, int _max) {
 		return std::uniform_int_distribution<uint64_t>(_min, _max)(engine);
+	}
+	bool bernoulli(double p) {
+		return std::bernoulli_distribution(p)(engine);
 	}
 };
 

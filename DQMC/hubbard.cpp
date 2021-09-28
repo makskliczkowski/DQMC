@@ -137,7 +137,7 @@ void hubbard::HubbardModel::cal_hopping_exp()
 {
 #pragma omp parallel for num_threads(this->inner_threads)
 	for (int i = 0; i < this->Ns; i++) {
-		this->hopping_exp(i, i) = this->dtau * this->mu;													// diagonal elements
+		//this->hopping_exp(i, i) = this->dtau * this->mu;													// diagonal elements
 		const int n_of_neigh = this->lattice->get_nn_number(i);												// take number of nn at given site
 		for (int j = 0; j < n_of_neigh; j++) {
 			const int where_neighbor = this->lattice->get_nn(i, j);											// get given nn
@@ -164,9 +164,9 @@ void hubbard::HubbardModel::cal_hopping_exp()
 /// </summary>
 void hubbard::HubbardModel::cal_int_exp() {
 	if (this->U > 0) {
-		const double exp_plus = exp(this->lambda);				// plus exponent for faster computation
-		const double exp_minus = exp(-this->lambda);			// minus exponent for faster computation
 		// Repulsive case 
+		const double exp_plus = exp(this->lambda + this->dtau * (this->mu));				// plus exponent for faster computation
+		const double exp_minus = exp(-this->lambda + this->dtau * (this->mu));			// minus exponent for faster computation
 //#pragma omp parallel for collapse(2) num_threads(this->inner_threads)
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times 
@@ -184,12 +184,14 @@ void hubbard::HubbardModel::cal_int_exp() {
 		}
 	}
 	else if (U < 0) {
-		/* Attractive case */
+		const double exp_plus = exp(this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
+		const double exp_minus = exp(-this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
+		// Attractive case
 		for (int l = 0; l < M; l++) {
-			/* Trotter times */
+			// Trotter times 
 			for (int i = 0; i < Ns; i++) {
-				/* Lattice sites */
-				this->int_exp_down(i, l) = exp(-(1.0 / dtau) * lambda * hsFields[l][i] - (this->mu + (abs(this->U) / 2.0)) + 0.5 * (lambda * hsFields[l][i] + abs(this->U / 2) * this->dtau));
+				// Lattice sites 
+				this->int_exp_down(i, l) = (this->hsFields[l][i] > 0) ? exp_plus : exp_minus;
 				this->int_exp_up(i, l) = this->int_exp_down(i, l);
 			}
 		}
@@ -207,10 +209,10 @@ void hubbard::HubbardModel::cal_B_mat() {
 #pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times 
-		//this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		//this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
+		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
+		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
 	}
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }
@@ -648,9 +650,9 @@ std::tuple<double, double> hubbard::HubbardQR::cal_proba(int lat_site, double ga
 	//stout << "up: " << tmp_up << "\tdown: " << tmp_down << std::endl;
 	//stout << "gammaUp: " << gamma_up << "\tgamma_down: " << gamma_down << std::endl << std::endl << std::endl;
 	// SPIN UP
-	const double p_up = 1.0 + gamma_up * (1.0L - this->green_up(lat_site, lat_site));
+	const double p_up = 1 + (gamma_up) * (1 - this->green_up(lat_site, lat_site));
 	// SPIN DOWN
-	const double p_down = 1.0 + gamma_down * (1.0L - this->green_down(lat_site, lat_site));
+	const double p_down = 1 + (gamma_down) * (1 - this->green_down(lat_site, lat_site));
 
 	return std::make_tuple(p_up, p_down);
 }
@@ -693,21 +695,39 @@ void hubbard::HubbardQR::upd_equal_green(int lat_site, double prob_up, double pr
 {
 	const double gamma_over_prob_up = gamma_up / prob_up;
 	const double gamma_over_prob_down = gamma_down / prob_down;
+	//arma::vec delta_vec = arma::zeros(this->Ns);
+	//delta_vec(lat_site) = 1;
+	this->tempGreen_up.zeros();
+	this->tempGreen_up(lat_site, lat_site) = gamma_over_prob_up;
+	//this->tempGreen_up.col(lat_site) = this->green_up.col(lat_site) * gamma_over_prob_up;
+	this->tempGreen_down.zeros();
+	this->tempGreen_down(lat_site, lat_site) = gamma_over_prob_down;
+	//this->tempGreen_down.col(lat_site) = this->green_down.col(lat_site) * gamma_over_prob_down;
+
+	this->green_up -= this->green_up * this->tempGreen_up * (arma::eye(this->Ns, this->Ns)-this->green_up);
+	this->green_down -= this->green_down * this->tempGreen_down * (arma::eye(this->Ns, this->Ns)-this->green_down);
+	/*
 	// create temporaries as the elements cannot change inplace
 	this->tempGreen_up = this->green_up;
 	this->tempGreen_down = this->green_down;
 #pragma omp parallel for num_threads(this->inner_threads)
 	for (int a = 0; a < this->Ns; a++) {
-		const int delta = (lat_site == a) ? 1 : 0;
+		const int delta = (a == lat_site) ? 1 : 0;
 		for (int b = 0; b < this->Ns; b++) {
+			//const int delta = (b == lat_site) ? 1 : 0;
 			// SPIN UP
+			//gamma_over_prob_up = gamma_up / (1+(1-tempGreen_up(lat_site, lat_site))*gamma_up);
 			this->green_up(a,b) = tempGreen_up(a,b) - (delta - tempGreen_up(a,lat_site))*gamma_over_prob_up * tempGreen_up(lat_site,b);
+			//this->green_up(a,b) = tempGreen_up(a,b) - (delta - tempGreen_up(lat_site,b))*gamma_over_prob_up * tempGreen_up(a,lat_site);
 			//this->green_up(a, b) += ((tempGreen_up(a, lat_site) - delta) * gamma_over_prob_up * tempGreen_up(lat_site, b));
 			// SPIN DOWN
+			//gamma_over_prob_down = gamma_down / (1+(1-tempGreen_down(lat_site, lat_site))*gamma_down);
 			this->green_down(a,b) = tempGreen_down(a,b) - (delta - tempGreen_down(a,lat_site))*gamma_over_prob_down * tempGreen_down(lat_site,b);
+			//this->green_down(a,b) = tempGreen_down(a,b) - (delta - tempGreen_down(lat_site,b))*gamma_over_prob_down * tempGreen_down(a,lat_site);
 			//this->green_down(a, b) += ((tempGreen_down(a, lat_site) - delta) * gamma_over_prob_down * tempGreen_down(lat_site, b));
 		}
 	}
+	*/
 }
 
 /// <summary>
@@ -736,10 +756,15 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	const auto [proba_up, proba_down] = this->cal_proba(lat_site, gamma_up, gamma_down);			// take the probabilities
 	double proba = proba_up * proba_down;															// Metropolis probability
 	//double multiplier = exp(2*hsFields[current_time][lat_site]*lambda);									// https://iopscience.iop.org/article/10.1088/1742-6596/1483/1/012002/pdf
-	//proba = proba / (1.0 + proba);																	// heat-bath probability
+	proba = proba / (1.0 + proba);																	// heat-bath probability
 	const int sign = proba >= 0 ? 1 : -1;
-	if (this->ran.randomReal_uni(0,1) < sign * proba) {
-		this->upd_int_exp(lat_site, gamma_up + 1, gamma_down + 1);
+	proba *= sign;
+	//auto r = this->ran.randomReal_uni(0,1);
+	//stout << "random-> " << r << ((r <= proba) ? " <= " : " > " ) << proba << "<-proba\n";
+	//if (this->ran.bernoulli(proba)) {
+	if(this->ran.randomReal_uni(0,1) <= proba){
+		//stout << "\tI am in, updating\n";
+		//this->upd_int_exp(lat_site, gamma_up + 1, gamma_down + 1);
 		this->upd_B_mat(lat_site, gamma_up + 1, gamma_down + 1);									// update the B matrices
 		this->upd_equal_green(lat_site, proba_up, proba_down, gamma_up, gamma_down);				// update Greens via Dyson
 		this->hsFields[this->current_time][lat_site] = -this->hsFields[this->current_time][lat_site];
@@ -872,7 +897,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 				// this->compare_green_direct(this->current_time, 1e-6, false);
 			}
 			else {
-				this->upd_next_green(this->current_time - 1);
+				this->upd_next_green(this->current_time);
 				// compare Green's functions
 				// this->compare_green_direct(this->current_time, 1e-6, false);
 			}
@@ -924,11 +949,11 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 				this->cal_green_mat(this->current_time);
 			}
 			else
-				this->upd_next_green(this->current_time-1);
+				this->upd_next_green(this->current_time);
 			for (int i = 0; i < this->Ns; i++) {
 				// go through the lattice
 				const int sign = this->heat_bath_single_step(i);
-				sign >= 0 ? this->pos_num += 1L : this->neg_num += 1L;								// increase sign
+				sign >= 0 ? this->pos_num ++ : this->neg_num++;										// increase sign
 				// stout << "sign: " << sign << ", pos: " << this->pos_num << ", neg: " << this->neg_num << std::endl;
 				this->av_single_step(i, sign);														// collect all averages
 			}
