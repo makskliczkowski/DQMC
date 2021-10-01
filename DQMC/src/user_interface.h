@@ -3,12 +3,11 @@
 #define UI_H
 
 #include "common.h"
-#include "../include/general_model.h"
 //#include "../include/plog/Log.h"
 //#include "../include/plog/Initializers/RollingFileInitializer.h"
+#include "../include/hubbard_dqmc_qr.h"
+#include "../include/hubbard_dqmc_st.h"
 #include "../include/lattices.h"
-#include "../include/hubbard.h"
-#include "random.h"
 
 #include <stdlib.h>
 #include <string>

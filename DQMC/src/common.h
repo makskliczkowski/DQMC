@@ -12,7 +12,7 @@
 // -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
 
 #define stout std::cout << std::setprecision(8) << std::fixed						// standard out
-#define im cpx(0.0,1.0)
+//#define im cpx(0.0,1.0)
 
 static const char* kPSep =
 #ifdef _WIN32
