@@ -78,7 +78,7 @@ namespace hubbard {
 		virtual void upd_next_green(int which_time) = 0;
 		virtual void upd_prev_green(int which_time) = 0;
 		virtual void upd_Green_step(int im_time_step, const v_1d<int>& times) = 0;					// update structure for sweeps in imaginary time
-
+		virtual void upd_Green_step(int im_time_step) = 0;
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
 		double cal_kinetic_en(int sign, int current_elem_i) const;									// calculate the kinetic energy part for averaging
 

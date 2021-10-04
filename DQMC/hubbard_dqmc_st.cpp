@@ -196,7 +196,23 @@ void hubbard::HubbardST::cal_green_mat(int which_time) {
 
 // -------------------------------------------------------- HELPERS
 
+/// <summary>
+/// 
+/// </summary>
+/// <param name="im_time_step"></param>
+/// <param name="times"></param>
+void hubbard::HubbardST::upd_Green_step(int im_time_step, const v_1d<int>& times)
+{
+	return;
+}
 
+/// <summary>
+/// 
+/// </summary>
+/// <param name="im_time_step"></param>
+void hubbard::HubbardST::upd_Green_step(int im_time_step) {
+
+}
 
 // -------------------------------------------------------- GREEN UPDATERS --------------------------------------------------------
 
@@ -424,15 +440,7 @@ int hubbard::HubbardST::heat_bath_single_step_conf(int lat_site)
 	return 1;
 }
 
-/// <summary>
-/// 
-/// </summary>
-/// <param name="im_time_step"></param>
-/// <param name="times"></param>
-void hubbard::HubbardST::upd_Green_step(int im_time_step, const v_1d<int>& times)
-{
-	return;
-}
+
 
 /// <summary>
 /// Drive the system to equilibrium with heat bath

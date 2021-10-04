@@ -334,10 +334,10 @@ void hubbard::HubbardModel::cal_B_mat() {
 //#pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times 
-		//this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		//this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
+		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
+		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
 	}
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }

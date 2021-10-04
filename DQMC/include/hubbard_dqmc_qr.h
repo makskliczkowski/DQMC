@@ -32,6 +32,7 @@ namespace hubbard {
 		void upd_next_green(int which_time) override;
 		void upd_prev_green(int which_time) override;
 		void upd_Green_step(int im_time_step, const v_1d<int>& times) override;
+		void upd_Green_step(int im_time_step) override;
 		void cal_B_mat_cond(int which_sector);
 
 		// -------------------------- CALCULATORS
