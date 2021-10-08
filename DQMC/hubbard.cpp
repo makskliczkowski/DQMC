@@ -10,9 +10,9 @@
 /// <param name="times">If the non-equal time properties were calculated</param>
 void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 {
-	const double normalization = static_cast<double>(avNum * timesNum * this->Ns);						// average points taken
-	this->avs->av_sign /= normalization;																		// average sign is needed
-	this->avs->sd_sign = sqrt((1.0 - (this->avs->av_sign * this->avs->av_sign)) / normalization);
+	const double normalization = static_cast<double>(avNum * timesNum * this->Ns);								// average points taken
+	this->avs->av_sign /= double(avNum);																		// average sign is needed
+	this->avs->sd_sign = sqrt((1.0 - (this->avs->av_sign * this->avs->av_sign)) / double(avNum));
 	const double normalisation_sign = normalization * this->avs->av_sign;										// we divide by average sign actually
 	// with minus
 	this->avs->av_gr_down /= normalisation_sign / this->Ns;
@@ -58,7 +58,7 @@ void hubbard::HubbardModel::set_hs()
 {
 	for (int l = 0; l < this->M; l++) {
 		for (int i = 0; i < this->Ns; i++) {
-			this->hsFields[l][i] = this->ran.bernoulli(0.5) ? -1 : 1;		// set the hs fields to uniform -1 or 1
+			this->hsFields(l,i) = this->ran.bernoulli(0.5) ? -1 : 1;		// set the hs fields to uniform -1 or 1
 		}
 	}
 }
@@ -103,7 +103,7 @@ std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 	std::tuple< double, double> tmp(0, 0);								// here we will save the gammas
 	if (this->U > 0) {
 		// Repulsive case
-		if (this->hsFields[this->current_time][lat_site] > 0)
+		if (this->hsFields(this->current_time, lat_site) > 0)
 			tmp = std::make_tuple(this->gammaExp[1] - 1.0, this->gammaExp[0] - 1.0);
 		else
 			tmp = std::make_tuple(this->gammaExp[0] - 1.0, this->gammaExp[1] - 1.0);
@@ -172,13 +172,13 @@ void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delt
 /// </summary>
 void hubbard::HubbardModel::cal_hopping_exp()
 {
-	bool checkerboard = true;
+	bool checkerboard = false;
 	const int Lx = this->lattice->get_Lx();
 	const int Ly = this->lattice->get_Ly();
 
 	// USE CHECKERBOARD
 	const int dim = this->lattice->get_Dim();
-	if (checkerboard) {
+	if (checkerboard && this->getDim() == 2 && Lx == Ly) {
 		arma::mat Kx_a, Kx_b, Ky_a, Ky_b, Kz_a, Kz_b;
 		Kx_a.zeros(this->Ns, this->Ns);
 		Kx_b = Kx_a;
@@ -234,11 +234,25 @@ void hubbard::HubbardModel::cal_hopping_exp()
 				}
 			}
 		}
+		/*arma::mat K(Ns, Ns, arma::fill::zeros);
+		for(int x = 0; x < Lx; ++x) {
+		    for(int y = 0; y < Ly; ++y) {
+		        // chemical potential 'mu' on the diagonal
+		        //K(x + Lx * y, x + Lx * y) -= this->mu;
+		        K(x + Lx * y, ((x + 1) % Lx) + Lx * y) = this->t[0];
+		        K(((x + 1) % Lx) + Lx * y, x + Lx * y) = this->t[0];
+		        K(x + Lx * y, x + Lx * ((y + 1) % Lx)) = this->t[0];
+		        K(x + Lx * ((y + 1) % Lx), x + Lx * y) = this->t[0];
+		    }
+		}*/
+
+
 		//Kx_a.print("Kx a:");
 		//Kx_b.print("Kx b:");
 		//Ky_a.print("Ky a:");
 		//Ky_b.print("Ky b:");
 		//this->hopping_exp = Kx_a + Kx_b + Ky_a + Ky_b;
+		//(this->hopping_exp - K).print();
 		//this->hopping_exp.print("HOPPING MATRIX:");
 
 		//arma::mat tmp_exp = arma::expmat(this->hopping_exp);
@@ -256,14 +270,14 @@ void hubbard::HubbardModel::cal_hopping_exp()
 		//this->hopping_exp.print("BETTER CALCULATED EXP");
 		return;
 	}
-	/*else {
+	else {
 #pragma omp parallel for num_threads(this->inner_threads)
 	for (int i = 0; i < this->Ns; i++) {
-		//this->hopping_exp(i, i) = this->dtau * this->mu;													// diagonal elements
+		//this->hopping_exp(i, i) = this->dtau * this->mu;														// diagonal elements
 		const int n_of_neigh = this->lattice->get_nn_number(i);												// take number of nn at given site
 		for (int j = 0; j < n_of_neigh; j++) {
 			const int where_neighbor = this->lattice->get_nn(i, j);											// get given nn
-			this->hopping_exp(i, where_neighbor) = this->dtau * this->t[i];									// assign non-diagonal elements
+			this->hopping_exp(i, where_neighbor) = this->dtau * this->t[i];								// assign non-diagonal elements
 		}
 	}
 	//this->hopping_exp.print("hopping before exponentiation");
@@ -277,11 +291,10 @@ void hubbard::HubbardModel::cal_hopping_exp()
 
 #pragma omp critical
 	stout << "condition number of hopping matrix is : " << arma::cond(this->hopping_exp) << std::endl;
-	this->hopping_exp = arma::expmat_sym(this->hopping_exp);												// take the exponential
+	this->hopping_exp = arma::expmat(this->hopping_exp);												// take the exponential
 	//this->hopping_exp.print("hopping after exponentiation");
 
 	}
-*/
 }
 
 /// <summary>
@@ -290,14 +303,14 @@ void hubbard::HubbardModel::cal_hopping_exp()
 void hubbard::HubbardModel::cal_int_exp() {
 	if (this->U > 0) {
 		// Repulsive case 
-		const double exp_plus = exp(this->lambda + this->dtau * (this->mu));				// plus exponent for faster computation
-		const double exp_minus = exp(-this->lambda + this->dtau * (this->mu));			// minus exponent for faster computation
+		const double exp_plus = exp(-this->lambda + this->dtau * (this->mu));			// plus exponent for faster computation
+		const double exp_minus = exp(+this->lambda + this->dtau * (this->mu));			// minus exponent for faster computation
 //#pragma omp parallel for collapse(2) num_threads(this->inner_threads)
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times 
 			for (int i = 0; i < this->Ns; i++) {
 				// Lattice sites 
-				if (hsFields[l][i] > 0) {
+				if (hsFields(l,i) > 0) {
 					this->int_exp_up(i, l) = exp_plus;			// diagonal up spin channel
 					this->int_exp_down(i, l) = exp_minus;		// diagonal down spin channel
 				}
@@ -316,7 +329,7 @@ void hubbard::HubbardModel::cal_int_exp() {
 			// Trotter times 
 			for (int i = 0; i < Ns; i++) {
 				// Lattice sites 
-				this->int_exp_down(i, l) = (this->hsFields[l][i] > 0) ? exp_plus : exp_minus;
+				this->int_exp_down(i, l) = (this->hsFields(l, i) > 0) ? exp_plus : exp_minus;
 				this->int_exp_up(i, l) = this->int_exp_down(i, l);
 			}
 		}
@@ -334,10 +347,12 @@ void hubbard::HubbardModel::cal_B_mat() {
 //#pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times 
-		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		//this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		//this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
+		this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
+		this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
 	}
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }
@@ -373,7 +388,7 @@ void hubbard::HubbardModel::print_hs_fields(std::ostream& output, int which_time
 			}
 			else
 			{
-				output << ((this->hsFields[i][j] == 1) ? 0.75 : 0.25) << separator;
+				output << ((this->hsFields(i,j) == 1) ? 0.75 : 0.25) << separator;
 			}
 		}
 		output << "\n";
@@ -382,79 +397,79 @@ void hubbard::HubbardModel::print_hs_fields(std::ostream& output, int which_time
 
 // -------------------------------------------------------- EQUAL TIME AVERAGES
 
-double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i) const
+double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
 {
 	const int nei_num = this->lattice->get_nn_number(current_elem_i);
 	double Ek = 0;
 	for (int nei = 0; nei < nei_num; nei++)
 	{
 		const int where_neighbor = this->lattice->get_nn(current_elem_i, nei);
-		Ek += this->green_down(current_elem_i, where_neighbor);
-		Ek += this->green_down(where_neighbor, current_elem_i);
-		Ek += this->green_up(current_elem_i, where_neighbor);
-		Ek += this->green_up(where_neighbor, current_elem_i);
+		Ek += g_down(current_elem_i, where_neighbor);
+		Ek += g_down(where_neighbor, current_elem_i);
+		Ek += g_up(current_elem_i, where_neighbor);
+		Ek += g_up(where_neighbor, current_elem_i);
 	}
 	return sign * this->t[current_elem_i] * Ek;
 }
 
-double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i) const
+double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
 {
-	return (sign * (1.0 - this->green_down(current_elem_i, current_elem_i)) + sign * (1.0 - this->green_up(current_elem_i, current_elem_i)));
+	return (sign * (1.0 - g_down(current_elem_i, current_elem_i)) + sign * (1.0 - g_up(current_elem_i, current_elem_i)));
 }
 
-double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j) const
+double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
 {
-	return sign * ((this->green_down(current_elem_j, current_elem_i) + this->green_up(current_elem_j, current_elem_i)));
+	return sign * ((g_down(current_elem_j, current_elem_i) + g_up(current_elem_j, current_elem_i)));
 }
 
-double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i) const
+double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
 {
-	return sign * (((1.0 - this->green_up(current_elem_i, current_elem_i)) * (1.0 - this->green_up(current_elem_i, current_elem_i)))
-		+ ((1.0 - this->green_up(current_elem_i, current_elem_i)) * (this->green_up(current_elem_i, current_elem_i)))
-		- ((1.0 - this->green_up(current_elem_i, current_elem_i)) * (1.0 - this->green_down(current_elem_i, current_elem_i)))
-		- ((1.0 - this->green_down(current_elem_i, current_elem_i)) * (1.0 - this->green_up(current_elem_i, current_elem_i)))
-		+ ((1.0 - this->green_down(current_elem_i, current_elem_i)) * (1.0 - this->green_down(current_elem_i, current_elem_i)))
-		+ ((1.0 - this->green_down(current_elem_i, current_elem_i)) * (this->green_down(current_elem_i, current_elem_i))));
+	return sign * (((1.0 - g_up(current_elem_i, current_elem_i)) * (1.0 - g_up(current_elem_i, current_elem_i)))
+		+ ((1.0 - g_up(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i)))
+		- ((1.0 - g_up(current_elem_i, current_elem_i)) * (1.0 - g_down(current_elem_i, current_elem_i)))
+		- ((1.0 - g_down(current_elem_i, current_elem_i)) * (1.0 - g_up(current_elem_i, current_elem_i)))
+		+ ((1.0 - g_down(current_elem_i, current_elem_i)) * (1.0 - g_down(current_elem_i, current_elem_i)))
+		+ ((1.0 - g_down(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))));
 }
 
-double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j) const
+double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
 {
 	double delta_ij = 0.0L;
 	if (current_elem_i == current_elem_j) {
 		delta_ij = 1.0L;
 	}
-	//this->green_down.print("TEST");
-	return sign * (((1.0L - this->green_up(current_elem_i, current_elem_i)) * (1.0L - this->green_up(current_elem_j, current_elem_j)))
-		+ ((delta_ij - this->green_up(current_elem_j, current_elem_i)) * (this->green_up(current_elem_i, current_elem_j)))
-		- ((1.0L - this->green_up(current_elem_i, current_elem_i)) * (1.0L - this->green_down(current_elem_j, current_elem_j)))
-		- ((1.0L - this->green_down(current_elem_i, current_elem_i)) * (1.0L - this->green_up(current_elem_j, current_elem_j)))
-		+ ((1.0L - this->green_down(current_elem_i, current_elem_i)) * (1.0L - this->green_down(current_elem_j, current_elem_j)))
-		+ ((delta_ij - this->green_down(current_elem_j, current_elem_i)) * (this->green_down(current_elem_i, current_elem_j))));
+	//g_down.print("TEST");
+	return sign * (((1.0L - g_up(current_elem_i, current_elem_i)) * (1.0L - g_up(current_elem_j, current_elem_j)))
+		+ ((delta_ij - g_up(current_elem_j, current_elem_i)) * (g_up(current_elem_i, current_elem_j)))
+		- ((1.0L - g_up(current_elem_i, current_elem_i)) * (1.0L - g_down(current_elem_j, current_elem_j)))
+		- ((1.0L - g_down(current_elem_i, current_elem_i)) * (1.0L - g_up(current_elem_j, current_elem_j)))
+		+ ((1.0L - g_down(current_elem_i, current_elem_i)) * (1.0L - g_down(current_elem_j, current_elem_j)))
+		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * (g_down(current_elem_i, current_elem_j))));
 }
 
-double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i) const
+double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
 {
 	return 0;
 }
 
-double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i) const
+double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
 {
-	return sign * (1.0 - this->green_up(current_elem_i, current_elem_i)) * (this->green_down(current_elem_i, current_elem_i))
-		+ sign * (1.0 - this->green_down(current_elem_i, current_elem_i)) * (this->green_up(current_elem_i, current_elem_i));
+	return sign * (1.0 - g_up(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))
+		+ sign * (1.0 - g_down(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i));
 }
 
-double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j) const
+double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
 {
 	double delta_ij = 0.0L;
 	if (current_elem_i == current_elem_j) {
 		delta_ij = 1.0L;
 	}
-	return sign * (((1 - this->green_up(current_elem_i, current_elem_i)) * (1 - this->green_up(current_elem_j, current_elem_j))					//sigma = sigma' = up
-		+ (1 - this->green_down(current_elem_i, current_elem_i)) * (1 - this->green_down(current_elem_j, current_elem_j))				//sigma = sigma' = down
-		+ (1 - this->green_down(current_elem_i, current_elem_i)) * (1 - this->green_up(current_elem_j, current_elem_j))					//sigma = down, sigma' = up
-		+ (1 - this->green_up(current_elem_i, current_elem_i)) * (1 - this->green_down(current_elem_j, current_elem_j))					//sigma = up, sigma' = down
-		+ ((delta_ij - this->green_up(current_elem_j, current_elem_i)) * this->green_up(current_elem_i, current_elem_j))				//sigma = sigma' = up
-		+ ((delta_ij - this->green_down(current_elem_j, current_elem_i)) * this->green_down(current_elem_i, current_elem_j))));			//sigma = sigma' = down
+	return sign * (((1 - g_up(current_elem_i, current_elem_i)) * (1 - g_up(current_elem_j, current_elem_j))					//sigma = sigma' = up
+		+ (1 - g_down(current_elem_i, current_elem_i)) * (1 - g_down(current_elem_j, current_elem_j))				//sigma = sigma' = down
+		+ (1 - g_down(current_elem_i, current_elem_i)) * (1 - g_up(current_elem_j, current_elem_j))					//sigma = down, sigma' = up
+		+ (1 - g_up(current_elem_i, current_elem_i)) * (1 - g_down(current_elem_j, current_elem_j))					//sigma = up, sigma' = down
+		+ ((delta_ij - g_up(current_elem_j, current_elem_i)) * g_up(current_elem_i, current_elem_j))				//sigma = sigma' = up
+		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * g_down(current_elem_i, current_elem_j))));			//sigma = sigma' = down
 }
 
 

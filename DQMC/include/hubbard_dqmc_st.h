@@ -14,6 +14,7 @@ namespace hubbard {
 		int current_time_slice;
 		int current_time_in_silce;
 		int green_size;
+
 		// -------------------------- HELPING FUNCTIONS
 		int total_time(int tim, int tim_sector) { return tim_sector * this->M_0 + tim; };
 		// -------------------------- UPDATERS

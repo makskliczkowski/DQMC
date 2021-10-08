@@ -82,7 +82,7 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 	this->b_mat_down = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
 
 	// all times hs fields for real spin up and down
-	this->hsFields = std::vector(this->M, std::vector<short>(this->Ns, 1));
+	this->hsFields.ones(this->M, this->Ns);
 
 	// Green's function matrix
 	this->green_up.zeros(green_size, green_size);
@@ -310,21 +310,22 @@ void hubbard::HubbardST::upd_prev_green(int which_time_green) {
 /// <param name="current_elem_i"> Current Green matrix element in averages</param>
 void hubbard::HubbardST::av_single_step(int current_elem_i, int sign)
 {
-
+	const mat& g_up = this->green_up;
+	const mat& g_down = this->green_down;
 	const int elem_i = current_elem_i;
 	current_elem_i += this->current_time_slice*this->Ns;
 
 	this->avs->av_sign += sign;
 	// m_z
-	const double m_z2 = this->cal_mz2(sign, current_elem_i);
+	const double m_z2 = this->cal_mz2(sign, current_elem_i, g_up, g_down);
 	this->avs->av_M2z += m_z2;
 	this->avs->sd_M2z += m_z2 * m_z2;
 	// m_x
-	const double m_x2 = this->cal_mx2(sign, current_elem_i);
+	const double m_x2 = this->cal_mx2(sign, current_elem_i, g_up, g_down);
 	this->avs->av_M2x += m_x2;
 	this->avs->sd_M2x += m_x2 * m_x2;
 	// occupation
-	const double occ = this->cal_occupation(sign, current_elem_i);
+	const double occ = this->cal_occupation(sign, current_elem_i, g_up, g_down);
 	this->avs->av_occupation += occ;
 	this->avs->sd_occupation += occ * occ;
 	// kinetic energy
@@ -343,9 +344,9 @@ void hubbard::HubbardST::av_single_step(int current_elem_i, int sign)
 		const int x = j_minus_i_x + this->lattice->get_Lx() - 1;
 		// normal equal - time correlations
 		const int current_elem_j = elem_j + this->Ns*this->current_time_slice;
-		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j);
-		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j);
-		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j) / (this->Ns * 2.0);
+		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, g_up, g_down);
+		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, g_up, g_down);
+		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, g_up, g_down) / (this->Ns * 2.0);
 	}
 }
 
@@ -375,7 +376,7 @@ int hubbard::HubbardST::heat_bath_single_step(int lat_site)
 		//this->cal_B_mat(this->current_time);
 		this->upd_B_mat(lat_site, delta_up, delta_down);											// update the B matrices
 		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);				// update Greens via Dyson
-		this->hsFields[this->current_time][lat_site] *= -1;
+		this->hsFields(this->current_time,lat_site) *= -1;
 	}
 	return sign;
 }

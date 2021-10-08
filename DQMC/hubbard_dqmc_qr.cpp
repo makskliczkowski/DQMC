@@ -14,6 +14,7 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	int Lz = this->lattice->get_Lz();
 	this->avs = std::make_shared<averages_par>(Lx, Ly, Lz);
 	this->t = t;
+	this->config_sign = 1;
 
 	// Params 
 	this->U = U;
@@ -85,8 +86,7 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
 
 	// all times hs fields for real spin up and down
-	this->hsFields = std::vector(this->M, std::vector<short>(this->Ns, 1));
-
+	this->hsFields.ones(this->M, this->Ns);
 	// Green's function matrix
 	this->green_up.zeros(this->Ns, this->Ns);
 	this->green_down.zeros(this->Ns, this->Ns);
@@ -102,6 +102,10 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->D_up.zeros(this->Ns);
 	this->T_down.zeros(this->Ns, this->Ns);
 	this->T_up.zeros(this->Ns, this->Ns);
+
+	// set equal time greens
+	this->g_ups_eq = v_1d<arma::mat>(this->M,arma::zeros(this->Ns, this->Ns));
+	this->g_downs_eq = v_1d<arma::mat>(this->M,arma::zeros(this->Ns, this->Ns));
 
 	// Set HS fields
 	this->set_hs();
@@ -262,54 +266,117 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 /// <param name="which_time"></param>
 void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 	//stout << "STARTING CALCULATING GREEN FOR : " << which_time << std::endl;
-	if (!arma::qr(Q_up, R_up, P_up, this->b_up_condensed[sector], "matrix")) throw "decomposition failed\n";
-	if (!arma::qr(Q_down, R_down, P_down, this->b_down_condensed[sector], "matrix")) throw "decomposition failed\n";
-	D_down = diagvec(R_down);
-	D_up = diagvec(R_up);
-	T_down = (diagmat(D_down).i()) * R_down * (P_down.t());
-	T_up = (diagmat(D_up).i()) * R_up * (P_up.t());
-
-	for (int i = 1; i < this->p; i++) {
-		sector++;
-		if (sector == this->p) sector = 0;
-		//stout << sector << std::endl;
-
-		this->tempGreen_up = (this->b_up_condensed[sector] * Q_up) * diagmat(D_up);				// multiply by the former ones
-		this->tempGreen_down = (this->b_down_condensed[sector] * Q_down) * diagmat(D_down);		// multiply by the former ones
-
-		if (!arma::qr(Q_up, R_up, P_up, this->tempGreen_up)) throw "decomposition failed\n";
-		if (!arma::qr(Q_down, R_down, P_down, this->tempGreen_down)) throw "decomposition failed\n";
-
-		D_up = diagvec(R_up);
+	bool loh = false;
+	int sec = sector;
+	if (!loh) {
+		if (!arma::qr(Q_up, R_up, this->b_up_condensed[sector])) throw "decomposition failed\n";
+		if (!arma::qr(Q_down, R_down, this->b_down_condensed[sector])) throw "decomposition failed\n";
 		D_down = diagvec(R_down);
+		D_up = diagvec(R_up);
+		T_down = (diagmat(D_down).i()) * R_down;
+		T_up = (diagmat(D_up).i()) * R_up;
 
-		T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
-		T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
-	}
-	// Correction terms
-	arma::vec Ds_up = D_up;
-	arma::vec Ds_down = D_down;
+		// new  SciPost Phys. Core 2, 011 (2020)
+		arma::mat Q_up_tmp(this->Ns, this->Ns, arma::fill::zeros);
+		arma::mat Q_down_tmp(this->Ns, this->Ns, arma::fill::zeros);
+		arma::mat R_down_tmp(this->Ns, this->Ns, arma::fill::zeros);																								// right triangular matrix down
+		arma::mat R_up_tmp(this->Ns, this->Ns, arma::fill::zeros);																									// right triangular matrix up
+		arma::vec D_down_tmp(this->Ns, arma::fill::zeros);
+		arma::vec D_up_tmp(this->Ns, arma::fill::zeros);
+		arma::mat T_down_tmp(this->Ns, this->Ns, arma::fill::zeros);
+		arma::mat T_up_tmp(this->Ns, this->Ns, arma::fill::zeros);
 
-	arma::vec Db_up(this->Ns, arma::fill::ones);
-	arma::vec Db_down(this->Ns, arma::fill::ones);
-	
-	for (int i = 0; i < this->Ns; i++)
-	{
-		if (abs(D_up(i)) > 1) {
-			Db_up(i) = D_up(i);
-			Ds_up(i) = 1;
+		for (int i = 1; i < this->p; i++) {
+			sec++;
+			if (sec == this->p) sec = 0;
+			//stout << sector << std::endl;
+
+			// decompose the second sector
+			if (!arma::qr(Q_up_tmp, R_up_tmp, this->b_up_condensed[sec])) throw "decomposition failed\n";
+			if (!arma::qr(Q_down_tmp, R_down_tmp, this->b_down_condensed[sec])) throw "decomposition failed\n";
+
+			D_up_tmp = diagvec(R_up_tmp);
+			D_down_tmp = diagvec(R_down_tmp);
+			T_down_tmp = (diagmat(D_down_tmp).i()) * R_down_tmp;
+			T_up_tmp = (diagmat(D_up_tmp).i()) * R_up_tmp;
+
+			this->tempGreen_up = diagmat(D_up_tmp) * ((T_up_tmp * Q_up) * diagmat(D_up));
+			this->tempGreen_down = diagmat(D_down_tmp) * ((T_down_tmp * Q_down) * diagmat(D_down));
+
+			if (!arma::qr(Q_up, R_up, this->tempGreen_up)) throw "decomposition failed\n";
+			if (!arma::qr(Q_down, R_down, this->tempGreen_down)) throw "decomposition failed\n";
+
+			Q_up = Q_up_tmp * Q_up;
+			Q_down = Q_down_tmp * Q_down;
+			D_up = diagvec(R_up);
+			D_down = diagvec(R_down);
+			T_up = ((diagmat(D_up).i()) * R_up) * T_up;
+			T_down = ((diagmat(D_down).i()) * R_down) * T_down;
 		}
+		this->tempGreen_up = Q_up.t() * T_up.i() + diagmat(D_up);
+		this->tempGreen_down = Q_down.t() * T_down.i() + diagmat(D_down);
 
-		if (abs(D_down(i)) > 1) {
-			Db_down(i) = D_down(i);
-			Ds_down(i) = 1;
-		}
+		if (!arma::qr(Q_up_tmp, R_up_tmp, this->tempGreen_up)) throw "decomposition failed\n";
+		if (!arma::qr(Q_down_tmp, R_down_tmp, this->tempGreen_down)) throw "decomposition failed\n";
+
+		D_up_tmp = diagvec(R_up_tmp);
+		D_down_tmp = diagvec(R_down_tmp);
+		T_down_tmp = (diagmat(D_down_tmp).i()) * R_down_tmp;
+		T_up_tmp = (diagmat(D_up_tmp).i()) * R_up_tmp;
+
+		this->green_up = (T_up_tmp * T_up).i() * diagmat(D_up_tmp).i() * (Q_up * Q_up_tmp).i();
+		this->green_down = (T_down_tmp * T_down).i() * diagmat(D_down_tmp).i() * (Q_down * Q_down_tmp).i();
 	}
-	this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
-	this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
+	else {
+		if (!arma::qr(Q_up, R_up, P_up, this->b_up_condensed[sector], "matrix")) throw "decomposition failed\n";
+		if (!arma::qr(Q_down, R_down, P_down, this->b_down_condensed[sector], "matrix")) throw "decomposition failed\n";
 
-	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(D_up)).i()*Q_up.t();
-	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(D_down)).i()*Q_down.t();
+		D_down = diagvec(R_down);
+		D_up = diagvec(R_up);
+		T_down = (diagmat(D_down).i()) * R_down * (P_down.t());
+		T_up = (diagmat(D_up).i()) * R_up * (P_up.t());
+		
+		for (int i = 1; i < this->p; i++) {
+			sec++;
+			if (sec == this->p) sec = 0;
+			//stout << sector << std::endl;
+
+			this->tempGreen_up = (this->b_up_condensed[sec] * Q_up) * diagmat(D_up);				// multiply by the former ones
+			this->tempGreen_down = (this->b_down_condensed[sec] * Q_down) * diagmat(D_down);		// multiply by the former ones
+
+			if (!arma::qr(Q_up, R_up, P_up, this->tempGreen_up)) throw "decomposition failed\n";
+			if (!arma::qr(Q_down, R_down, P_down, this->tempGreen_down)) throw "decomposition failed\n";
+
+			D_up = diagvec(R_up);
+			D_down = diagvec(R_down);
+
+			T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
+			T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
+		}
+		// Correction terms
+		arma::vec Ds_up = D_up;
+		arma::vec Ds_down = D_down;
+
+		arma::vec Db_up(this->Ns, arma::fill::ones);
+		arma::vec Db_down(this->Ns, arma::fill::ones);
+		
+		for (int i = 0; i < this->Ns; i++)
+		{
+			if (abs(D_up(i)) > 1) {
+				Db_up(i) = D_up(i);
+				Ds_up(i) = 1;
+			}
+
+			if (abs(D_down(i)) > 1) {
+				Db_down(i) = D_down(i);
+				Ds_down(i) = 1;
+			}
+		}
+		this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
+		this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
+		//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(D_up)).i()*Q_up.t();
+		//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(D_down)).i()*Q_down.t();
+	}	
 }
 
 // -------------------------------------------------------- HELPERS
@@ -433,12 +500,16 @@ void hubbard::HubbardQR::upd_Green_step(int im_time_step, const v_1d<int>& times
 /// </summary>
 /// <param name="im_time_step"></param>
 void hubbard::HubbardQR::upd_Green_step(int im_time_step) {
-	if (im_time_step % this->from_scratch == 0) {
+	if ((im_time_step % this->from_scratch == 0)) {
 		// the B matrices that have changed are before so we substract 1
-		const int sector_to_upd = myModuloEuclidean(static_cast<int>(this->current_time / double(this->M_0)) - 1, this->p);
-		//this->cal_B_mat_cond(sector_to_upd);
-		//this->cal_green_mat_cycle(myModuloEuclidean(static_cast<int>(this->current_time / double(this->M_0)), this->p));
-		this->cal_green_mat(this->current_time);
+		if (this->from_scratch = this->M_0) {
+			const int sector_to_upd = myModuloEuclidean(static_cast<int>(this->current_time / double(this->M_0)) - 1, this->p);
+			this->cal_B_mat_cond(sector_to_upd);
+			this->cal_green_mat_cycle(myModuloEuclidean(static_cast<int>(this->current_time / double(this->M_0)), this->p));
+		}
+		else {
+			this->cal_green_mat(this->current_time);
+		}
 		//stout << "Calculating Green. I am in sector : " << myModuloEuclidean(static_cast<int>(this->current_time / double(this->M_0)), this->p);
 		//stout << " , so I need to recalculate sector : " << sector_to_upd << std::endl;
 		//compare_green_direct(this->current_time, 1e-8,false);
@@ -457,21 +528,23 @@ void hubbard::HubbardQR::upd_Green_step(int im_time_step) {
 /// <param name="current_elem_i"> Current Green matrix element in averages</param>
 void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 {
-	this->avs->av_sign += sign;
+	const mat& g_up = this->g_ups_eq[this->current_time];
+	const mat& g_down = this->g_downs_eq[this->current_time];
+	//this->avs->av_sign += sign;
 	// m_z
-	const double m_z2 = this->cal_mz2(sign, current_elem_i);
+	const double m_z2 = this->cal_mz2(sign, current_elem_i, g_up, g_down);
 	this->avs->av_M2z += m_z2;
 	this->avs->sd_M2z += m_z2 * m_z2;
 	// m_x
-	const double m_x2 = this->cal_mx2(sign, current_elem_i);
+	const double m_x2 = this->cal_mx2(sign, current_elem_i, g_up, g_down);
 	this->avs->av_M2x += m_x2;
 	this->avs->sd_M2x += m_x2 * m_x2;
 	// occupation
-	const double occ = this->cal_occupation(sign, current_elem_i);
+	const double occ = this->cal_occupation(sign, current_elem_i, g_up, g_down);
 	this->avs->av_occupation += occ;
 	this->avs->sd_occupation += occ * occ;
 	// kinetic energy
-	const double Ek = this->cal_kinetic_en(sign, current_elem_i);
+	const double Ek = this->cal_kinetic_en(sign, current_elem_i, g_up, g_down);
 	this->avs->av_Ek += Ek;
 	this->avs->av_Ek2 += Ek * Ek;
 	// Correlations
@@ -484,9 +557,9 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 		const int y = j_minus_i_y + this->lattice->get_Ly() - 1;
 		const int x = j_minus_i_x + this->lattice->get_Lx() - 1;
 		// normal equal - time correlations
-		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j);
-		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j);
-		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j) / (this->Ns * 2.0);
+		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, g_up, g_down);
+		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, g_up, g_down);
+		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, g_up, g_down) / (this->Ns * 2.0);
 	}
 }
 // ---------------------------------------------------------------------------------------------------------------- HEAT BATH ----------------------------------------------------------------------------------------------------------------
@@ -505,7 +578,8 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	double proba = proba_up * proba_down;															// Metropolis probability
 	//double multiplier = exp(2*hsFields[current_time][lat_site]*lambda);									// https://iopscience.iop.org/article/10.1088/1742-6596/1483/1/012002/pdf
 	proba = proba / (1.0 + proba);																	// heat-bath probability
-	const int sign = proba >= 0 ? 1 : -1;
+	//proba = std::min(proba, 1.0);																	// metropolis
+	const int sign = (proba >= 0) ? 1 : -1;
 	/*
 	if (sign < 0) {
 		std::vector<int> ivec(this->Ns);
@@ -520,7 +594,7 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	*/
 	//auto r = this->ran.randomReal_uni(0,1);
 	//stout << "random-> " << r << ((r <= proba) ? " <= " : " > " ) << proba << "<-proba\n";
-	//if (this->ran.bernoulli(proba)) {
+	//if (this->ran.bernoulli(abs(proba))) {
 	if(this->ran.randomReal_uni(0,1) <= abs(proba)){
 		const double delta_up = gamma_up + 1;
 		const double delta_down = gamma_down + 1;
@@ -532,7 +606,7 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 		//this->cal_B_mat_cond(sector_to_upd);
 		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);					// update Greens via Dyson
 		//this->cal_green_mat_cycle(sector_to_upd);
-		this->hsFields[this->current_time][lat_site] *= -1;
+		this->hsFields(this->current_time, lat_site) = -this->hsFields(this->current_time, lat_site);
 
 		//auto tmp_up = this->b_mat_up[this->current_time];
 		//auto tmp_down = this->b_mat_down[this->current_time];
@@ -604,14 +678,14 @@ int hubbard::HubbardQR::heat_bath_single_step_conf(int lat_site)
 		exit(-1);
 	}
 	else {
-		this->print_hs_fields(file_conf, this->current_time, lat_site, this->hsFields[this->current_time][lat_site]);
+		this->print_hs_fields(file_conf, this->current_time, lat_site, this->hsFields(this->current_time,lat_site));
 		file_conf.close();
 		file_log << name_conf << "\t" << proba << "\t" << sign << std::endl;
 		file_log.close();
 	}
 	// continue with a standard approach
 	if (this->ran.randomReal_uni() < abs(proba)) {
-		this->hsFields[this->current_time][lat_site] *= -1;
+		this->hsFields(this->current_time,lat_site) *= -1;
 		this->upd_B_mat(lat_site, gamma_up + 1, gamma_down + 1);								// update the B matrices
 		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);		// update Greens via Dyson
 	}
@@ -644,14 +718,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 
 	// times
 	const int tim_size = this->M;
-	/*std::vector<int> tim(2 * this->M - 1);
-	for (int i = 0; i < tim.size(); i++) {
-		if(i < this->M)
-			tim[i] = i;
-		else
-			tim[i] = 2*this->M - 2 - i;
-	}
-	*/
+
 	if (conf) {
 		stout << "Saving configurations of Hubbard Stratonovich fields\n";
 		ptfptr = &HubbardQR::heat_bath_single_step_conf;												// pointer to saving configs
@@ -668,23 +735,25 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 			//stout << "Current time is : " << this->current_time << std::endl;
 			this->upd_Green_step(time_im);
 			for (int j = 0; j < this->Ns; j++) {
-				int sign = (this->*ptfptr)(j);															// get current sign and make single step
-				sign > 0 ? this->pos_num++ : this->neg_num++;											// increase sign
-				// compare Green's functions
-				// this->compare_green_direct(this->current_time, 1e-6, false);
+				this->config_sign = ((this->*ptfptr)(j) >= 0);//) ? +this->config_sign : -this->config_sign;// get current sign and make single step
+				if (mcSteps != 1)
+					this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
+			}
+			// save current equal time Greens after relaxation
+			if (step == (mcSteps - 1)) {
+				this->g_ups_eq[time_im] = this->green_up;
+				this->g_downs_eq[time_im] = this->green_down;
 			}
 		}
-		//for (int i = 0; i < this->p; i++) {
-		//	this->cal_B_mat_cond(i);
-		//}
+
 		if (mcSteps != 1 && step % percentage_steps == 0) {
 #pragma omp critical
-			stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info  << " : \n";
-#pragma omp critical
-			progress.print();
-#pragma omp critical
-			stout << std::endl;
-			progress.update(percentage);
+			{
+				stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info << " : \n";
+				progress.print();
+				stout << std::endl;
+				progress.update(percentage);
+			}
 		}
 	}
 }
@@ -701,58 +770,45 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	auto start = std::chrono::high_resolution_clock::now();
 #pragma omp critical
 	stout << "\t\t----> STARTING AVERAGING FOR : " + this->info << std::endl;
-	this->neg_num = 0L;																				// counter of negative signs
-	this->pos_num = 0L;																				// counter of positive signs
+	this->neg_num = 0;																				// counter of negative signs
+	this->pos_num = 0;	
+	this->avs->av_sign = 0;				// counter of positive signs
 
 	// Progress bar
 	auto progress = pBar();
 	const double percentage = 25;
-	const int percentage_steps = static_cast<int>(percentage * avNum / 100.0);
+	const auto percentage_steps = static_cast<int>(percentage * avNum / 100.0);
 	
 	// times
 	const int tim_size = this->M;
-	/*std::vector<int> tim(tim_size);
-	for (int i = 0; i < tim.size(); i++) {
-		if(i < this->M)
-			tim[i] = i;
-		else
-			tim[i] = 2*this->M - 2 - i;
-	}
-	*/
 	for (int step = 0; step < avNum; step++) {
 		// Monte Carlo steps
 		for (int time_im = 0; time_im < tim_size; time_im++) {
 			// imaginary Trotter times
 			this->current_time = time_im;//tim[time_im];
-			this->upd_Green_step(time_im);
 			for (int i = 0; i < this->Ns; i++) {
 				// go through the lattice
-				const int sign = this->heat_bath_single_step(i);
-				sign >= 0 ? this->pos_num ++ : this->neg_num++;										// increase sign
+				// this->config_sign = this->heat_bath_single_step(i);
 				// stout << "sign: " << sign << ", pos: " << this->pos_num << ", neg: " << this->neg_num << std::endl;
-				this->av_single_step(i, sign);														// collect all averages
+				this->av_single_step(i, this->config_sign);										// collect all averages
 			}
-			this->avs->av_gr_down += this->green_down;
-			this->avs->av_gr_up += this->green_up;
+			this->avs->av_gr_down += this->g_downs_eq[this->current_time];
+			this->avs->av_gr_up += this->g_ups_eq[this->current_time];
 		}
-		// recalculte B multipliers
-		//for (int i = 0; i < this->p; i++) {
-		//	this->cal_B_mat_cond(i);
-		//}
-		// erease correlations
-		for (int corr = 1; corr < corr_time; corr++) {
+		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
+		this->avs->av_sign += this->config_sign;
+		
+		for (int corr = 0; corr < corr_time; corr++)
 			this->heat_bath_eq(1, false, true);
-		}
 		if (step % percentage_steps == 0) {
 #pragma omp critical
-			stout << "\t\t\t\t-> time: " << tim_s(start) << " -> AVERAGES PROGRESS for " << this->info  << " : \n";
-#pragma omp critical
-			progress.print();
-#pragma omp critical
-			stout << std::endl;
+			{
+				stout << "\t\t\t\t-> time: " << tim_s(start) << " -> AVERAGES PROGRESS for " << this->info << " : \n";
+				progress.print();
+				stout << std::endl;
+			}
 			progress.update(percentage);
 		}
-
 	}
 	// After
 	this->av_normalise(avNum, tim_size, times);

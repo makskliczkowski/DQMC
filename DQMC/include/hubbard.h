@@ -5,10 +5,12 @@
 #include "general_model.h"
 
 namespace hubbard {
+	using namespace arma;
 	class HubbardModel : public LatticeModel {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
 		int from_scratch;																		// number of Trotter times for Green to be calculated from scratch
+		int config_sign;																		// keep track of the configuration sign
 		long int pos_num;																		// helps with number of positive signs
 		long int neg_num;																		// helps with number of negative signs
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
@@ -22,7 +24,7 @@ namespace hubbard {
 		int current_time;																		// current Trotter time
 
 		// -------------------------- TRANSFORMATION RELATED PARAMETERS
-		std::vector<std::vector<short>> hsFields;												// Hubbard - Stratonovich fields - first time then field
+		arma::mat hsFields;																	// Hubbard - Stratonovich fields - first time then field
 		std::vector<double> gammaExp;														// precalculated exponent of gammas
 		double lambda;																		// lambda parameter in HS transform
 
@@ -80,17 +82,17 @@ namespace hubbard {
 		virtual void upd_Green_step(int im_time_step, const v_1d<int>& times) = 0;					// update structure for sweeps in imaginary time
 		virtual void upd_Green_step(int im_time_step) = 0;
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
-		double cal_kinetic_en(int sign, int current_elem_i) const;									// calculate the kinetic energy part for averaging
+		double cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;									// calculate the kinetic energy part for averaging
 
-		double cal_occupation(int sign, int current_elem_i) const;									// calculate the average occupation
-		double cal_occupation_corr(int sign, int current_elem_i, int current_elem_j) const;			// calculate the average occupation correlation at i and j
+		double cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;									// calculate the average occupation
+		double cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const;			// calculate the average occupation correlation at i and j
 
-		double cal_mz2(int sign, int current_elem_i) const;											// calculate the z-th magnetization squared
-		double cal_mz2_corr(int sign, int current_elem_i, int current_elem_j) const;					// calculate the z-th magnetization squared correlation at i and j
-		double cal_my2(int sign, int current_elem_i) const;											// calculate the y-th magnetization squared
-		double cal_mx2(int sign, int current_elem_i) const;											// calculate the x-th magnetization squared
+		double cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;											// calculate the z-th magnetization squared
+		double cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const;					// calculate the z-th magnetization squared correlation at i and j
+		double cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;											// calculate the y-th magnetization squared
+		double cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;											// calculate the x-th magnetization squared
 
-		double cal_ch_correlation(int sign, int current_elem_i, int current_elem_j) const;			// calculate the charge correlation at i and j
+		double cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const;			// calculate the charge correlation at i and j
 
 		// -------------------------- EQUAL TIME FOURIER TRANSFORMS
 
