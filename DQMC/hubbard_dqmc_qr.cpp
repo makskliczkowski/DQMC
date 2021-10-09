@@ -35,7 +35,7 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->lambda = std::acosh(std::exp((abs(this->U) * this->dtau) / 2.0));
 
 	// Calculate changing exponents before, not to calculate exp all the time 
-	this->gammaExp = { std::exp(2.0 * this->lambda), std::exp(-2.0 * this->lambda) };			// 0 -> sigma * hsfield = -1, 1 -> sigma * hsfield = 1
+	this->gammaExp = { std::exp(2.0 * this->lambda), std::exp(-2.0 * this->lambda) };			// 0 -> sigma * hsfield = 1, 1 -> sigma * hsfield = -1
 
 	// Helping params 
 	this->from_scratch = this->M_0;
@@ -80,13 +80,14 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->int_exp_up.zeros(this->Ns, this->M);
 
 	// all times exponents multiplication
-	this->b_mat_up = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_mat_down = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_mat_up = v_1d<arma::cx_mat>(this->M, arma::cx_mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_mat_down = v_1d<arma::cx_mat>(this->M, arma::cx_mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_up_condensed = std::vector<arma::cx_mat>(this->p, arma::cx_mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_down_condensed = std::vector<arma::cx_mat>(this->p, arma::cx_mat(this->Ns, this->Ns, arma::fill::zeros));
 
 	// all times hs fields for real spin up and down
 	this->hsFields.ones(this->M, this->Ns);
+	//this->hsFields_img = v_1d<v_1d<std::string>>(this->M, v_1d<std::string>(this->Ns));
 	// Green's function matrix
 	this->green_up.zeros(this->Ns, this->Ns);
 	this->green_down.zeros(this->Ns, this->Ns);
@@ -104,8 +105,8 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->T_up.zeros(this->Ns, this->Ns);
 
 	// set equal time greens
-	this->g_ups_eq = v_1d<arma::mat>(this->M,arma::zeros(this->Ns, this->Ns));
-	this->g_downs_eq = v_1d<arma::mat>(this->M,arma::zeros(this->Ns, this->Ns));
+	this->g_ups_eq = v_1d<arma::cx_mat>(this->M,arma::zeros(this->Ns, this->Ns));
+	this->g_downs_eq = v_1d<arma::cx_mat>(this->M,arma::zeros(this->Ns, this->Ns));
 
 	// Set HS fields
 	this->set_hs();
@@ -150,8 +151,8 @@ void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 /// <param name="print_greens"></param>
 void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_greens)
 {
-	arma::mat tmp_up(this->Ns, this->Ns, arma::fill::eye);
-	arma::mat tmp_down(this->Ns, this->Ns, arma::fill::eye);
+	arma::cx_mat tmp_up(this->Ns, this->Ns, arma::fill::eye);
+	arma::cx_mat tmp_down(this->Ns, this->Ns, arma::fill::eye);
 	for (int i = 0; i < this->M; i++) {
 		tmp_up = this->b_mat_up[tim] * tmp_up;
 		tmp_down = this->b_mat_down[tim] * tmp_down;
@@ -575,10 +576,24 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	const auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);									// first up then down
 	const auto [proba_up, proba_down] = this->cal_proba(lat_site, gamma_up, gamma_down);			// take the probabilities
 
-	double proba = proba_up * proba_down;															// Metropolis probability
+
+	//this->tempGreen_up = this->green_up;
+	//this->tempGreen_down = this->green_down;
+
+	//this->upd_int_exp(lat_site, delta_up, delta_down);
+	//this->upd_B_mat(lat_site, delta_up, delta_down);											// update the B matrices
+	//this->cal_green_mat(this->current_time);
+
+	//cx_double p_up = (log_det(this->green_up) - log_det(this->tempGreen_up));
+	//cx_double p_down = (log_det(this->green_down) - log_det(this->tempGreen_down));
+	//double proba = p_up.real() * p_down.real();
+
+
+	double proba = (proba_up * proba_down);															// Metropolis probability
 	//double multiplier = exp(2*hsFields[current_time][lat_site]*lambda);									// https://iopscience.iop.org/article/10.1088/1742-6596/1483/1/012002/pdf
 	proba = proba / (1.0 + proba);																	// heat-bath probability
 	//proba = std::min(proba, 1.0);																	// metropolis
+	//const int sign = (((abs(p_up.imag()) - PI) > 1e-6) ? 1 : -1) * (((abs(p_down.imag()) - PI) > 1e-6) ? 1 : -1);
 	const int sign = (proba >= 0) ? 1 : -1;
 	/*
 	if (sign < 0) {
@@ -596,6 +611,10 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	//stout << "random-> " << r << ((r <= proba) ? " <= " : " > " ) << proba << "<-proba\n";
 	//if (this->ran.bernoulli(abs(proba))) {
 	if(this->ran.randomReal_uni(0,1) <= abs(proba)){
+		//cx_double p_u = arma::log_det(this->green_up);
+		//cx_double p_d = arma::log_det(this->green_down);
+		//p_u = abs(p_u.imag() - PI) < 1e-6 ? -p_u.real() : p_u.real();
+		//p_d = abs(p_d.imag() - PI) < 1e-6  ? -p_d.real() : p_d.real();
 		const double delta_up = gamma_up + 1;
 		const double delta_down = gamma_down + 1;
 		//stout << "\tI am in, updating\n";
@@ -605,9 +624,23 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 		//const int sector_to_upd = static_cast<int>(this->current_time / double(this->M_0));
 		//this->cal_B_mat_cond(sector_to_upd);
 		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);					// update Greens via Dyson
-		//this->cal_green_mat_cycle(sector_to_upd);
+		//this->cal_green_mat(this->current_time);
 		this->hsFields(this->current_time, lat_site) = -this->hsFields(this->current_time, lat_site);
-
+		//this->hsFields_img[this->current_time][ lat_site] = this->hsFields(this->current_time, lat_site) > 0 ? " " : "|";
+		//cx_double p_u2 = arma::log_det(green_up);
+		//cx_double p_d2 = arma::log_det(green_down);
+		//p_u2 = abs(p_u2.imag() - PI) < 1e-7 ? -p_u2.real() : p_u2.real();
+		//p_d2 = abs(p_d2.imag() - PI) < 1e-7 ? -p_d2.real() : p_d2.real();
+		//p_u = -p_u2 + p_u;
+		//p_d = -p_d2 + p_d;
+		//double diff_up = proba_up - exp(p_u).real();
+		//double diff_down = proba_down - exp(p_d).real();
+		//if (sign < 0) {
+		//	stout << "i = " << lat_site << ", time = " << this->current_time << std::endl;
+		//	stout << "up from Morrison: " << proba_up << ", from dets: " << exp(p_u).real() << ", difference = " << diff_up  << std::endl;
+		//	stout << "down from Morrison: " << proba_down << ", from dets: " << exp(p_d).real() << ", difference = " << diff_down << std::endl << std::endl << std::endl;
+		//	stout << "gotem\n";
+		//}
 		//auto tmp_up = this->b_mat_up[this->current_time];
 		//auto tmp_down = this->b_mat_down[this->current_time];
 		//this->upd_int_exp(lat_site, gamma_up + 1, gamma_down + 1);
@@ -617,7 +650,6 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 		//stout << "up difference: " << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << std::endl;
 		//stout << "down difference: " << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << std::endl;
 		//sign > 0 ? this->pos_num++ : this->neg_num++;
-
 	}
 	//else this->hsFields[this->current_time][lat_site] = -this->hsFields[this->current_time][lat_site];
 	return sign;
@@ -738,6 +770,12 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 				this->config_sign = ((this->*ptfptr)(j) >= 0);//) ? +this->config_sign : -this->config_sign;// get current sign and make single step
 				if (mcSteps != 1)
 					this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
+				/*for (int a = 0; a < this->M; a++) {
+					for (int b = 0; b < this->Ns; b++) {
+						stout << this->hsFields_img[a][b] << "\t";
+					}
+					stout << std::endl;
+				}*/
 			}
 			// save current equal time Greens after relaxation
 			if (step == (mcSteps - 1)) {

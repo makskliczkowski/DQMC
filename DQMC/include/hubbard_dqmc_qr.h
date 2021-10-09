@@ -24,8 +24,8 @@ namespace hubbard {
 		arma::mat T_down;
 		arma::mat T_up;
 
-		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
-		std::vector<arma::mat> g_ups_eq, g_downs_eq;																			// 
+		std::vector<arma::cx_mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
+		std::vector<arma::cx_mat> g_ups_eq, g_downs_eq;																			// 
 		// -------------------------- HELPING FUNCTIONS
 
 		// -------------------------- UPDATERS

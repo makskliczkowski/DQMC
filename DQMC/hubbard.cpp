@@ -58,7 +58,9 @@ void hubbard::HubbardModel::set_hs()
 {
 	for (int l = 0; l < this->M; l++) {
 		for (int i = 0; i < this->Ns; i++) {
-			this->hsFields(l,i) = this->ran.bernoulli(0.5) ? -1 : 1;		// set the hs fields to uniform -1 or 1
+			int elem = this->ran.bernoulli(0.5) ? -1 : 1;
+			this->hsFields(l,i) = elem;	// set the hs fields to uniform -1 or 1
+			//this->hsFields_img[l][i] = elem > 0 ? " " : "|";
 		}
 	}
 }
@@ -98,15 +100,15 @@ void hubbard::HubbardModel::setConfDir(std::string dir)
 /// </summary>
 /// <param name="lat_site">lattice site on which the change has been made</param>
 /// <returns>A tuple for gammas for two spin channels, 0 is spin up, 1 is spin down</returns>
-std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
+std::tuple<arma::cx_double, arma::cx_double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 {
-	std::tuple< double, double> tmp(0, 0);								// here we will save the gammas
+	std::tuple<cx_double, cx_double> tmp(0, 0);								// here we will save the gammas
 	if (this->U > 0) {
 		// Repulsive case
 		if (this->hsFields(this->current_time, lat_site) > 0)
-			tmp = std::make_tuple(this->gammaExp[1] - 1.0, this->gammaExp[0] - 1.0);
-		else
 			tmp = std::make_tuple(this->gammaExp[0] - 1.0, this->gammaExp[1] - 1.0);
+		else
+			tmp = std::make_tuple(this->gammaExp[1] - 1.0, this->gammaExp[0] - 1.0);
 	}
 	else {
 		/* Attractive case */
@@ -303,8 +305,8 @@ void hubbard::HubbardModel::cal_hopping_exp()
 void hubbard::HubbardModel::cal_int_exp() {
 	if (this->U > 0) {
 		// Repulsive case 
-		const double exp_plus = exp(-this->lambda + this->dtau * (this->mu));			// plus exponent for faster computation
-		const double exp_minus = exp(+this->lambda + this->dtau * (this->mu));			// minus exponent for faster computation
+		const cx_double exp_plus = exp(-this->lambda + this->dtau * (this->mu));			// plus exponent for faster computation
+		const cx_double exp_minus = exp(+this->lambda + this->dtau * (this->mu));			// minus exponent for faster computation
 //#pragma omp parallel for collapse(2) num_threads(this->inner_threads)
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times 
@@ -322,8 +324,8 @@ void hubbard::HubbardModel::cal_int_exp() {
 		}
 	}
 	else if (U < 0) {
-		const double exp_plus = exp(this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
-		const double exp_minus = exp(-this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
+		const cx_double exp_plus = exp(-this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
+		const cx_double exp_minus = exp(+this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
 		// Attractive case
 		for (int l = 0; l < M; l++) {
 			// Trotter times 
