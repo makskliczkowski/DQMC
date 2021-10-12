@@ -200,17 +200,7 @@ void hubbard::HubbardST::cal_green_mat(int which_time) {
 /// 
 /// </summary>
 /// <param name="im_time_step"></param>
-/// <param name="times"></param>
-void hubbard::HubbardST::upd_Green_step(int im_time_step, const v_1d<int>& times)
-{
-	return;
-}
-
-/// <summary>
-/// 
-/// </summary>
-/// <param name="im_time_step"></param>
-void hubbard::HubbardST::upd_Green_step(int im_time_step) {
+void hubbard::HubbardST::upd_Green_step(int im_time_step, bool forward) {
 
 }
 

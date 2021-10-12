@@ -24,16 +24,17 @@ namespace hubbard {
 		arma::mat T_down;
 		arma::mat T_up;
 
-		std::vector<arma::cx_mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
-		std::vector<arma::cx_mat> g_ups_eq, g_downs_eq;																			// 
+		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
+		std::vector<arma::mat> g_ups_eq, g_downs_eq;																	// 
 		// -------------------------- HELPING FUNCTIONS
+		void sweep_0_M(std::function<int(int)> fptr, bool save_greens) override;																		// sweep forward in time
+		void sweep_M_0(std::function<int(int)> fptr, bool save_greens) override;																		// sweep backwards
 
 		// -------------------------- UPDATERS
 		void upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down) override;
 		void upd_next_green(int which_time) override;
 		void upd_prev_green(int which_time) override;
-		void upd_Green_step(int im_time_step, const v_1d<int>& times) override;
-		void upd_Green_step(int im_time_step) override;
+		void upd_Green_step(int im_time_step, bool forward) override;
 		void cal_B_mat_cond(int which_sector);
 
 		// -------------------------- CALCULATORS

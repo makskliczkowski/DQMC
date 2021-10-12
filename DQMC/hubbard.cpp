@@ -56,10 +56,12 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 /// </summary>
 void hubbard::HubbardModel::set_hs()
 {
-	for (int l = 0; l < this->M; l++) {
-		for (int i = 0; i < this->Ns; i++) {
-			int elem = this->ran.bernoulli(0.5) ? -1 : 1;
-			this->hsFields(l,i) = elem;	// set the hs fields to uniform -1 or 1
+
+	for (int i = 0; i < this->Ns; i++) {
+		for (int l = 0; l < this->M; l++) {
+			//int elem = this->ran.bernoulli(0.5) ? -1 : 1;
+			int elem = this->ran.randomReal_uni(0, 1) > 0.5 ? 1 : -1;
+			this->hsFields(l, i) = elem;	// set the hs fields to uniform -1 or 1
 			//this->hsFields_img[l][i] = elem > 0 ? " " : "|";
 		}
 	}
@@ -100,15 +102,15 @@ void hubbard::HubbardModel::setConfDir(std::string dir)
 /// </summary>
 /// <param name="lat_site">lattice site on which the change has been made</param>
 /// <returns>A tuple for gammas for two spin channels, 0 is spin up, 1 is spin down</returns>
-std::tuple<arma::cx_double, arma::cx_double> hubbard::HubbardModel::cal_gamma(int lat_site) const
+std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 {
-	std::tuple<cx_double, cx_double> tmp(0, 0);								// here we will save the gammas
+	std::tuple< double, double> tmp;								// here we will save the gammas
 	if (this->U > 0) {
 		// Repulsive case
-		if (this->hsFields(this->current_time, lat_site) > 0)
-			tmp = std::make_tuple(this->gammaExp[0] - 1.0, this->gammaExp[1] - 1.0);
-		else
-			tmp = std::make_tuple(this->gammaExp[1] - 1.0, this->gammaExp[0] - 1.0);
+		bool up = this->hsFields(this->current_time, lat_site) == 1 ? 0 : 1;
+		bool down = !up;
+		tmp = std::make_tuple(this->gammaExp[u16(up)], this->gammaExp[u16(down)]);
+
 	}
 	else {
 		/* Attractive case */
@@ -130,10 +132,13 @@ std::tuple<double, double> hubbard::HubbardModel::cal_proba(int lat_site, double
 	//stout << "up: " << tmp_up << "\tdown: " << tmp_down << std::endl;
 	//stout << "gammaUp: " << gamma_up << "\tgamma_down: " << gamma_down << std::endl << std::endl << std::endl;
 	// SPIN UP
-	const double p_up = 1.0 + (gamma_up) * (1.0 - this->green_up(lat_site, lat_site));
+	double p_up = 1.0 + (gamma_up) * (1.0 - this->green_up(lat_site, lat_site));;
+	double p_down = 0;
 	// SPIN DOWN
-	const double p_down = 1.0 + (gamma_down) * (1.0 - this->green_down(lat_site, lat_site));
-
+	if(this->U > 0)
+		p_down = 1.0 + (gamma_down) * (1.0 - this->green_down(lat_site, lat_site));
+	else
+		p_down = 1.0 + (gamma_up) * (1.0 - this->green_down(lat_site, lat_site));
 	return std::make_tuple(p_up, p_down);
 }
 
@@ -303,36 +308,25 @@ void hubbard::HubbardModel::cal_hopping_exp()
 /// Function to calculate the interaction exponential at all times, each column represents the given Trotter time
 /// </summary>
 void hubbard::HubbardModel::cal_int_exp() {
+	const arma::vec dtau_vec = arma::ones(this->Ns) *  this->dtau * (this->mu);
 	if (this->U > 0) {
-		// Repulsive case 
-		const cx_double exp_plus = exp(-this->lambda + this->dtau * (this->mu));			// plus exponent for faster computation
-		const cx_double exp_minus = exp(+this->lambda + this->dtau * (this->mu));			// minus exponent for faster computation
-//#pragma omp parallel for collapse(2) num_threads(this->inner_threads)
+		// Repulsive case
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times 
-			for (int i = 0; i < this->Ns; i++) {
-				// Lattice sites 
-				if (hsFields(l,i) > 0) {
-					this->int_exp_up(i, l) = exp_plus;			// diagonal up spin channel
-					this->int_exp_down(i, l) = exp_minus;		// diagonal down spin channel
-				}
-				else {
-					this->int_exp_up(i, l) = exp_minus;			// diagonal up spin channel
-					this->int_exp_down(i, l) = exp_plus;		// diagonal down spin channel
-				}
-			}
+			this->int_exp_up.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (this->lambda));
+			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (-this->lambda));
 		}
 	}
 	else if (U < 0) {
-		const cx_double exp_plus = exp(-this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
-		const cx_double exp_minus = exp(+this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
+		//const double exp_plus = exp(this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
+		//const double exp_minus = exp(-this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
 		// Attractive case
 		for (int l = 0; l < M; l++) {
 			// Trotter times 
 			for (int i = 0; i < Ns; i++) {
 				// Lattice sites 
-				this->int_exp_down(i, l) = (this->hsFields(l, i) > 0) ? exp_plus : exp_minus;
-				this->int_exp_up(i, l) = this->int_exp_down(i, l);
+				this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * this->lambda);
+				this->int_exp_up.col(l) = this->int_exp_down.col(l);
 			}
 		}
 	}
@@ -340,6 +334,7 @@ void hubbard::HubbardModel::cal_int_exp() {
 		this->int_exp_down = arma::eye(this->Ns, this->Ns);
 		this->int_exp_up = arma::eye(this->Ns, this->Ns);
 	}
+	//this->int_exp_up.print();
 }
 
 /// <summary>
@@ -347,12 +342,15 @@ void hubbard::HubbardModel::cal_int_exp() {
 /// </summary>
 void hubbard::HubbardModel::cal_B_mat() {
 //#pragma omp parallel for num_threads(this->inner_threads)
+	arma::mat tmp_up(this->Ns, this->Ns, arma::fill::zeros);
+	arma::mat tmp_down(this->Ns, this->Ns, arma::fill::zeros);
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times 
-		//this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		//this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
+		
+		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
+		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
 		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
 		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
 	}
@@ -503,9 +501,9 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 	if (mcSteps != 1) {
 #pragma omp critical
 		stout << "For: " << this->get_info() << "->\n\t\tRelaxation Time taken: " << \
-			(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() << \
+			(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() <</* 
 			" seconds. With average sign = " << \
-			1.0 * (this->pos_num - this->neg_num) / (this->pos_num + this->neg_num) << std::endl;
+			1.0 * (this->pos_num - this->neg_num) / (this->pos_num + this->neg_num) <<*/ std::endl;
 	}
 }
 

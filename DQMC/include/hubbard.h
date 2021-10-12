@@ -9,25 +9,25 @@ namespace hubbard {
 	class HubbardModel : public LatticeModel {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
-		int from_scratch;																			// number of Trotter times for Green to be calculated from scratch
-		int config_sign;																			// keep track of the configuration sign
-		long int pos_num;																			// helps with number of positive signs
-		long int neg_num;																			// helps with number of negative signs
+		int from_scratch;																		// number of Trotter times for Green to be calculated from scratch
+		int config_sign;																		// keep track of the configuration sign
+		long int pos_num;																		// helps with number of positive signs
+		long int neg_num;																		// helps with number of negative signs
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
-		std::vector<double> t;																		// hopping integral vector
-		double U;																					// Coulomb force strength
-		double mu;																					// chemical potential
+		std::vector<double> t;																	// hopping integral vector
+		double U;																				// Coulomb force strength
+		double mu;																				// chemical potential
 
 		// -------------------------- SUZUKI - TROTTER RELATED PARAMETERS
-		int M;																						// number of Trotter times
-		double dtau;																				// Trotter time step
-		int current_time;																			// current Trotter time
+		int M;																					// number of Trotter times
+		double dtau;																			// Trotter time step
+		int current_time;																		// current Trotter time
 
 		// -------------------------- TRANSFORMATION RELATED PARAMETERS
-		arma::mat hsFields;																			// Hubbard - Stratonovich fields - first time then field
+		arma::mat hsFields;																	// Hubbard - Stratonovich fields - first time then field
 		//std::vector<std::vector<std::string>> hsFields_img;
-		std::vector<cx_double> gammaExp;															// precalculated exponent of gammas
-		cx_double lambda;																			// lambda parameter in HS transform
+		std::vector<double> gammaExp;														// precalculated exponent of gammas
+		double lambda;																		// lambda parameter in HS transform
 
 		// -------------------------- SPACE - TIME FORMULATION OR QR PARAMETERS
 		int M_0;																					// in ST - num of time subinterval, in QR num of multiplications
@@ -35,10 +35,10 @@ namespace hubbard {
 
 		// -------------------------- ALGORITHM RELATED PARAMETERS
 		arma::mat hopping_exp;																		// exponential of a hopping matrix
-		arma::cx_mat int_exp_up, int_exp_down;														// exponentials of up and down spin interaction matrices at all times
-		std::vector<arma::cx_mat> b_mat_up, b_mat_down;												// up and down B matrices vector
-		arma::cx_mat green_up, green_down;															// Green's matrix up and down at given (equal) time
-		arma::cx_mat tempGreen_up; arma::cx_mat tempGreen_down;										// temporary Green's for wrap updating
+		arma::mat int_exp_up, int_exp_down;															// exponentials of up and down spin interaction matrices at all times
+		std::vector<arma::mat> b_mat_up, b_mat_down;												// up and down B matrices vector
+		arma::mat green_up, green_down;																// Green's matrix up and down at given (equal) time
+		arma::mat tempGreen_up; arma::mat tempGreen_down;											// temporary Green's for wrap updating
 
 		// -------------------------- HELPING PARAMETERS
 		std::string info;																			// info about the model for file creation
@@ -52,7 +52,7 @@ namespace hubbard {
 		void set_hs();																				// setting Hubbard-Stratonovich fields
 
 		// -------------------------- HELPING FUNCTIONS
-		std::tuple<cx_double, cx_double> cal_gamma(int lat_site) const;									// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
+		std::tuple<double, double> cal_gamma(int lat_site) const;									// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
 		std::tuple<double, double> cal_proba(int lat_site, double g_up, double g_down) const;		// calculate probability for both spins (0 <-> up index, 1 <-> down index)
 		virtual void av_single_step(int current_elem_i, int sign) = 0;								// take all the averages of a single step
 		void av_normalise(int avNum, int timesNum, bool times = false);								// normalise all the averages after taking them
@@ -63,6 +63,8 @@ namespace hubbard {
 		virtual int heat_bath_single_step_conf(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm overloaded for saving directories
 		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet) = 0;							// uses heat-bath to equilibrate system
 		virtual void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) = 0;			// collect the averages from the simulation
+		virtual void sweep_0_M(std::function<int(int)>, bool save_greens) = 0;						// sweep forward in time
+		virtual void sweep_M_0(std::function<int(int)>, bool save_greens) = 0;						// sweep backwards
 
 		// -------------------------- CALCULATORS
 		virtual void cal_green_mat(int which_time) = 0;												// calculates the Green matrices
@@ -80,8 +82,7 @@ namespace hubbard {
 			double gamma_over_prob_down) = 0;														// updates Greens at the same time after spin flip
 		virtual void upd_next_green(int which_time) = 0;
 		virtual void upd_prev_green(int which_time) = 0;
-		virtual void upd_Green_step(int im_time_step, const v_1d<int>& times) = 0;					// update structure for sweeps in imaginary time
-		virtual void upd_Green_step(int im_time_step) = 0;
+		virtual void upd_Green_step(int im_time_step, bool forward) = 0;
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
 		double cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;									// calculate the kinetic energy part for averaging
 

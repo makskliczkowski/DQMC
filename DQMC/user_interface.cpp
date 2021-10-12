@@ -469,7 +469,7 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 	model->setConfDir(conf_dir);																										// setting directory for saving configurations
 
 	// FILES
-	std::string info = model->get_info();																								// information about the current model
+	std::string info = model->get_info()+"_";																							// information about the current model
 	std::string nameFouriers = fourier_dir + info + ".dat";
 	std::string nameFouriersTime = fourier_dir + std::string(kPSep) + "times" + std::string(kPSep) + info + ".dat";
 	std::string nameNormal = params_dir + info + ".dat";

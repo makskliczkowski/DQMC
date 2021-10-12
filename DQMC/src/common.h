@@ -122,6 +122,19 @@ std::ostream& operator<< (std::ostream& out, const v_1d<T>& v) {
     return out;
 }
 
+template <typename T>
+std::ostream& operator<< (std::ostream& out, const v_1d<v_1d<T>>& v) {
+	if ( !v.empty() ) {
+		for (auto it : v) {
+			out << "\t\t\t\t";
+			for (int i = 0; i < it.size(); i++)
+				out << it[i] << "\t";
+			out << "\n";
+		}
+    }
+    return out;
+
+}
 // -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
 
 /// <summary>
