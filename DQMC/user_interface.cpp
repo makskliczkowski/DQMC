@@ -370,6 +370,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	}
 	//omp_set_num_threads(outer_threads);
 	omp_set_num_threads(outer_threads*inner_threads);
+
 }
 
 /// <summary>
@@ -378,7 +379,32 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 void hubbard::ui::make_simulation()
 {
 	stout << "STARTING THE SIMULATION AND USING OUTER THREADS = " << outer_threads << ", INNER THREADS = " << inner_threads << std::endl;
-#pragma omp parallel for num_threads(outer_threads) collapse(5)
+
+	// save the log file
+#pragma omp single
+	{
+	std::fstream fileLog(this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app | std::ios::in);
+	fileLog.seekg(0, std::ios::end);
+	if (fileLog.tellg() == 0) {
+		fileLog.clear();
+		fileLog.seekg(0, std::ios::beg);
+		fileLog << "lattice_type,mcsteps,avsNum,corrTime,M,M0,dtau,Lx,Ly,Lz,beta,U,mu,occupation,sd_occupation,average_sign,sd_sign,avE_kin,sd_E_kin,av_m2z,av_m2x,calculations_time\n";
+	}
+	fileLog.close();
+	}
+
+	struct params {
+		double beta;
+		double mu;
+		double U;
+		int Lx, Ly, Lz;
+		double dtau;
+		params(double beta, double mu,double U,int Lx,int Ly,int Lz,double dtau) {
+			this->beta = beta; this->mu = mu; this->U = U; this->Lx = Lx; this->Ly = Ly; this->Lz = Lz; this->dtau = dtau;
+		}
+	};
+	v_1d<params> param_list;
+
 	for (int bi = 0; bi < this->beta_num; bi++) {
 		// over different betas
 		for (int ui = 0; ui < this->U_num; ui++) {
@@ -398,17 +424,23 @@ void hubbard::ui::make_simulation()
 						auto mu_i = this->mu + mui * mu_step;
 						auto dtau_i = this->dtau + dtaui * this->dtau_step;
 						//double dtaui = dtau;//sqrt(0.125 / Ui);
-						auto M0_i = M_0;
-						auto M_i = static_cast<int>(1.0 * beta_i / dtau_i);
-						auto p_i = std::ceil(1.0 * M_i / M0_i);
-						M_i = p_i * M0_i;
-						dtau_i = 1.0 * beta_i / (M_i);
-						collectAvs(U_i, M0_i, dtau_i, p_i, beta_i, mu_i, Lx_i, Ly_i, Lz_i);
+						param_list.push_back(params(beta_i, mu_i, U_i, Lx_i, Ly_i, Lz_i, dtau_i));
+						//collectAvs(U_i, M0_i, dtau_i, p_i, beta_i, mu_i, Lx_i, Ly_i, Lz_i);
 					}
 				}
 			}
 		}
 	}
+	
+#pragma omp parallel for num_threads(this->outer_threads)
+	for (int i = 0; i < param_list.size(); i++) {
+		auto M_i = static_cast<int>(1.0 * param_list[i].beta / param_list[i].dtau);
+		const auto p_i = std::ceil(1.0 * M_i / this->M_0);
+		M_i = p_i * this->M_0;
+		param_list[i].dtau = 1.0 * param_list[i].beta / (M_i);
+		collectAvs(param_list[i].U, this->M_0, param_list[i].dtau, p_i, param_list[i].beta, param_list[i].mu, param_list[i].Lx, param_list[i].Ly, param_list[i].Lz);
+	}
+
 	/*
 	this->M = static_cast<int>(1.0 * this->beta / this->dtau);
 	this->p = std::ceil(1.0 * M / M_0);
@@ -445,22 +477,23 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 	// ------------------------------- set model --------------------------------
 	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, dtau, M_0, U, mu, beta, lat, this->inner_threads);
 
-	// ------------------------------- file handler --------------------------------
+	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
 	std::string LxLyLz = "Lx=" + to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
 	std::ofstream fileLog, fileP, fileP_time, fileGup, fileGdown;
 
-	std::string lat_type = lat->get_type() + std::string(kPSep);																		// making folder for given lattice type
-	std::string working_dir = this->saving_dir + lat_type + to_string(dim) + "D" + std::string(kPSep) + LxLyLz + std::string(kPSep);	// name of the working directory
-	/* CREATE DIRECTORIES */
+	std::string lat_type = lat->get_type() + std::string(kPSep);																			// making folder for given lattice type
+	std::string working_dir = this->saving_dir + lat_type + to_string(dim) + "D" + std::string(kPSep) + LxLyLz + std::string(kPSep);		// name of the working directory
+
+	// CREATE DIRECTORIES 
 	std::string fourier_dir = working_dir + "fouriers";
-	std::filesystem::create_directories(fourier_dir);																					// create folder for fourier based parameters
-	std::filesystem::create_directories(fourier_dir + std::string(kPSep) + "times");													// and with different times
+	fs::create_directories(fourier_dir);																					// create folder for fourier based parameters
+	fs::create_directories(fourier_dir + std::string(kPSep) + "times");													// and with different times
 	fourier_dir += std::string(kPSep);
 
 	std::string params_dir = working_dir + "params";																					// rea; space based parameters directory
 	//std::string greens_dir = params_dir + std::string(kPSep) + "greens";																		// greens directory
-	std::filesystem::create_directories(params_dir);
-	std::filesystem::create_directories(params_dir + std::string(kPSep) + "times");
+	fs::create_directories(params_dir);
+	fs::create_directories(params_dir + std::string(kPSep) + "times");
 	//std::filesystem::create_directories(greens_dir);
 	params_dir += std::string(kPSep);
 	//greens_dir += std::string(kPSep);
@@ -474,7 +507,7 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 	std::string nameFouriersTime = fourier_dir + std::string(kPSep) + "times" + std::string(kPSep) + info + ".dat";
 	std::string nameNormal = params_dir + info + ".dat";
 	std::string nameNormalTime = params_dir + std::string(kPSep) + "times" + std::string(kPSep) + info + ".dat";
-	std::string nameLog = working_dir + "HubbardLog.csv";
+	std::string nameLog = this->saving_dir + "HubbardLog.csv";
 
 	// RELAX
 	if (sf == 0)																														// without using machine learning to self learn
@@ -482,25 +515,22 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 		model->relaxation(impDef::algMC::heat_bath, this->mcSteps, this->quiet, this->save_conf);										// this can also handle saving configurations
 		if (!this->save_conf) {
 			// FILES
-			fileLog.open(nameLog);
-			if (!fileLog.is_open()) throw "couldn't open a file: " + nameLog + "\n";
-			fileLog << "mcsteps\tavsNum\tcorrTime\tM\tM0\tdtau\tLx\tLy\tLz\tbeta\tT\tU\tmu\toccupation\tsd_occupation\taverage_sign\tsd_sign\tavE_kin\tsd_E_kin\tav_m2z\tav_m2x\tcalculations_time\n";
-			fileP.open(nameNormal);
-			if (!fileP.is_open()) throw "couldn't open a file: " + nameLog + "\n";
+			openFile(fileLog, nameLog, std::ios::app);
+			openFile(fileP, nameNormal);
+#pragma omp critical
 			fileP << "x\ty\tz\tavM2z_corr\tavCharge_corr" << endl;
 			// REST
 			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet, this->cal_times);
 			avs = model->get_avs();
-			v_1d<std::string> log_vec = {
-				to_string(this->mcSteps), to_string(this->avsNum), to_string(this->corrTime), to_string(M), to_string(M_0), to_string_prec(dtau),
-				to_string(Lx), to_string(Ly), to_string(Lz), to_string_prec(beta), to_string_prec(T), to_string_prec(U),
-				to_string_prec(mu), to_string_prec(avs->av_occupation, 4), to_string_prec(avs->sd_occupation, 4),
-				to_string_prec(avs->av_sign, 5), to_string_prec(avs->sd_sign, 4),to_string_prec(avs->av_Ek,4),to_string_prec(avs->sd_Ek,4),
-				to_string_prec(avs->av_M2z), to_string_prec(avs->av_M2x),
-				to_string((chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count())
-			};
-			printSeparated(fileLog, log_vec);
+			
+			// SAVING TO STRING
+			printSeparated(fileLog, ",", {lat_type, to_string(this->mcSteps), to_string(this->avsNum), to_string(this->corrTime), to_string(M), to_string(M_0), to_string_prec(dtau),\
+				to_string(Lx), to_string(Ly), to_string(Lz), to_string_prec(beta), to_string_prec(U), to_string_prec(mu), to_string_prec(avs->av_occupation, 4), to_string_prec(avs->sd_occupation, 4),\
+				to_string_prec(avs->av_sign, 4), to_string_prec(avs->sd_sign, 4),to_string_prec(avs->av_Ek,4),to_string_prec(avs->sd_Ek,4),	to_string_prec(avs->av_M2z), to_string_prec(avs->av_M2x),to_string(tim_s(start))});
+
+#pragma omp critical
 			std::cout << "\t--- Average occupation is n = " << avs->av_occupation << "\t---Average sign is sign= " << avs->av_sign << "\t---Average local moment is m_z^2= " << avs->av_M2z << "---" << endl << endl;
+			
 			// FILES CORRELATIONS
 			for (int x = -Lx + 1; x < Lx; x++) {
 				for (int y = -Ly + 1; y < Ly; y++) {
@@ -517,7 +547,9 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 					}
 				}
 			}
+#pragma omp critical
 			fileP.close();
+#pragma omp critical
 			fileLog.close();
 			this->collectFouriers(nameFouriersTime, nameFouriers, Lx, Ly, Lz, M,beta, avs);
 
@@ -530,7 +562,7 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 {
 	using namespace std;
 	std::ofstream file_fouriers, file_fouriers_time, file_response;
-	file_fouriers.open(name);
+	openFile(file_fouriers, name);
 	/*if (times) {
 		file_fouriers_time.open(filenameTimes + "_time.dat");
 		if (!file_fouriers_time.is_open()) {
@@ -540,7 +572,7 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 		//file_fouriers_time << "kx\tky\tkz\tdtau\toccupation_fourier\tgreen_up\tgreen_down\tmagnetic_susc\tcharge_susc" << endl;
 		file_fouriers_time << "kx\tky\tkz\ttau\tgreen_up\tgreen_down" << endl;
 	}*/
-	if (!file_fouriers.is_open()) throw "couldn't open a file: " + name + "\n";
+#pragma omp critical
 	file_fouriers << "kx\tky\tkz\toccupation_fourier\tspin_structure_factor\tcharge_structure_factor" << endl;
 
 	int kx_num = Lx; int ky_num = Ly; int kz_num = Lz;
@@ -562,8 +594,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 				//arma::cx_double charge_susc = 0;
 				//arma::cx_double mag_susc = 0;
 				arma::cx_double occupation_fourier = 0;
-				arma::cx_vec green_up(M_0, arma::fill::zeros);
-				arma::cx_vec green_down(M_0, arma::fill::zeros);
+				//arma::cx_vec green_up(M_0, arma::fill::zeros);
+				//arma::cx_vec green_down(M_0, arma::fill::zeros);
 				for (int i = -kx_num + 1; i < kx_num; i++) {
 					for (int j = -ky_num + 1; j < ky_num; j++) {
 						for (int k = -kz_num + 1; k < kz_num; k++) {
@@ -588,11 +620,11 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 					}
 				}
 				file_fouriers << kx << "\t" << ky << "\t" << kz << "\t" << 1 - occupation_fourier.real()/(2.0*N) << "\t" << spin_structure_factor.real() << "\t" << charge_structure_factor.real() << endl;
-				if (qx == 0 && qy == 0) {
-					file_response.open(this->saving_dir + "response_U=" + to_string_prec(this->U, 2) +",occ=" + to_string_prec(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
-					file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
-					file_response.close();
-				}
+				//if (qx == 0 && qy == 0) {
+				//	file_response.open(this->saving_dir + "response_U=" + to_string_prec(this->U, 2) +",occ=" + to_string_prec(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
+				//	file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
+				//	file_response.close();
+				//}
 				//if (times) {
 				//	for (int l = 0; l < M_0; l++) {
 				//		file_fouriers_time << kx << "\t" << ky << "\t" << kz << "\t" << l << "\t" << green_up[l] << "\t" << green_down[l] << endl;
@@ -601,5 +633,6 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 			}
 		}
 	}
+#pragma omp critical
 	file_fouriers.close();
 }

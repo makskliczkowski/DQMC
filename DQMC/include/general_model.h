@@ -7,11 +7,9 @@
 
 #include <chrono>
 #include <armadillo>
-#include <filesystem>
 #include <stdlib.h>
 
 // -------------------------------------------------------- armadillo definitions --------------------------------------------------------
-#define ARMA_USE_WRAPPER
 #define ARMA_BLAS_CAPITALS
 #define ARMA_BLAS_UNDERSCORE
 #define ARMA_BLAS_LONG

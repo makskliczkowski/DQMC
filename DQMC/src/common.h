@@ -4,6 +4,8 @@
 #include <algorithm> // for std::ranges::copy depending on lib support
 #include <iostream>
 #include <ios>
+#include <iomanip>
+#include <thread>
 #include <sstream>
 #include <cmath>
 #include <filesystem>
@@ -73,6 +75,19 @@ inline double tim_s(clk::time_point start) {
 // ----------------------------------------------------------------------------- TOOLS -----------------------------------------------------------------------------
 
 /// <summary>
+/// 
+/// </summary>
+/// <param name="filename"></param>
+/// <param name="mode"></param>
+/// <returns></returns>
+template <typename T>
+inline void openFile(T& file, std::string filename, std::ios_base::openmode mode = std::ios::out) {
+	file.open(filename, mode);
+	if (!file.is_open()) throw "couldn't open a file: " + filename + "\n";
+}
+
+
+/// <summary>
 /// check the sign of a value
 /// </summary>
 /// <param name="val">value to be checked</param>
@@ -97,15 +112,22 @@ inline int myModuloEuclidean(int a, int b)
 	return m;
 }
 
+/// <summary>
+/// 
+/// </summary>
+/// <typeparam name="T"></typeparam>
+/// <param name="output"></param>
+/// <param name="elements"></param>
+/// <param name="separtator"></param>
 template <typename T>
-inline void printSeparated(std::ostream& output, std::vector<T> elements, std::string separtator = "\t") {
+inline void printSeparated(std::ostream& output, std::string separtator = "\t", std::initializer_list<T> elements = {}) {
 	const int elements_size = elements.size();
 #pragma omp critical
-	for (int i = 0; i < elements_size - 1; i++) {
-		output << elements[i] << separtator;
+	for (auto elem : elements) {
+		output << elem << separtator;
 	}
 #pragma omp critical
-	output << elements[elements_size - 1] << std::endl;
+	output << std::endl;
 }
 
 /// <summary>

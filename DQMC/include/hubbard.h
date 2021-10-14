@@ -37,6 +37,8 @@ namespace hubbard {
 		arma::mat hopping_exp;																		// exponential of a hopping matrix
 		arma::mat int_exp_up, int_exp_down;															// exponentials of up and down spin interaction matrices at all times
 		std::vector<arma::mat> b_mat_up, b_mat_down;												// up and down B matrices vector
+		std::vector<arma::mat> b_mat_up_inv, b_mat_down_inv;										// up and down B matrices inverses vector
+
 		arma::mat green_up, green_down;																// Green's matrix up and down at given (equal) time
 		arma::mat tempGreen_up; arma::mat tempGreen_down;											// temporary Green's for wrap updating
 
@@ -63,8 +65,8 @@ namespace hubbard {
 		virtual int heat_bath_single_step_conf(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm overloaded for saving directories
 		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet) = 0;							// uses heat-bath to equilibrate system
 		virtual void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) = 0;			// collect the averages from the simulation
-		virtual void sweep_0_M(std::function<int(int)>, bool save_greens) = 0;						// sweep forward in time
-		virtual void sweep_M_0(std::function<int(int)>, bool save_greens) = 0;						// sweep backwards
+		virtual void sweep_0_M(std::function<int(int)> ptfptr, bool save_greens) = 0;				// sweep forward in time
+		virtual void sweep_M_0(std::function<int(int)> ptfptr, bool save_greens) = 0;				// sweep backwards
 
 		// -------------------------- CALCULATORS
 		virtual void cal_green_mat(int which_time) = 0;												// calculates the Green matrices

@@ -82,6 +82,9 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	// all times exponents multiplication
 	this->b_mat_up = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
 	this->b_mat_down = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_mat_up_inv = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_mat_down_inv = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+
 	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
 	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
 
@@ -355,6 +358,7 @@ void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 			T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
 			T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
 		}
+		
 		// Correction terms
 		arma::vec Ds_up = D_up;
 		arma::vec Ds_down = D_down;
@@ -376,12 +380,28 @@ void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 		}
 		this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
 		this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
+		
 		//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(D_up)).i()*Q_up.t();
 		//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(D_down)).i()*Q_down.t();
 	}	
 }
 
 // -------------------------------------------------------- HELPERS
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="fptr"></param>
+/// <returns></returns>
+int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
+{
+	int sign = 1;
+	for (int j = 0; j < this->Ns; j++) {
+		const int lat_site = ran.randomInt_uni(0, this->Ns - 1);
+		sign = (fptr)(lat_site);
+	}
+	return sign;
+}
 
 // -------------------------------------------------------- GREEN UPDATERS --------------------------------------------------------
 
@@ -434,8 +454,10 @@ void hubbard::HubbardQR::upd_equal_green(int lat_site, double gamma_over_prob_up
 /// <param name="which_time">updating to which_time + 1</param>
 /// </summary>
 void hubbard::HubbardQR::upd_next_green(int which_time_green) {
-	this->green_up = (this->b_mat_up[which_time_green] * this->green_up) * this->b_mat_up[which_time_green].i();						// LEFT INCREASE
-	this->green_down = (this->b_mat_down[which_time_green] * this->green_down) * this->b_mat_down[which_time_green].i();				// LEFT INCREASE;
+	//this->green_up = (this->b_mat_up[which_time_green] * this->green_up) * this->b_mat_up[which_time_green].i();						// LEFT INCREASE
+	//this->green_down = (this->b_mat_down[which_time_green] * this->green_down) * this->b_mat_down[which_time_green].i();				// LEFT INCREASE;
+	this->green_up = (this->b_mat_up[which_time_green] * this->green_up) * this->b_mat_up_inv[which_time_green];						// LEFT INCREASE
+	this->green_down = (this->b_mat_down[which_time_green] * this->green_down) * this->b_mat_down_inv[which_time_green];				// LEFT INCREASE;
 }
 
 /// <summary>
@@ -443,8 +465,10 @@ void hubbard::HubbardQR::upd_next_green(int which_time_green) {
 /// </summary>
 /// <param name="which_time"></param>
 void hubbard::HubbardQR::upd_prev_green(int which_time_green) {
-	this->green_up = (this->b_mat_up[which_time_green - 1].i() * this->green_up) * this->b_mat_up[which_time_green - 1];						// LEFT INCREASE
-	this->green_down = (this->b_mat_down[which_time_green - 1].i() * this->green_down) * this->b_mat_down[which_time_green - 1];				// LEFT INCREASE;
+	//this->green_up = (this->b_mat_up[which_time_green - 1].i() * this->green_up) * this->b_mat_up[which_time_green - 1];						// LEFT INCREASE
+	//this->green_down = (this->b_mat_down[which_time_green - 1].i() * this->green_down) * this->b_mat_down[which_time_green - 1];				// LEFT INCREASE;
+	this->green_up = (this->b_mat_up_inv[which_time_green - 1] * this->green_up) * this->b_mat_up[which_time_green - 1];						// LEFT INCREASE
+	this->green_down = (this->b_mat_down_inv[which_time_green - 1] * this->green_down) * this->b_mat_down[which_time_green - 1];				// LEFT INCREASE;
 }
 
 // ---------------------------------------------------------------------------------------------------------------- 
@@ -458,14 +482,14 @@ void hubbard::HubbardQR::upd_Green_step(int im_time_step, bool forward) {
 	if (forward) {
 		if (im_time_step % this->from_scratch == 0) {
 			// the B matrices that have changed are before so we substract 1
-			if (this->from_scratch == this->M_0) {
-				const int sector_to_upd = myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)) - 1, this->p);
-				this->cal_B_mat_cond(sector_to_upd);
-				this->cal_green_mat_cycle(myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)), this->p));
-			}
-			else {
-				this->cal_green_mat(im_time_step);
-			}
+			//if (this->from_scratch == this->M_0) {
+			const int sector_to_upd = myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)) - 1, this->p);
+			this->cal_B_mat_cond(sector_to_upd);
+			this->cal_green_mat_cycle(myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)), this->p));
+			//}
+			//else {
+			//	this->cal_green_mat(im_time_step);
+			//}
 			//stout << "Calculating Green. I am in sector : " << myModuloEuclidean(static_cast<int>(this->current_time / double(this->M_0)), this->p);
 			//stout << " , so I need to recalculate sector : " << sector_to_upd << std::endl;
 			//compare_green_direct(this->current_time, 1e-8,false);
@@ -541,6 +565,8 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 }
 // ---------------------------------------------------------------------------------------------------------------- HEAT BATH ----------------------------------------------------------------------------------------------------------------
 
+
+
 /// <summary>
 /// 
 /// </summary>
@@ -552,16 +578,15 @@ void hubbard::HubbardQR::sweep_0_M(std::function<int(int)> ptfptr, bool save_gre
 		this->current_time = time_im;//tim[time_im];
 		this->upd_Green_step(time_im, true);
 		//stout << "Current time is : " << this->current_time << std::endl;
-		for (int j = 0; j < this->Ns; j++) {
-			const int lat_site = ran.randomInt_uni(0, this->Ns - 1);
-			sign = (ptfptr)(lat_site);
-		}
+		this->sweep_lat_sites(ptfptr) > 0 ? sign = +sign : sign = -sign;
 		if (save_greens) {
 			this->g_ups_eq[time_im] = this->green_up;
 			this->g_downs_eq[time_im] = this->green_down;
 		}
+		//else
+		//	sign > 0 ? this->pos_num++ : this->neg_num++;
 	}
-	this->config_sign = sign;// (sign == 1) ? +this->config_sign : -this->config_sign;// get current sign and make single step
+	this->config_sign = sign;//(sign > 0) ? +this->config_sign : -this->config_sign;// get current sign and make single step
 }
 
 /// <summary>
@@ -575,11 +600,13 @@ void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr, bool save_gre
 		// imaginary Trotter times
 		this->current_time = time_im;//tim[time_im];
 		//stout << "Current time is : " << this->current_time << std::endl;
-		for (int j = 0; j < this->Ns; j++) {
-				const int lat_site = ran.randomInt_uni(0, this->Ns - 1);
-				sign = (ptfptr)(lat_site);
-				//this->config_sign = sign;//(sign == 1) ? +this->config_sign : -this->config_sign;// get current sign and make single step
+		sweep_lat_sites(ptfptr) > 0 ? sign = +sign : sign = -sign;
+		if (save_greens) {
+			this->g_ups_eq[time_im] = this->green_up;
+			this->g_downs_eq[time_im] = this->green_down;
 		}
+		else
+			sign > 0 ? this->pos_num++ : this->neg_num++;
 		this->upd_Green_step(time_im, false);
 	}
 	this->config_sign = sign;// (sign == 1) ? +this->config_sign : -this->config_sign;
@@ -595,95 +622,23 @@ void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr, bool save_gre
 int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 {
 	//this->hsFields[this->current_time][lat_site] = -this->hsFields[this->current_time][lat_site];			// try to flip before, why not
-	auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);									// first up then down
-	auto [proba_up, proba_down] = this->cal_proba(lat_site, gamma_up, gamma_down);			// take the probabilities
-
-	/*const double delta_up = gamma_up + 1;
-	const double delta_down = gamma_down + 1;
-	this->tempGreen_up = this->green_up;
-	this->tempGreen_down = this->green_down;
-
-	this->upd_int_exp(lat_site, delta_up, delta_down);
-	this->upd_B_mat(lat_site, delta_up, delta_down);											// update the B matrices
-	if(this->current_time % this->M_0 == 0)
-		this->cal_green_mat_cycle(static_cast<int>(this->current_time/this->M_0));
-	else
-		this->cal_green_mat(this->current_time);
-
-	cx_double p_up = (log_det(this->green_up) - log_det(this->tempGreen_up));
-	cx_double p_down = (log_det(this->green_down) - log_det(this->tempGreen_down));
-	double sign_up = p_up.imag() == 0.0 ? 1 : -1;
-	double sign_down = p_down.imag() == 0.0 ? 1 : -1;
-	double proba = sign_up * sign_down * exp(p_up.real()) * exp(p_down.real());
-	*/
+	auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);										// first up then down
+	auto [proba_up, proba_down] = this->cal_proba(lat_site, gamma_up, gamma_down);					// take the probabilities
 
 	double proba = (proba_up * proba_down);															// Metropolis probability
 	if(this->U < 0) proba *= (this->gammaExp[1] + 1);												// add phase factor for 
-	//double multiplier = exp(2*hsFields[current_time][lat_site]*lambda);									// https://iopscience.iop.org/article/10.1088/1742-6596/1483/1/012002/pdf
-	proba = proba / (1.0 + proba);																	// heat-bath probability
-	//proba = std::min(proba, 1.0);																	// metropolis
-	//const int sign = (((abs(p_up.imag()) - PI) > 1e-6) ? 1 : -1) * (((abs(p_down.imag()) - PI) > 1e-6) ? 1 : -1);
+	//proba = proba / (1.0 + proba);																	// heat-bath probability
+	proba = std::min(proba, 1.0);																		// metropolis
 	const int sign = (proba >= 0) ? 1 : -1;
-	/*
-	if (sign < 0) {
-		std::vector<int> ivec(this->Ns);
-		std::iota(ivec.begin(), ivec.end(), 0);
-		stout << "\n\nLat_site: " << lat_site << std::endl;
-		stout << "up gamma: " << gamma_up << ", down gamma: " << gamma_down << std::endl;
-		stout << "up proba: " << proba_up << ", down proba: " << proba_down << std::endl;
-		stout << ivec << std::endl;
-		this->green_up.diag().t().print("diag of up green");
-		this->green_down.diag().t().print("diag of down green");
-	}
-	*/
-	//auto r = this->ran.randomReal_uni(0,1);
-	//stout << "random-> " << r << ((r <= proba) ? " <= " : " > " ) << proba << "<-proba\n";
-	//if (this->ran.bernoulli(abs(proba))) {
-	if(this->ran.randomReal_uni() <= abs(proba)){
-		//cx_double p_u = arma::log_det(this->green_up);
-		//cx_double p_d = arma::log_det(this->green_down);
+	if(this->ran.randomReal_uni() <= sign * proba){
 		const double delta_up = gamma_up + 1;
 		const double delta_down = gamma_down + 1;
 		this->hsFields(this->current_time, lat_site) = -this->hsFields(this->current_time, lat_site);
-		this->upd_int_exp(lat_site, delta_up, delta_down);
+		//this->upd_int_exp(lat_site, delta_up, delta_down);
 		//this->cal_B_mat(this->current_time);
 		this->upd_B_mat(lat_site, delta_up, delta_down);											// update the B matrices
-		//this->cal_green_mat(this->current_time);
 		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);					// update Greens via Dyson
-
-
-		//this->hsFields_img[this->current_time][lat_site] = this->hsFields(this->current_time, lat_site) > 0 ? " " : "|";
-
-		//stout << "i = " << lat_site << ", time = " << this->current_time << std::endl;
-		//stout << this->hsFields_img << std::endl << std::endl;
-
-		//cx_double p_u2 = arma::log_det(green_up);
-		//cx_double p_d2 = arma::log_det(green_down);
-		//p_u = -p_u2 + p_u;
-		//p_d = -p_d2 + p_d;
-		//double sign_up = p_u.imag() == 0.0 ? 1 : -1;
-		//double sign_down = p_d.imag() == 0.0 ? 1 : -1;
-		/*
-		double diff_up = proba_up - sign_up * exp(p_u.real());
-		double diff_down = proba_down - sign_down * exp(p_d.real());
-		if (abs(diff_up) > 1e-3 || abs(diff_down) > 1e-3) {
-			stout << "i = " << lat_site << ", time = " << this->current_time << std::endl;
-			stout << "sign from morrison = " << sign << ", neg_sign number was = " << this->neg_num << ", pos_sign number was = " << this->pos_num << std::endl;
-			stout << "up from Morrison: " << proba_up << ", from dets: " << std::complex(sign_up*exp(p_u.real()), p_u.imag()) << ", real difference = " << diff_up  << std::endl;
-			stout << "down from Morrison: " << proba_down << ", from dets: " << std::complex(sign_down * exp(p_d.real()) , p_d.imag())  << ", real difference = " << diff_down << std::endl << std::endl << std::endl;
-		}
-		*/
-		//auto tmp_up = this->b_mat_up[this->current_time];
-		//auto tmp_down = this->b_mat_down[this->current_time];
-		//this->upd_int_exp(lat_site, gamma_up + 1, gamma_down + 1);
-		//this->cal_B_mat(this->current_time);
-		//bool up = approx_equal(this->b_mat_up[this->current_time], tmp_up, "absdiff", 1e-6) ;
-		//bool down = approx_equal(this->b_mat_down[this->current_time], tmp_down, "absdiff", 1e-6);
-		//stout << "up difference: " << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << std::endl;
-		//stout << "down difference: " << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << std::endl;
-		//sign > 0 ? this->pos_num++ : this->neg_num++;
 	}
-	//else this->hsFields[this->current_time][lat_site] = -this->hsFields[this->current_time][lat_site];
 	return sign;
 }
 
@@ -766,7 +721,7 @@ int hubbard::HubbardQR::heat_bath_single_step_conf(int lat_site)
 void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 {
 	auto start = std::chrono::high_resolution_clock::now();
-	if (mcSteps != 1) {
+	if (!quiet && mcSteps != 1) {
 #pragma omp critical
 		stout << "\t\t----> STARTING RELAXING FOR : " + this->info << std::endl;
 		this->neg_num = 0;																				// counter of negative signs
@@ -774,11 +729,10 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 	}
 	// Progress bar
 	auto progress = pBar();
-	const double percentage = 20;
+	const double percentage = 25;
 	const int percentage_steps = static_cast<int>(percentage * mcSteps / 100.0);
 
 	// function
-	//int (HubbardQR:: * ptfptr)(int);																	// pointer to a single step function depending on whether we do configs or not
 	std::function<int(int)> fptr;
 	// choose the correct function
 	if (conf) {
@@ -788,18 +742,18 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 	else
 		fptr = std::bind(& HubbardQR::heat_bath_single_step, this, std::placeholders::_1);				// pointer to non-saving configs
 
+	// sweep all
 	bool save_greens = false;
-
 	for (int step = 0; step < mcSteps; step++) {
 		// Monte Carlo steps
-		//stout << "Starting sweep number : " << step << std::endl;
+
 		// save current equal time Greens after relaxation
-		//if(step == mcSteps - 1) save_greens = true;
+		if(step == mcSteps - 1) save_greens = true;
 		this->sweep_0_M(fptr, save_greens);
 		//if(step == mcSteps - 1) save_greens = false;
-		this->sweep_M_0(fptr, save_greens);
+		//epthis->sweep_M_0(fptr, save_greens);
 
-		if (mcSteps != 1 && step % percentage_steps == 0) {
+		if (!quiet && step % percentage_steps == 0) {
 #pragma omp critical
 			{ 
 				stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info << " : \n";
@@ -829,7 +783,7 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 
 	// Progress bar
 	auto progress = pBar();
-	const double percentage = 25;
+	const double percentage = 34;
 	const auto percentage_steps = static_cast<int>(percentage * avNum / 100.0);
 	
 	// times
@@ -839,23 +793,19 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 		for (int time_im = 0; time_im < tim_size; time_im++) {
 			// imaginary Trotter times
 			this->current_time = time_im;//tim[time_im];
-			this->upd_Green_step(time_im, true);
-			this->g_ups_eq[this->current_time] = this->green_up;
-			this->g_downs_eq[this->current_time] = this->green_down;
 			for (int i = 0; i < this->Ns; i++) {
 				// go through the lattice
-				// this->config_sign = this->heat_bath_single_step(i);
-				// stout << "sign: " << sign << ", pos: " << this->pos_num << ", neg: " << this->neg_num << std::endl;
 				this->av_single_step(i, this->config_sign);										// collect all averages
 			}
-			this->avs->av_gr_down += this->g_downs_eq[this->current_time];
-			this->avs->av_gr_up += this->g_ups_eq[this->current_time];
+			//this->avs->av_gr_down += this->g_downs_eq[this->current_time];
+			//this->avs->av_gr_up += this->g_ups_eq[this->current_time];
 		}
 		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
 		this->avs->av_sign += this->config_sign;
 		
-		for (int corr = 0; corr < corr_time; corr++)
-			this->heat_bath_eq(1, false, true);
+		// kill correlations
+		this->heat_bath_eq(corr_time, false, true);
+		
 		if (step % percentage_steps == 0) {
 #pragma omp critical
 			{
@@ -867,6 +817,7 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 		}
 	}
 	// After
+
 	this->av_normalise(avNum, tim_size, times);
 }
 

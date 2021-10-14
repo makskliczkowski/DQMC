@@ -27,8 +27,9 @@ namespace hubbard {
 		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
 		std::vector<arma::mat> g_ups_eq, g_downs_eq;																	// 
 		// -------------------------- HELPING FUNCTIONS
-		void sweep_0_M(std::function<int(int)> fptr, bool save_greens) override;																		// sweep forward in time
-		void sweep_M_0(std::function<int(int)> fptr, bool save_greens) override;																		// sweep backwards
+		void sweep_0_M(std::function<int(int)> ptfptr, bool save_greens) override;																		// sweep forward in time
+		void sweep_M_0(std::function<int(int)> ptfptr, bool save_greens) override;																		// sweep backwards
+		int sweep_lat_sites(std::function<int(int)> fptr);
 
 		// -------------------------- UPDATERS
 		void upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down) override;

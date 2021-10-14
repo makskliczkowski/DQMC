@@ -11,7 +11,8 @@
 void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 {
 	const double normalization = static_cast<double>(avNum * timesNum * this->Ns);								// average points taken
-	this->avs->av_sign /= double(avNum);																		// average sign is needed
+	//this->avs->av_sign /= double(avNum);																			// average sign is needed
+	this->avs->av_sign = (this->pos_num - this->neg_num) /double(this->pos_num + this->neg_num);
 	this->avs->sd_sign = sqrt((1.0 - (this->avs->av_sign * this->avs->av_sign)) / double(avNum));
 	const double normalisation_sign = normalization * this->avs->av_sign;										// we divide by average sign actually
 	// with minus
@@ -76,8 +77,8 @@ void hubbard::HubbardModel::setConfDir(std::string dir)
 	this->neg_dir = dir + std::string(kPSep) + "negative";
 	this->pos_dir = dir + std::string(kPSep) + "positive";
 	// create directories
-	std::filesystem::create_directories(this->neg_dir);
-	std::filesystem::create_directories(this->pos_dir);
+	fs::create_directories(this->neg_dir);
+	fs::create_directories(this->pos_dir);
 	// add a separator
 	this->neg_dir += std::string(kPSep);
 	this->pos_dir += std::string(kPSep);
@@ -166,6 +167,11 @@ void hubbard::HubbardModel::upd_int_exp(int lat_site, double delta_up, double de
 void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delta_down) {
 		this->b_mat_up[this->current_time].col(lat_site) *= delta_up;				// spin up
 		this->b_mat_down[this->current_time].col(lat_site) *= delta_down;			// spin down
+		
+		// the names are opposite because we need to divide in principle, not multiply
+		this->b_mat_up_inv[this->current_time].row(lat_site) *= delta_down;			// spin up
+		this->b_mat_down_inv[this->current_time].row(lat_site) *= delta_up;		// spin down
+
 		//this->b_mat_up[this->current_time](j, lat_site) *= delta_up;						// spin up
 		//this->b_mat_down[this->current_time](j, lat_site) *= delta_down;					// spin down
 }
@@ -295,10 +301,8 @@ void hubbard::HubbardModel::cal_hopping_exp()
 	//arma::mat jordan = eigvec.i() * this->hopping_exp * eigvec;
 	//jordan = arma::expmat_sym(jordan);
 	//this->hopping_exp = eigvec * this->hopping_exp * eigvec.i();
-
 #pragma omp critical
-	stout << "condition number of hopping matrix is : " << arma::cond(this->hopping_exp) << std::endl;
-	this->hopping_exp = arma::expmat(this->hopping_exp);												// take the exponential
+	this->hopping_exp = arma::expmat_sym(this->hopping_exp);												// take the exponential
 	//this->hopping_exp.print("hopping after exponentiation");
 
 	}
@@ -346,11 +350,14 @@ void hubbard::HubbardModel::cal_B_mat() {
 	arma::mat tmp_down(this->Ns, this->Ns, arma::fill::zeros);
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times 
-		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		
-		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		//this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		//this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
+		this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
+		this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+
+		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
+		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
+
 		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
 		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
 	}
@@ -364,6 +371,8 @@ void hubbard::HubbardModel::cal_B_mat(int which_time)
 {
 	this->b_mat_down[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(which_time));
 	this->b_mat_up[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(which_time));
+	this->b_mat_up_inv[which_time] = this->b_mat_up[which_time].i();
+	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
 }
 
 
@@ -497,13 +506,9 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 		break;
 	}
 
-	auto stop = std::chrono::high_resolution_clock::now();											// finishing timer for relaxation
-	if (mcSteps != 1) {
+	if (!quiet && mcSteps != 1) {
 #pragma omp critical
-		stout << "For: " << this->get_info() << "->\n\t\tRelaxation Time taken: " << \
-			(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() <</* 
-			" seconds. With average sign = " << \
-			1.0 * (this->pos_num - this->neg_num) / (this->pos_num + this->neg_num) <<*/ std::endl;
+		stout << "For: " << this->get_info() << "->\n\t\t\t\tRelax time taken: " << tim_s(start) << " seconds.\n";
 	}
 }
 
@@ -529,13 +534,8 @@ void hubbard::HubbardModel::average(impDef::algMC algorithm, int corr_time, int 
 		exit(-1);
 		break;
 	}
-	auto stop = std::chrono::high_resolution_clock::now();											// finishing timer for relaxation
 #pragma omp critical
-	stout << "For: " << this->get_info() << "->\n\t\tAverages time taken: " << \
-		(std::chrono::duration_cast<std::chrono::seconds>(stop - start)).count() << \
-		" seconds. With average sign = " << \
-		this->avs->av_sign << "\n\t\t->or with other measure : " << (this->pos_num - this->neg_num) / (1.0*static_cast<long long>(this->pos_num + this->neg_num)) \
-		<<  std::endl;
+	stout << "For: " << this->get_info() << "->\n\t\t\t\tAverages time taken: " << tim_s(start) <<  std::endl;
 }
 
 
