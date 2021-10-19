@@ -165,15 +165,23 @@ void hubbard::HubbardModel::upd_int_exp(int lat_site, double delta_up, double de
 /// <param name="delta_up"></param>
 /// <param name="delta_down"></param>
 void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delta_down) {
-		this->b_mat_up[this->current_time].col(lat_site) *= delta_up;				// spin up
-		this->b_mat_down[this->current_time].col(lat_site) *= delta_down;			// spin down
-		
-		// the names are opposite because we need to divide in principle, not multiply
-		this->b_mat_up_inv[this->current_time].row(lat_site) *= delta_down;			// spin up
-		this->b_mat_down_inv[this->current_time].row(lat_site) *= delta_up;		// spin down
 
-		//this->b_mat_up[this->current_time](j, lat_site) *= delta_up;						// spin up
-		//this->b_mat_down[this->current_time](j, lat_site) *= delta_down;					// spin down
+	for (int i = 0; i < this->Ns; i++) {
+		this->b_mat_up[this->current_time](i,lat_site) *= delta_up;
+		this->b_mat_down[this->current_time](i,lat_site) *= delta_down;
+		this->b_mat_up_inv[this->current_time](lat_site, i) *= delta_down;
+		this->b_mat_down_inv[this->current_time](lat_site, i) *= delta_up;
+	}
+
+	//this->b_mat_up[this->current_time].col(lat_site) *= delta_up;				// spin up
+	//this->b_mat_down[this->current_time].col(lat_site) *= delta_down;			// spin down
+		
+	// the names are opposite because we need to divide in principle, not multiply
+	//this->b_mat_up_inv[this->current_time].row(lat_site) *= delta_down;			// spin up
+	//this->b_mat_down_inv[this->current_time].row(lat_site) *= delta_up;		// spin down
+
+	//this->b_mat_up[this->current_time](j, lat_site) *= delta_up;						// spin up
+	//this->b_mat_down[this->current_time](j, lat_site) *= delta_down;					// spin down
 }
 
 // -------------------------------------------------------- GETTERS
@@ -350,10 +358,10 @@ void hubbard::HubbardModel::cal_B_mat() {
 	arma::mat tmp_down(this->Ns, this->Ns, arma::fill::zeros);
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times 
-		//this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		//this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
+		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
+		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
+		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
+		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
 
 		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
 		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
@@ -369,8 +377,11 @@ void hubbard::HubbardModel::cal_B_mat() {
 /// </summary>
 void hubbard::HubbardModel::cal_B_mat(int which_time)
 {
-	this->b_mat_down[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(which_time));
-	this->b_mat_up[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(which_time));
+	//this->b_mat_down[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(which_time));
+	//this->b_mat_up[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(which_time));
+	this->b_mat_down[which_time] = arma::diagmat(this->int_exp_down.col(which_time)) * this->hopping_exp;
+	this->b_mat_up[which_time] = arma::diagmat(this->int_exp_up.col(which_time)) * this->hopping_exp;
+
 	this->b_mat_up_inv[which_time] = this->b_mat_up[which_time].i();
 	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
 }

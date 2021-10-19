@@ -80,13 +80,13 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->int_exp_up.ones(this->Ns, this->M);
 
 	// all times exponents multiplication
-	this->b_mat_up = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_mat_down = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_mat_up_inv = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_mat_down_inv = std::vector<arma::mat>(this->M, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_mat_up = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_down = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_up_inv = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_down_inv = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
 
-	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
-	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::mat(this->Ns, this->Ns, arma::fill::zeros));
+	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::zeros(this->Ns, this->Ns));
+	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::zeros(this->Ns, this->Ns));
 
 	// all times hs fields for real spin up and down
 	this->hsFields.ones(this->M, this->Ns);
@@ -108,8 +108,10 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->T_up.zeros(this->Ns, this->Ns);
 
 	// set equal time greens
-	this->g_ups_eq = v_1d<arma::mat>(this->M,arma::zeros(this->Ns, this->Ns));
-	this->g_downs_eq = v_1d<arma::mat>(this->M,arma::zeros(this->Ns, this->Ns));
+	this->g_down_eq = v_1d<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->g_up_eq = v_1d<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	//this->g_up_time = v_2d<arma::mat>(this->M,v_1d<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns)));
+	//this->g_down_time = v_2d<arma::mat>(this->M,v_1d<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns)));
 
 	// Set HS fields
 	this->set_hs();
@@ -144,6 +146,89 @@ void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 	}
 }
 
+/// <summary>
+/// 
+/// </summary>
+/// <param name="l_start"></param>
+/// <param name="l_end"></param>
+/// <param name="tmp_up"></param>
+/// <param name="tmp_down"></param>
+void hubbard::HubbardQR::b_mat_multiplier_left(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+{
+	int timer = l_start;
+	const int how_many = abs(l_end - l_start);
+	tmp_up = this->b_mat_up[timer];
+	tmp_down = this->b_mat_down[timer];
+	for (int j = 1; j <= how_many; j++) {
+		timer++;
+		if (timer == this->M) timer = 0;
+		tmp_down = this->b_mat_down[timer] * tmp_down;
+		tmp_up = this->b_mat_up[timer] * tmp_up;
+	}
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="l_start"></param>
+/// <param name="l_end"></param>
+/// <param name="tmp_up"></param>
+/// <param name="tmp_down"></param>
+void hubbard::HubbardQR::b_mat_multiplier_right(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+{
+	int timer = l_start;
+	const int how_many = abs(l_end - l_start);
+	tmp_up = this->b_mat_up[timer];
+	tmp_down = this->b_mat_down[timer];
+	for (int j = 1; j <= how_many; j++) {
+		timer++;
+		if (timer == this->M) timer = 0;
+		tmp_down = tmp_down * this->b_mat_down[timer];
+		tmp_up = tmp_up * this->b_mat_up[timer];
+	}
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="l_start"></param>
+/// <param name="l_end"></param>
+/// <param name="tmp_up"></param>
+/// <param name="tmp_down"></param>
+void hubbard::HubbardQR::b_mat_multiplier_left_inv(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+{
+	int timer = l_start;
+	const int how_many = abs(l_end - l_start);
+	tmp_up = this->b_mat_up_inv[timer];
+	tmp_down = this->b_mat_down_inv[timer];
+	for (int j = 1; j <= how_many; j++) {
+		timer++;
+		if (timer == this->M) timer = 0;
+		tmp_up = this->b_mat_up_inv[timer] * tmp_up;
+		tmp_down = this->b_mat_down_inv[timer] * tmp_down;
+	}
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="l_start"></param>
+/// <param name="l_end"></param>
+/// <param name="tmp_up"></param>
+/// <param name="tmp_down"></param>
+void hubbard::HubbardQR::b_mat_multiplier_right_inv(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+{
+	int timer = l_start;
+	const int how_many = abs(l_end - l_start);
+	tmp_up = this->b_mat_up_inv[timer];
+	tmp_down = this->b_mat_down_inv[timer];
+	for (int j = 1; j <= how_many; j++) {
+		timer++;
+		if (timer == this->M) timer = 0;
+		tmp_down = tmp_down * this->b_mat_down_inv[timer];
+		tmp_up = tmp_up * this->b_mat_up_inv[timer];
+	}
+}
 // -------------------------------------------------------- GREENS --------------------------------------------------------
 
 /// <summary>
@@ -174,6 +259,8 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 		stout << this->green_down - tmp_down << "\n\n\n";
 }
 
+// -------------------------------------------------------- EQUAL 
+
 /// <summary>
 /// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023
 /// For more look into :
@@ -182,85 +269,77 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 /// </summary>
 /// <param name="which_time"></param>
 void hubbard::HubbardQR::cal_green_mat(int which_time) {
-	auto multiplier = [&](auto& tim) mutable {
-		int timer = tim;
-		this->tempGreen_up = this->b_mat_up[timer];
-		this->tempGreen_down = this->b_mat_down[timer];
-		//stout << tim << std::endl;
-		for (int j = 1; j < this->M_0; j++) {
-			timer++;
-			if (timer == this->M) timer = 0;
-			//stout << tim << std::endl;
-			this->tempGreen_up = this->b_mat_up[timer] * this->tempGreen_up;
-			this->tempGreen_down = this->b_mat_down[timer] * this->tempGreen_down;
-			//this->green_up = this->green_up * this->b_mat_up[tim];
-			//this->green_down = this->green_down * this->b_mat_down[tim];
-		}
-		//stout << std::endl;
-	};
+
 	int tim = (which_time);
-	multiplier(tim);
+	int sec = static_cast<int>(which_time / this->M_0);
+	int sector_end = (sec + 1) * this->M_0 - 1;
+	// multiply those B matrices that are not yet multiplied
+	b_mat_multiplier_left(tim, sector_end, tempGreen_up, tempGreen_down);
 
 	if (!arma::qr(Q_up, R_up, P_up, this->tempGreen_up, "matrix")) throw "decomposition failed\n";
 	if (!arma::qr(Q_down, R_down, P_down, this->tempGreen_down, "matrix")) throw "decomposition failed\n";
 
-	D_down = diagvec(R_down);
-	D_up = diagvec(R_up);
-	T_down = (diagmat(D_down).i()) * R_down * (P_down.t());
-	T_up = (diagmat(D_up).i()) * R_up * (P_up.t());
+	T_down = (diagmat(R_down).i()) * R_down * (P_down.t());
+	T_up = (diagmat(R_up).i()) * R_up * (P_up.t());
 
 	for (int i = 1; i < this->p; i++)
 	{
 		// starting the multiplication
-		tim = (which_time + i * this->M_0) % this->M;
-		multiplier(tim);
-		this->tempGreen_up = (this->tempGreen_up * Q_up) * diagmat(D_up);				// multiply by the former ones
-		this->tempGreen_down = (this->tempGreen_down * Q_down) * diagmat(D_down);		// multiply by the former ones
-		//this->green_down.print();
 
-		if (!arma::qr(Q_up, R_up, P_up, this->tempGreen_up)) throw "decomposition failed\n";
-		if (!arma::qr(Q_down, R_down, P_down, this->tempGreen_down)) throw "decomposition failed\n";
-
-		D_up = diagvec(R_up);
-		D_down = diagvec(R_down);
-		//D_up.print();
-
-		T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
-		T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
+		sec++;
+		if (sec == this->p) sec = 0;
+		multiplyMatricesQrFromRight(this->b_up_condensed[sec], this->tempGreen_up, Q_up, R_up, P_up, T_up);
+		multiplyMatricesQrFromRight(this->b_down_condensed[sec], this->tempGreen_down, Q_down, R_down, P_down, T_down);
+		//tim = (which_time + i * this->M_0) % this->M;
+		//b_mat_multiplier_left(tim, tim + this->M_0, tempGreen_up, tempGreen_down);
+		//multiplyMatricesQr(tempGreen_up, tempGreen_up, Q_up, R_up, P_up, T_up);
+		//multiplyMatricesQr(tempGreen_down, tempGreen_down, Q_down, R_down, P_down, T_down);
 	}
+	// we need to handle the last matrices that ale also away from M_0 cycle
+	sec++;
+	if (sec == this->p) sec = 0;
+	sector_end = which_time - 1;
+	tim = sec * this->M_0;
+	b_mat_multiplier_left(tim, sector_end, tempGreen_up, tempGreen_down);
+	multiplyMatricesQrFromRight(tempGreen_up, tempGreen_up, Q_up, R_up, P_up, T_up);
+	multiplyMatricesQrFromRight(tempGreen_down, tempGreen_down, Q_down, R_down, P_down, T_down);
+
 	//stout << std::endl;
-	this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(D_up)).i()*Q_up.t();
-	this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(D_down)).i()*Q_down.t();
+	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(R_up)).i()*Q_up.t();
+	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(R_down)).i()*Q_down.t();
 	// Correction terms
-	/*
-	arma::vec Ds_up = D_up;
-	arma::vec Ds_down = D_down;
+	D_up = diagvec(R_up);
+	D_down = diagvec(R_down);
 
 	arma::vec Db_up(this->Ns, arma::fill::ones);
 	arma::vec Db_down(this->Ns, arma::fill::ones);
 	
 	for (int i = 0; i < this->Ns; i++)
 	{
-		if (abs(D_up(i)) > 1) {
-			Db_up(i) = D_up(i);
-			Ds_up(i) = 1;
+		//if (abs(D_up(i)) > 1) {
+		if (abs(R_up(i,i)) > 1) {
+			Db_up(i) = R_up(i,i);
+			//Db_up(i) = D_up(i);
+			//Ds_up(i) = 1;
+			D_up(i) = 1;
 		}
-
-		if (abs(D_down(i)) > 1) {
-			Db_down(i) = D_down(i);
-			Ds_down(i) = 1;
+	
+		//if (abs(D_down(i)) > 1) {
+		if (abs(R_down(i,i)) > 1) {
+			
+			//Db_down(i) = D_down(i);
+			Db_down(i) = R_down(i,i);
+			//Ds_down(i) = 1;
+			D_down(i) = 1;
 		}
 	}
-	this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
-	this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
-
-	//this->green_down = T_down.i() * (Q_down.st() * T_down.i() + diagmat(D_down)).i() * Q_down.st();
-	//this->green_up = T_up.i() * (Q_up.st() * T_up.i() + diagmat(D_up)).i() * Q_up.st();
-	//
-	//this->green_down = arma::solve((T_down.t().i() * Q_down.t() * diagmat(Db_down) + diagmat(Ds_down)).t(), diagmat(Db_down) * Q_down.t());
-	//this->green_up = arma::solve((T_up.t().i() * Q_up.t() * diagmat(Db_up) + diagmat(Ds_up)).t(), diagmat(Db_up) * Q_up.t());
-	*/
+	//this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
+	//this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
+	this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(D_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
+	this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(D_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
 }
+
+
 
 // <summary>
 /// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices
@@ -271,120 +350,168 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 /// <param name="which_time"></param>
 void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 	//stout << "STARTING CALCULATING GREEN FOR : " << which_time << std::endl;
-	bool loh = true;
+	//bool loh = true;
 	int sec = sector;
-	if (!loh) {
-		if (!arma::qr(Q_up, R_up, this->b_up_condensed[sector])) throw "decomposition failed\n";
-		if (!arma::qr(Q_down, R_down, this->b_down_condensed[sector])) throw "decomposition failed\n";
-		D_down = diagvec(R_down);
-		D_up = diagvec(R_up);
-		T_down = (diagmat(D_down).i()) * R_down;
-		T_up = (diagmat(D_up).i()) * R_up;
 
-		// new  SciPost Phys. Core 2, 011 (2020)
-		arma::mat Q_up_tmp(this->Ns, this->Ns, arma::fill::zeros);
-		arma::mat Q_down_tmp(this->Ns, this->Ns, arma::fill::zeros);
-		arma::mat R_down_tmp(this->Ns, this->Ns, arma::fill::zeros);																								// right triangular matrix down
-		arma::mat R_up_tmp(this->Ns, this->Ns, arma::fill::zeros);																									// right triangular matrix up
-		arma::vec D_down_tmp(this->Ns, arma::fill::zeros);
-		arma::vec D_up_tmp(this->Ns, arma::fill::zeros);
-		arma::mat T_down_tmp(this->Ns, this->Ns, arma::fill::zeros);
-		arma::mat T_up_tmp(this->Ns, this->Ns, arma::fill::zeros);
+	if (!arma::qr(Q_up, R_up, P_up, this->b_up_condensed[sector], "matrix")) throw "decomposition failed\n";
+	if (!arma::qr(Q_down, R_down, P_down, this->b_down_condensed[sector], "matrix")) throw "decomposition failed\n";
 
-		for (int i = 1; i < this->p; i++) {
-			sec++;
-			if (sec == this->p) sec = 0;
-			//stout << sector << std::endl;
+	T_up = ((diagmat(R_up).i()) * R_up) * (P_up.t());
+	T_down = ((diagmat(R_down).i()) * R_down) * (P_down.t());
 
-			// decompose the second sector
-			if (!arma::qr(Q_up_tmp, R_up_tmp, this->b_up_condensed[sec])) throw "decomposition failed\n";
-			if (!arma::qr(Q_down_tmp, R_down_tmp, this->b_down_condensed[sec])) throw "decomposition failed\n";
 
-			D_up_tmp = diagvec(R_up_tmp);
-			D_down_tmp = diagvec(R_down_tmp);
-			T_down_tmp = (diagmat(D_down_tmp).i()) * R_down_tmp;
-			T_up_tmp = (diagmat(D_up_tmp).i()) * R_up_tmp;
-
-			this->tempGreen_up = diagmat(D_up_tmp) * ((T_up_tmp * Q_up) * diagmat(D_up));
-			this->tempGreen_down = diagmat(D_down_tmp) * ((T_down_tmp * Q_down) * diagmat(D_down));
-
-			if (!arma::qr(Q_up, R_up, this->tempGreen_up)) throw "decomposition failed\n";
-			if (!arma::qr(Q_down, R_down, this->tempGreen_down)) throw "decomposition failed\n";
-
-			Q_up = Q_up_tmp * Q_up;
-			Q_down = Q_down_tmp * Q_down;
-			D_up = diagvec(R_up);
-			D_down = diagvec(R_down);
-			T_up = ((diagmat(D_up).i()) * R_up) * T_up;
-			T_down = ((diagmat(D_down).i()) * R_down) * T_down;
-		}
-		this->tempGreen_up = Q_up.t() * T_up.i() + diagmat(D_up);
-		this->tempGreen_down = Q_down.t() * T_down.i() + diagmat(D_down);
-
-		if (!arma::qr(Q_up_tmp, R_up_tmp, this->tempGreen_up)) throw "decomposition failed\n";
-		if (!arma::qr(Q_down_tmp, R_down_tmp, this->tempGreen_down)) throw "decomposition failed\n";
-
-		D_up_tmp = diagvec(R_up_tmp);
-		D_down_tmp = diagvec(R_down_tmp);
-		T_down_tmp = (diagmat(D_down_tmp).i()) * R_down_tmp;
-		T_up_tmp = (diagmat(D_up_tmp).i()) * R_up_tmp;
-
-		this->green_up = (T_up_tmp * T_up).i() * diagmat(D_up_tmp).i() * (Q_up * Q_up_tmp).i();
-		this->green_down = (T_down_tmp * T_down).i() * diagmat(D_down_tmp).i() * (Q_down * Q_down_tmp).i();
+	for (int i = 1; i < this->p; i++) {
+		sec++;
+		if (sec == this->p) sec = 0;
+		multiplyMatricesQrFromRight(this->b_up_condensed[sec], this->tempGreen_up, Q_up, R_up, P_up, T_up);
+		multiplyMatricesQrFromRight(this->b_down_condensed[sec], this->tempGreen_down, Q_down, R_down, P_down, T_down);
 	}
-	else {
-		if (!arma::qr(Q_up, R_up, P_up, this->b_up_condensed[sector], "matrix")) throw "decomposition failed\n";
-		if (!arma::qr(Q_down, R_down, P_down, this->b_down_condensed[sector], "matrix")) throw "decomposition failed\n";
+	
+	// Correction terms
+	//arma::vec Ds_up = D_up;
+	//arma::vec Ds_down = D_down;
 
-		D_down = diagvec(R_down);
-		D_up = diagvec(R_up);
-		T_down = (diagmat(D_down).i()) * R_down * (P_down.t());
-		T_up = (diagmat(D_up).i()) * R_up * (P_up.t());
-		
-		for (int i = 1; i < this->p; i++) {
-			sec++;
-			if (sec == this->p) sec = 0;
-			//stout << sector << std::endl;
+	D_up = diagvec(R_up);
+	D_down = diagvec(R_down);
 
-			this->tempGreen_up = (this->b_up_condensed[sec] * Q_up) * diagmat(D_up);				// multiply by the former ones
-			this->tempGreen_down = (this->b_down_condensed[sec] * Q_down) * diagmat(D_down);		// multiply by the former ones
-
-			if (!arma::qr(Q_up, R_up, P_up, this->tempGreen_up)) throw "decomposition failed\n";
-			if (!arma::qr(Q_down, R_down, P_down, this->tempGreen_down)) throw "decomposition failed\n";
-
-			D_up = diagvec(R_up);
-			D_down = diagvec(R_down);
-
-			T_up = ((diagmat(D_up).i()) * R_up) * P_up.t() * T_up;
-			T_down = ((diagmat(D_down).i()) * R_down) * P_down.t() * T_down;
+	arma::vec Db_up(this->Ns, arma::fill::ones);
+	arma::vec Db_down(this->Ns, arma::fill::ones);
+	
+	for (int i = 0; i < this->Ns; i++)
+	{
+		//if (abs(D_up(i)) > 1) {
+		if (abs(R_up(i,i)) > 1) {
+			Db_up(i) = R_up(i,i);
+			//Db_up(i) = D_up(i);
+			//Ds_up(i) = 1;
+			D_up(i) = 1;
 		}
-		
-		// Correction terms
-		arma::vec Ds_up = D_up;
-		arma::vec Ds_down = D_down;
-
-		arma::vec Db_up(this->Ns, arma::fill::ones);
-		arma::vec Db_down(this->Ns, arma::fill::ones);
-		
-		for (int i = 0; i < this->Ns; i++)
-		{
-			if (abs(D_up(i)) > 1) {
-				Db_up(i) = D_up(i);
-				Ds_up(i) = 1;
-			}
-
-			if (abs(D_down(i)) > 1) {
-				Db_down(i) = D_down(i);
-				Ds_down(i) = 1;
-			}
+	
+		//if (abs(D_down(i)) > 1) {
+		if (abs(R_down(i,i)) > 1) {
+			
+			//Db_down(i) = D_down(i);
+			Db_down(i) = R_down(i,i);
+			//Ds_down(i) = 1;
+			D_down(i) = 1;
 		}
-		this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
-		this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
-		
+	}
+	//this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(Ds_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
+	//this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(Ds_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
+	this->green_up = arma::solve((diagmat(Db_up).i()) * Q_up.t() + diagmat(D_up) * T_up, (diagmat(Db_up).i())*Q_up.t());
+	this->green_down = arma::solve((diagmat(Db_down).i()) * Q_down.t() + diagmat(D_down) * T_down, (diagmat(Db_down).i())*Q_down.t());
+
 		//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(D_up)).i()*Q_up.t();
 		//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(D_down)).i()*Q_down.t();
-	}	
+	//}	
 }
+
+// -------------------------------------------------------- TIMES 
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="tau1"></param>
+/// <param name="tau2"></param>
+void hubbard::HubbardQR::cal_green_mat_times()
+{
+	arma::mat Q2_d(this->Ns, this->Ns);
+	arma::mat Q2_u(this->Ns, this->Ns);
+	arma::mat R2_d(this->Ns, this->Ns);																			// right triangular matrix down
+	arma::mat R2_u(this->Ns, this->Ns);																			// right triangular matrix up
+	arma::mat T2_d(this->Ns, this->Ns);
+	arma::mat T2_u(this->Ns, this->Ns);
+	arma::umat P2_d(this->Ns, this->Ns);
+	arma::umat P2_u(this->Ns, this->Ns);
+	
+	// save the equal times
+	//this->g_up_time[tau1][tau1] = this->g_up_eq[tau1];
+	//this->g_down_time[tau1][tau1] = this->g_down_eq[tau1];
+
+	// precompute B(M-1)...B(0)
+
+
+	for (int slice = 0; slice < this->p; slice++) {
+		// M_0 multiplications is "safe"
+
+		int time = slice * this->M_0;
+		this->tempGreen_up = this->b_mat_up[time];
+		this->tempGreen_down = this->b_mat_down[time];
+		// go through all time slices
+		for (int time_in_slice = 1; time_in_slice < this->M_0 - 1; time_in_slice++) {
+			time++;
+			this->tempGreen_up = this->b_mat_up[time] * this->tempGreen_up;
+			this->tempGreen_down = this->b_mat_down[time] * this->tempGreen_down;
+			// save the first "safe" multiplications for later
+			if (slice == 0) {
+				//this->g_up_time[time][time] = this->tempGreen_up;
+				//this->g_down_time[time][time] = this->tempGreen_down;
+			}
+			// otherwise safely multiply with LOH
+			else {
+					// start with saving the first one
+
+			}
+		}
+		// save the first one as they are given ad hoc
+		if (slice == 0) {
+			if (!arma::qr(Q_up, R_up, P_up, this->b_up_condensed[slice], "matrix")) throw "decomposition failed\n";
+			if (!arma::qr(Q_down, R_down, P_down, this->b_down_condensed[slice], "matrix")) throw "decomposition failed\n";
+			T_up = ((diagmat(R_up).i()) * R_up) * (P_up.t());
+			T_down = ((diagmat(R_down).i()) * R_down) * (P_down.t());
+		}
+		else {
+			// multiply QR 
+			multiplyMatricesQrFromRight(this->b_up_condensed[slice], this->tempGreen_up, Q_up, R_up, P_up, T_up);
+			multiplyMatricesQrFromRight(this->b_down_condensed[slice], this->tempGreen_down, Q_down, R_down, P_down, T_down);
+		}
+	}
+	
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="tau1"></param>
+/// <param name="tau2"></param>
+void hubbard::HubbardQR::cal_green_mat_times_cycle()
+{
+}
+
+
+void hubbard::HubbardQR::cal_green_mat_times_hirsh()
+{
+	this->g_up_time.eye();
+	this->g_down_time.eye();
+
+	int col_begin = (this->p-1)*this->Ns;
+	int col_end = col_begin + this->Ns - 1;
+	int row_begin = 0;
+	int row_end = row_begin + this->Ns - 1;
+	arma::subview up = g_up_time.submat(row_begin, col_begin, row_end, col_end);
+	arma::subview down = g_down_time.submat(row_begin, col_begin, row_end , col_end);
+	up = this->b_mat_up[0];
+	down = this->b_mat_down[0];
+	//up *= -1;
+	//down *= -1;
+	
+	for (int sec = 0; sec < this->M - 1; sec++) {
+		row_begin = (sec + 1) * this->Ns;
+		row_end = row_begin + this->Ns - 1;
+		col_begin = (sec) * this->Ns;
+		col_end = col_begin + this->Ns - 1;
+		// stout << "\trow sector: " << int(row_begin /this->Ns) << ", col sector" << int(col_begin/this->Ns) << std::endl;
+		arma::subview up = tempGreen_up.submat(row_begin, col_begin, row_end, col_end);
+		arma::subview down = tempGreen_down.submat(row_begin, col_begin, row_end, col_end);
+		up = -b_mat_up[sec + 1];
+		down = -b_mat_down[sec + 1];
+	}
+	this->green_up = this->tempGreen_up.i();
+	this->green_down = this->tempGreen_down.i();
+
+}
+
+
 
 // -------------------------------------------------------- HELPERS
 
@@ -529,8 +656,8 @@ void hubbard::HubbardQR::upd_Green_step(int im_time_step, bool forward) {
 /// <param name="current_elem_i"> Current Green matrix element in averages</param>
 void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 {
-	const mat& g_up = this->g_ups_eq[this->current_time];
-	const mat& g_down = this->g_downs_eq[this->current_time];
+	const arma::mat& g_up = this->g_up_eq[this->current_time];
+	const arma::mat& g_down = this->g_down_eq[this->current_time];
 	//this->avs->av_sign += sign;
 	// m_z
 	const double m_z2 = this->cal_mz2(sign, current_elem_i, g_up, g_down);
@@ -572,21 +699,28 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 /// </summary>
 void hubbard::HubbardQR::sweep_0_M(std::function<int(int)> ptfptr, bool save_greens)
 {
-	int sign = 1;
+	//double sign_up = 1;
+	//double sign_down = 1;
+	//double val;
+	//this->cal_green_mat_cycle(0);
+	//arma::log_det(val, sign_up, this->green_up);
+	//arma::log_det(val, sign_down, this->green_down);
+
+	this->config_sign = 1;//static_cast<int>(sign_up * sign_down);
+
 	for (int time_im = 0; time_im < this->M; time_im++) {
 		// imaginary Trotter times
 		this->current_time = time_im;//tim[time_im];
 		this->upd_Green_step(time_im, true);
 		//stout << "Current time is : " << this->current_time << std::endl;
-		this->sweep_lat_sites(ptfptr) > 0 ? sign = +sign : sign = -sign;
+		this->config_sign = (this->sweep_lat_sites(ptfptr) > 0) ? +this->config_sign : -this->config_sign;
 		if (save_greens) {
-			this->g_ups_eq[time_im] = this->green_up;
-			this->g_downs_eq[time_im] = this->green_down;
+			this->g_up_eq[time_im] = this->green_up;
+			this->g_down_eq[time_im] = this->green_down;
 		}
 		//else
 		//	sign > 0 ? this->pos_num++ : this->neg_num++;
 	}
-	this->config_sign = sign;//(sign > 0) ? +this->config_sign : -this->config_sign;// get current sign and make single step
 }
 
 /// <summary>
@@ -595,18 +729,18 @@ void hubbard::HubbardQR::sweep_0_M(std::function<int(int)> ptfptr, bool save_gre
 /// <param name="function"></param>
 void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr, bool save_greens)
 {
-	int sign = 1;
+	int sign = this->config_sign;
 	for (int time_im = this->M-1; time_im >= 0; time_im--) {
 		// imaginary Trotter times
 		this->current_time = time_im;//tim[time_im];
 		//stout << "Current time is : " << this->current_time << std::endl;
-		sweep_lat_sites(ptfptr) > 0 ? sign = +sign : sign = -sign;
+		sign = sweep_lat_sites(ptfptr) > 0 ? +sign : -sign;
 		if (save_greens) {
-			this->g_ups_eq[time_im] = this->green_up;
-			this->g_downs_eq[time_im] = this->green_down;
+			this->g_up_eq[time_im] = this->green_up;
+			this->g_down_eq[time_im] = this->green_down;
 		}
-		else
-			sign > 0 ? this->pos_num++ : this->neg_num++;
+		//else
+		//	sign > 0 ? this->pos_num++ : this->neg_num++;
 		this->upd_Green_step(time_im, false);
 	}
 	this->config_sign = sign;// (sign == 1) ? +this->config_sign : -this->config_sign;
@@ -627,13 +761,13 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 
 	double proba = (proba_up * proba_down);															// Metropolis probability
 	if(this->U < 0) proba *= (this->gammaExp[1] + 1);												// add phase factor for 
-	//proba = proba / (1.0 + proba);																	// heat-bath probability
-	proba = std::min(proba, 1.0);																		// metropolis
-	const int sign = (proba >= 0) ? 1 : -1;
+	proba = proba / (1.0 + proba);																	// heat-bath probability
+	//proba = std::min(proba, 1.0);																		// metropolis
+	const int sign = (proba > 0) ? 1 : -1;
 	if(this->ran.randomReal_uni() <= sign * proba){
 		const double delta_up = gamma_up + 1;
 		const double delta_down = gamma_down + 1;
-		this->hsFields(this->current_time, lat_site) = -this->hsFields(this->current_time, lat_site);
+		this->hsFields(this->current_time, lat_site) *= -1;
 		//this->upd_int_exp(lat_site, delta_up, delta_down);
 		//this->cal_B_mat(this->current_time);
 		this->upd_B_mat(lat_site, delta_up, delta_down);											// update the B matrices
@@ -729,18 +863,16 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 	}
 	// Progress bar
 	auto progress = pBar();
-	const double percentage = 25;
+	const double percentage = 33.33;
 	const int percentage_steps = static_cast<int>(percentage * mcSteps / 100.0);
 
 	// function
-	std::function<int(int)> fptr;
+	std::function<int(int)> fptr = std::bind(& HubbardQR::heat_bath_single_step, this, std::placeholders::_1);	// pointer to non-saving configs;
 	// choose the correct function
 	if (conf) {
 		stout << "Saving configurations of Hubbard Stratonovich fields\n";
 		fptr = std::bind(&HubbardQR::heat_bath_single_step_conf, this, std::placeholders::_1);			// pointer to saving configs
 	}
-	else
-		fptr = std::bind(& HubbardQR::heat_bath_single_step, this, std::placeholders::_1);				// pointer to non-saving configs
 
 	// sweep all
 	bool save_greens = false;
@@ -750,16 +882,18 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet)
 		// save current equal time Greens after relaxation
 		if(step == mcSteps - 1) save_greens = true;
 		this->sweep_0_M(fptr, save_greens);
-		//if(step == mcSteps - 1) save_greens = false;
-		//epthis->sweep_M_0(fptr, save_greens);
-
-		if (!quiet && step % percentage_steps == 0) {
+		//if(step == mcSteps - 1) save_greens = true;
+		//this->sweep_M_0(fptr, save_greens);
+		if (!quiet) {
+			this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
+			if (!quiet && step % percentage_steps == 0) {
 #pragma omp critical
-			{ 
-				stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info << " : \n";
-				progress.print();
-				stout << std::endl;
-				progress.update(percentage);
+				{
+					stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info << " : \n";
+					progress.print();
+					stout << std::endl;
+					progress.update(percentage);
+				}
 			}
 		}
 	}
@@ -781,6 +915,18 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	this->pos_num = 0;	
 	this->avs->av_sign = 0;				// counter of positive signs
 
+	// allocate memory for time displaced functions
+	if (times) {
+		try {
+			this->g_up_time.eye(this->Ns*this->M,this->Ns*this->M);
+			this->g_down_time.eye(this->Ns*this->M,this->Ns*this->M);
+		}
+		catch (...) {
+			throw "Can't handle so much memory";
+		}
+	}
+
+
 	// Progress bar
 	auto progress = pBar();
 	const double percentage = 34;
@@ -792,16 +938,20 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 		// Monte Carlo steps
 		for (int time_im = 0; time_im < tim_size; time_im++) {
 			// imaginary Trotter times
-			this->current_time = time_im;//tim[time_im];
-			for (int i = 0; i < this->Ns; i++) {
+			this->current_time = time_im;
+			for (int i = 0; i < this->Ns; i++)
 				// go through the lattice
 				this->av_single_step(i, this->config_sign);										// collect all averages
+			if (times) {
+				// after sweep this sector shall be recalculated
+				//this->cal_B_mat_cond(this->p-1);
+				this->cal_green_mat_times_hirsh();
 			}
 			//this->avs->av_gr_down += this->g_downs_eq[this->current_time];
 			//this->avs->av_gr_up += this->g_ups_eq[this->current_time];
 		}
 		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
-		this->avs->av_sign += this->config_sign;
+		//this->avs->av_sign += this->config_sign;
 		
 		// kill correlations
 		this->heat_bath_eq(corr_time, false, true);

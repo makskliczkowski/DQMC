@@ -26,6 +26,7 @@ static const char* kPSep =
 namespace fs = std::filesystem;
 using clk = std::chrono::steady_clock;
 using cpx = std::complex<double>;
+using namespace arma;
 
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
 constexpr long double TWO = 2 * 3.141592653589793238462643383279502884L;	// it is me, 2pi
@@ -73,6 +74,48 @@ inline double tim_s(clk::time_point start) {
 }
 
 // ----------------------------------------------------------------------------- TOOLS -----------------------------------------------------------------------------
+
+
+
+
+// ----------------------------------------------------------------------------- MATRIX MULTIPLICATION
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="mat_to_multiply"></param>
+/// <param name="Q"></param>
+/// <param name="R"></param>
+/// <param name="P"></param>
+/// <param name="T"></param>
+void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply,arma::mat& temp, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T) {
+
+	temp = (mat_to_multiply * Q) * diagmat(R);												// multiply by the former one
+	if (!arma::qr(Q, R, P, temp)) throw "decomposition failed\n";
+
+	T = (((diagmat(R).i()) * R) * (P.t())) * T;
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="mat_to_multiply"></param>
+/// <param name="temp"></param>
+/// <param name="Q"></param>
+/// <param name="R"></param>
+/// <param name="P"></param>
+/// <param name="T"></param>
+void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply,arma::mat& temp, \
+	arma::mat& Qchange, arma::mat& Rchange, arma::umat& Pchange, arma::mat& Tchange, \
+	const arma::mat& Q, const arma::mat& R, const arma::umat& P, const arma::mat& T) 
+{
+	temp = (mat_to_multiply * Q) * diagmat(R);												// multiply by the former one
+	if (!arma::qr(Qchange, Rchange, Pchange, temp)) throw "decomposition failed\n";
+
+	Tchange = (((diagmat(Rchange).i()) * Rchange) * (Pchange.t())) * T;
+}
+
+// ----------------------------------------------------------------------------- FILE AND STREAMS
 
 /// <summary>
 /// 

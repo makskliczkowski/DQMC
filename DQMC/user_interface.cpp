@@ -453,15 +453,15 @@ void hubbard::ui::make_simulation()
 
 // -------------------------------------------------------- HELPERS
 
-void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz)
+void hubbard::ui::collectAvs(double u, int M_0, double Dtau, int p, double Beta, double Mu, int Lx, int Ly, int Lz)
 {
 	using namespace std;
 	auto start = chrono::high_resolution_clock::now();
 	//plog::init(plog::debug, "logger.txt");																			// initialize plogger
 	// parameters and constants
-	const auto M = static_cast<int>(beta / dtau);
+	const auto M = static_cast<int>(Beta / Dtau);
 	const auto Ns = Lx * Ly * Lz;
-	const auto T = 1.0 / beta;
+	const auto T = 1.0 / Beta;
 	std::shared_ptr<averages_par> avs;// = std::make_shared<averages_par>(Lx,Ly,Lz);
 	// model
 	std::shared_ptr<Lattice> lat;
@@ -475,11 +475,11 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 		break;
 	}
 	// ------------------------------- set model --------------------------------
-	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, dtau, M_0, U, mu, beta, lat, this->inner_threads);
+	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, Dtau, M_0, u, Mu, Beta, lat, this->inner_threads);
 
 	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
 	std::string LxLyLz = "Lx=" + to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
-	std::ofstream fileLog, fileP, fileP_time, fileGup, fileGdown;
+	std::ofstream fileLog, fileP, fileP_time, fileGup, fileGdown, fileSignLog;
 
 	std::string lat_type = lat->get_type() + std::string(kPSep);																			// making folder for given lattice type
 	std::string working_dir = this->saving_dir + lat_type + to_string(dim) + "D" + std::string(kPSep) + LxLyLz + std::string(kPSep);		// name of the working directory
@@ -507,7 +507,6 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 	std::string nameFouriersTime = fourier_dir + std::string(kPSep) + "times" + std::string(kPSep) + info + ".dat";
 	std::string nameNormal = params_dir + info + ".dat";
 	std::string nameNormalTime = params_dir + std::string(kPSep) + "times" + std::string(kPSep) + info + ".dat";
-	std::string nameLog = this->saving_dir + "HubbardLog.csv";
 
 	// RELAX
 	if (sf == 0)																														// without using machine learning to self learn
@@ -515,7 +514,8 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 		model->relaxation(impDef::algMC::heat_bath, this->mcSteps, this->quiet, this->save_conf);										// this can also handle saving configurations
 		if (!this->save_conf) {
 			// FILES
-			openFile(fileLog, nameLog, std::ios::app);
+			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::app);
+			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + LxLyLz +",U=" + to_string_prec(u,2) + ",beta=" + to_string_prec(Beta,2) + ",dtau=" + to_string_prec(Dtau,4) + ".dat", std::ios::app);
 			openFile(fileP, nameNormal);
 #pragma omp critical
 			fileP << "x\ty\tz\tavM2z_corr\tavCharge_corr" << endl;
@@ -524,10 +524,10 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 			avs = model->get_avs();
 			
 			// SAVING TO STRING
-			printSeparated(fileLog, ",", {lat_type, to_string(this->mcSteps), to_string(this->avsNum), to_string(this->corrTime), to_string(M), to_string(M_0), to_string_prec(dtau),\
-				to_string(Lx), to_string(Ly), to_string(Lz), to_string_prec(beta), to_string_prec(U), to_string_prec(mu), to_string_prec(avs->av_occupation, 4), to_string_prec(avs->sd_occupation, 4),\
+			printSeparated(fileLog, ",", {lat_type, to_string(this->mcSteps), to_string(this->avsNum), to_string(this->corrTime), to_string(M), to_string(M_0), to_string_prec(Dtau),\
+				to_string(Lx), to_string(Ly), to_string(Lz), to_string_prec(Beta), to_string_prec(u), to_string_prec(Mu), to_string_prec(avs->av_occupation, 4), to_string_prec(avs->sd_occupation, 4),\
 				to_string_prec(avs->av_sign, 4), to_string_prec(avs->sd_sign, 4),to_string_prec(avs->av_Ek,4),to_string_prec(avs->sd_Ek,4),	to_string_prec(avs->av_M2z), to_string_prec(avs->av_M2x),to_string(tim_s(start))});
-
+			printSeparated(fileSignLog, "\t", { to_string_prec(avs->av_occupation, 4), to_string_prec(avs->av_sign, 4), to_string_prec(Mu, 3) });
 #pragma omp critical
 			std::cout << "\t--- Average occupation is n = " << avs->av_occupation << "\t---Average sign is sign= " << avs->av_sign << "\t---Average local moment is m_z^2= " << avs->av_M2z << "---" << endl << endl;
 			
@@ -551,6 +551,8 @@ void hubbard::ui::collectAvs(double U, int M_0, double dtau, int p, double beta,
 			fileP.close();
 #pragma omp critical
 			fileLog.close();
+#pragma omp critical
+			fileSignLog.close();
 			this->collectFouriers(nameFouriersTime, nameFouriers, Lx, Ly, Lz, M,beta, avs);
 
 		}
