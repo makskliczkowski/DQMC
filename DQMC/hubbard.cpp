@@ -51,6 +51,154 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 	}
 }
 
+/// <summary>
+/// 
+/// </summary>
+/// <param name="useWrapping"></param>
+void hubbard::HubbardModel::averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum)
+{
+	const int Lx = this->lattice->get_Lx();
+	const int Ly = this->lattice->get_Ly();
+
+	// average 
+	u32 tau1 = 0;
+	for (u32 tau2 = 0; tau2 < this->M; tau2++) {
+		std::vector<std::vector<double>> norma = std::vector<std::vector<double>>(2*Lx-1, v_1d<double>(2*Ly-1, 0));
+		this->g_up_diffs[tau2].zeros();
+		this->g_down_diffs[tau2].zeros();
+		for (int a = 0; a < this->Ns; a++) {
+			for (int b = 0; b < this->Ns; b++) {
+				const int j_minus_i_y = this->lattice->get_coordinates(b, 1) - this->lattice->get_coordinates(a, 1);
+				const int j_minus_i_x = this->lattice->get_coordinates(b, 0) - this->lattice->get_coordinates(a, 0);
+				const int y = j_minus_i_y + Ly - 1;
+				const int x = j_minus_i_x + Lx - 1;
+				g_up_diffs[tau2](x,y) += up[tau2](b,a);
+				g_down_diffs[tau2](x,y) += down[tau2](b,a);
+				norma[x][y] += 1;
+			}
+		}
+		for (int i = 0; i < 2*Lx - 1; i++) {
+			for (int j = 0; j < 2*Ly - 1; j++) {
+				g_up_diffs[tau2](i,j) /= (norma[i][j] * bucketnum);
+				g_down_diffs[tau2](i,j) /= (norma[i][j] * bucketnum);
+			}
+		}
+	}
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="filenum"></param>
+/// <param name="useWrapping"></param>
+void hubbard::HubbardModel::save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum)
+{
+	std::string information = " Some version\n\n This is the file that contains real space Green's functions for different times.\n";
+	information += " The structure of each is we average over time differences and first row\n";
+	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
+
+
+	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + std::to_string(filenum) + "-up" + this->dir->nameGreensTime);
+	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + std::to_string(filenum) + "-down" + this->dir->nameGreensTime);
+	fileUp << " Up different time, real-space Greens\n" << information;
+	fileDown << " Down different time, real-space Greens\n" << information;
+	std::initializer_list<std::string> enter_params = { "n =\t", std::to_string(this->lattice->get_Lx()),"\n",
+		"l =\t",std::to_string(this->M),"\n",
+		"tausk =\t",std::to_string(this->M),"\n",
+		"doall =\t",std::string("don't know what is that"),"\n",
+		"densw =\t",std::string("don't know what is that"),"\n",
+		"histn =\t",std::string("don't know what is that"),"\n",
+		"iran =\t",std::string("don't know what is that"),"\n",
+		"t  =\t",to_string_prec(this->t[0],5),"\n",
+		"mu  =\t",std::to_string(this->mu),"\n",
+		"delmu =\t",std::string("don't know what is that"),"\n",
+		"bpar  =\t",std::string("don't know what is that"),"\n",
+		"dtau  =\t",std::to_string(this->dtau),"\n",
+		"warms  =\t",std::to_string(2000),		"\n",
+		"sweeps =\t",std::to_string(2000),"\n",
+		"u =\t", std::to_string(this->U),"\n",
+		"nwrap =\t",std::to_string(this->M_0),"\n",
+		"difflim =\t",std::string("don't know what is that"),"\n",
+		"errrat =\t",std::string("don't know what is that"),	"\n",	
+		"doauto =\t",std::to_string(this->M_0),"\n",
+		"orthlen =\t",std::string("don't know what is that"),"\n",
+		"eorth =\t",std::string("don't know what is that"),"\n",
+		"dopair =\t",std::string("don't know what is that"),"\n",
+		"numpair =\t",std::string("don't know what is that"),"\n",		
+		"lambda =\t", to_string_prec(this->lambda, 4),"\n",
+		"start = \t",std::to_string(0), "\n",
+		"sign = \t",to_string_prec(this->config_sign,5), "\n"};
+	printSeparated(fileUp, " ", enter_params, 30);
+	printSeparated(fileDown, " ",enter_params, 30);
+	//stout<<this->dir->time_greens_dir + std::to_string(filenum) + ",up" + this->dir->nameGreensTime << std::endl;
+	const int Lx = this->lattice->get_Lx();
+	const int Ly = this->lattice->get_Ly();
+
+	this->averageUnequalGreens(useWrapping, up, down, bucketnum);
+	const u16 width = 8;
+	for (u32 i = 0; i <= Lx/2; i++) {
+		// we also have negative vectors included
+		const u32 x = i + Lx - 1;
+		for (u32 j = i; j <= Ly/2; j++) {
+			const u32 y = j + Ly - 1;
+			printSeparated(fileUp, "\t", {std::string(" G(nx,ny,ti):\n nx ="), std::to_string(i), std::string("ny ="), std::to_string(j)},6);
+			printSeparated(fileDown, "\t", {std::string(" G(nx,ny,ti):\n nx ="), std::to_string(i), std::string("ny ="), std::to_string(j)},6);
+			for (int tau1 = 0; tau1 < this->M; tau1++)
+			{
+				printSeparated(fileUp, "\t", {std::to_string(tau1)}, 4,0);
+				printSeparated(fileUp, "\t", {to_string_prec(this->g_up_diffs[tau1](x,y),width)}, width+5,0);
+				printSeparated(fileUp, "\t", {std::string("+-"), std::to_string(0)}, 5);
+
+				printSeparated(fileDown, "\t", {std::to_string(tau1)}, 4,0);
+				printSeparated(fileDown, "\t", {to_string_prec(this->g_down_diffs[tau1](x,y),width)}, width+5,0);
+				printSeparated(fileDown, "\t", {std::string("+-"), std::to_string(0)}, 5);
+			}
+		}
+	}
+
+	const double kxStep = TWOPI / Lx;
+	const double kyStep = TWOPI / Ly;
+	// fourier transform
+	for (u32 i = 0; i <= Lx / 2; i++) {
+		double kx = -PI + i * kxStep;
+		for (u32 j = i; j <= Ly / 2; j++) {
+			double ky = -PI + j * kyStep;
+			printSeparated(fileUp, "\t", {std::string(" G(qx,qy,ti):\n qx ="), std::to_string(i), std::string("qy ="), std::to_string(j)},5);
+			printSeparated(fileDown, "\t", {std::string(" G(qx,qy,ti):\n qx ="), std::to_string(i), std::string("qy ="), std::to_string(j)},5);
+			for (int tau1 = 0; tau1 < this->M; tau1++)
+			{
+				cx_double sum_up = 0;
+				cx_double sum_down = 0;
+
+				int row = 0;
+				int col = 0;
+				for (int yy = -Ly + 1; yy < Ly; yy++)
+				{
+					const u32 yelem = yy + Ly - 1;
+					for (int xx = -Lx + 1; xx < Lx; xx++)
+					{
+						const u32 xelem = xx + Lx - 1;
+						auto exponential = std::exp(-im_num * (kx * xx + ky * yy));
+						sum_up += exponential * this->g_up_diffs[tau1](xelem, yelem);
+						sum_down += exponential * this->g_down_diffs[tau1](xelem, yelem);
+					}
+				}
+				printSeparated(fileUp, "\t", {std::to_string(tau1)}, 3,0);
+				printSeparated(fileUp, "\t", {to_string_prec(real(sum_up),width)}, width+5,0);
+				printSeparated(fileUp, "\t", {std::string("+-"), std::to_string(0)}, 5);
+
+				printSeparated(fileDown, "\t", {std::to_string(tau1)}, 3,0);
+				printSeparated(fileDown, "\t", {to_string_prec(real(sum_down),width)}, width+5,0);
+				printSeparated(fileDown, "\t", {std::string("+-"), std::to_string(0)}, 5);
+			}
+		}
+	}
+
+	fileUp.close();
+	fileDown.close();
+}
+
+
 // -------------------------------------------------------- SETTERS
 /// <summary>
 /// Setting the Hubbard - Stratonovich fields
@@ -72,26 +220,71 @@ void hubbard::HubbardModel::set_hs()
 /// Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
 /// </summary>
 /// <param name="dir">directory to be used for configurations</param>
-void hubbard::HubbardModel::setConfDir(std::string dir)
-{
-	this->neg_dir = dir + std::string(kPSep) + "negative";
-	this->pos_dir = dir + std::string(kPSep) + "positive";
+void hubbard::HubbardModel::setConfDir() {
+	this->dir->neg_dir = this->dir->conf_dir + kPSepS + "negative";
+	this->dir->pos_dir = this->dir->conf_dir + kPSepS + "positive";
 	// create directories
-	fs::create_directories(this->neg_dir);
-	fs::create_directories(this->pos_dir);
+	fs::create_directories(this->dir->neg_dir);
+	fs::create_directories(this->dir->pos_dir);
 	// add a separator
-	this->neg_dir += std::string(kPSep);
-	this->pos_dir += std::string(kPSep);
+	this->dir->neg_dir += kPSepS;
+	this->dir->pos_dir += kPSepS;
 	// for .log files
 	std::ofstream fileN, fileP;																	// files for saving the configurations
-	this->neg_log = this->neg_dir.substr(0, \
-		this->neg_dir.length() - 9) + "neg_log," + info + ".dat";								// for storing the labels of negative files in csv for ML
-	this->pos_log = this->pos_dir.substr(0, \
-		this->pos_dir.length() - 9) + "pos_log," + info + ".dat";								// for storing the labels of positive files in csv for ML
-	fileN.open(this->neg_log);
-	fileP.open(this->pos_log);
+	this->dir->neg_log = this->dir->neg_dir.substr(0, \
+		this->dir->neg_dir.length() - 9) + "negLog," + info + ".dat";							// for storing the labels of negative files in csv for ML
+	this->dir->pos_log = this->dir->pos_dir.substr(0, \
+		this->dir->pos_dir.length() - 9) + "posLog," + info + ".dat";							// for storing the labels of positive files in csv for ML
+	fileN.open(this->dir->neg_log);
+	fileP.open(this->dir->pos_log);
 	fileN.close();																				// close just to create file neg
 	fileP.close();																				// close just to create file pos
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="working_directory"></param>
+/// <returns></returns>
+void hubbard::HubbardModel::setDirs(std::string working_directory)
+{
+	using namespace std;
+	int Lx = this->lattice->get_Lx();
+	int Ly = this->lattice->get_Ly();
+	int Lz = this->lattice->get_Lz();
+		// -------------------------------------------------------------- file handler ---------------------------------------------------------------
+	this->dir->info = this->info;
+	this->dir->LxLyLz = "Lx=" + std::to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
+
+	this->dir->lat_type = this->lattice->get_type() + kPSepS;																// making folder for given lattice type
+	this->dir->working_dir = working_directory + this->dir->lat_type + \
+		to_string(this->lattice->get_Dim()) + \
+		"D" + kPSepS + this->dir->LxLyLz + kPSepS;																		// name of the working directory
+
+	// CREATE DIRECTORIES 
+	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
+	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
+	fs::create_directories(this->dir->fourier_dir + kPSepS + "times");																	// and with different times
+	this->dir->fourier_dir += kPSepS;
+
+	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
+	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
+	fs::create_directories(this->dir->greens_dir);
+	this->dir->greens_dir += kPSepS + this->dir->info;
+	this->dir->time_greens_dir = this->dir->greens_dir + kPSepS + "times";
+	fs::create_directories(this->dir->params_dir);
+	fs::create_directories(this->dir->params_dir + kPSepS + "times");
+	fs::create_directories(this->dir->greens_dir);
+	fs::create_directories(this->dir->time_greens_dir);
+	this->dir->greens_dir += kPSepS;
+	this->dir->time_greens_dir += kPSepS;
+	this->dir->params_dir += kPSepS;
+
+	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPSepS;
+	
+	// FILES
+	this->setConfDir();
+	this->dir->setFileNames();
 }
 
 
@@ -291,8 +484,8 @@ void hubbard::HubbardModel::cal_hopping_exp()
 		//this->hopping_exp.print("BETTER CALCULATED EXP");
 		return;
 	}
-	else {
-#pragma omp parallel for num_threads(this->inner_threads)
+	else 
+	{
 	for (int i = 0; i < this->Ns; i++) {
 		//this->hopping_exp(i, i) = this->dtau * this->mu;														// diagonal elements
 		const int n_of_neigh = this->lattice->get_nn_number(i);												// take number of nn at given site
@@ -390,6 +583,7 @@ void hubbard::HubbardModel::cal_B_mat(int which_time)
 
 // -------------------------------------------------------- PRINTERS
 
+
 /// <summary>
 ///
 /// </summary>
@@ -414,6 +608,7 @@ void hubbard::HubbardModel::print_hs_fields(std::ostream& output, int which_time
 		output << "\n";
 	}
 }
+
 
 // -------------------------------------------------------- EQUAL TIME AVERAGES
 
@@ -519,7 +714,7 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 
 	if (!quiet && mcSteps != 1) {
 #pragma omp critical
-		stout << "For: " << this->get_info() << "->\n\t\t\t\tRelax time taken: " << tim_s(start) << " seconds.\n";
+		stout << "For: " << this->get_info() << "->\n\t\t\t\tRelax time taken: " << tim_s(start) << " seconds. With sign: " << (pos_num - neg_num)/(1.0*(pos_num + neg_num)) << "\n";
 	}
 }
 

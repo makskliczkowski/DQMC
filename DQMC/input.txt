@@ -1,1 +1,1 @@
--m 4000 -a 2000 -d 2 -m0 12 -c 3 -t 1 -dt 0.12 -lx 8 -ly 8 -lxs 2 -lxn 1 -lyn 1 -lys 2 -u 6.0 -b 4.0 -bs 2 -bn 1 -mu -5.5 -mus 0.1 -mun 56 -th 8 -ti 1
+-m 2000 -a 300 -d 2 -m0 8 -c 1 -t 1 -dt 0.05 -lx 6 -ly 6 -lxs 2 -lxn 1 -lyn 1 -lys 2 -u 8.0 -b 2.0 -bs 2 -bn 1 -mu -0.0 -mus 4.0 -mun 2 -th 2 -ti 1 -ct 1

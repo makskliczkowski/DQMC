@@ -39,10 +39,7 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 	this->from_scratch = this->M_0;
 	this->pos_num = 0;
 	this->neg_num = 0;
-	this->neg_dir = std::string();
-	this->pos_dir = std::string();
-	this->neg_log = std::string();
-	this->pos_dir = std::string();
+
 
 	// Say hi to the world 
 #pragma omp critical
@@ -439,7 +436,7 @@ int hubbard::HubbardST::heat_bath_single_step_conf(int lat_site)
 /// <param name="mcSteps">Number of Monte Carlo steps</param>
 /// <param name="conf">If or if not to save configurations</param>
 /// <param name="quiet">If should be quiet</param>
-void hubbard::HubbardST::heat_bath_eq(int mcSteps, bool conf, bool quiet)
+void hubbard::HubbardST::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens)
 {
 	auto start = std::chrono::high_resolution_clock::now();
 	if (mcSteps != 1) {

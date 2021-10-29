@@ -4,9 +4,7 @@
 //#include "../include/plog/Initializers/RollingFileInitializer.h"
 #include "../src/common.h"
 #include "random.h"
-
 #include <chrono>
-#include <armadillo>
 #include <stdlib.h>
 
 // -------------------------------------------------------- armadillo definitions --------------------------------------------------------
@@ -19,6 +17,13 @@
 #define ARMA_DONT_USE_OPENMP
 
 // In this file we define the virtual class for Monte Carlo simulations models of condensed matter systems
+
+struct general_directories {
+	std::string LxLyLz;
+	std::string lat_type;
+	std::string working_dir;
+	std::string info;
+};
 
 struct averages_par {
 	averages_par(int Lx, int Ly, int Lz) {
@@ -90,6 +95,7 @@ protected:
 	v_2d<int> next_nearest_neighbors;							// vector of the next nearest neighbors
 	v_2d<int> coordinates;										// vector of real coordiates allowing to get the distance between lattice points
 
+
 public:
 	virtual ~Lattice() = default;
 	// ----------------------- VIRTUAL GETTERS 
@@ -129,6 +135,7 @@ protected:
 	randomGen ran;												// consistent quick random number generator
 	std::shared_ptr<Lattice> lattice;							// contains all the information about the lattice
 	std::shared_ptr<averages_par> avs;							// structure containing all the averages
+
 public:
 	virtual ~LatticeModel() = default;							// pure virtual destructor
 

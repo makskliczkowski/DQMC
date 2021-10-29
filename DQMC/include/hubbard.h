@@ -6,13 +6,53 @@
 
 namespace hubbard {
 	using namespace arma;
+
+	struct directories : public general_directories {
+		std::string fourier_dir = "";
+		std::string params_dir= "";
+		std::string conf_dir = "";
+		std::string greens_dir = "";
+		std::string time_greens_dir = "";
+
+		// filenames											
+		std::string nameFouriers = "";							// 
+		std::string nameFouriersTime = "";						// 
+		std::string nameNormal = "";								// 
+		std::string nameNormalTime = "";							// 
+		std::string nameGreens = "";								// 
+		std::string nameGreensTime = "";							// 
+
+		// configuration directories
+		std::string neg_dir = "";								// directory for negative configurations
+		std::string neg_log = "";								// the name of negative sign log file
+		std::string pos_dir = "";								// directory for positive configurations
+		std::string pos_log = "";								// the name of positive sign log file
+
+		directories() = default;
+
+		void setFileNames(){
+			this->nameFouriers = fourier_dir + "fouriers_" + info + ".dat";
+			this->nameFouriersTime = fourier_dir + "times"+ kPSepS + "fouriersTime_" + info + ".dat";
+			this->nameNormal = params_dir + "parameters_" + info + ".dat";
+			this->nameNormalTime = params_dir + "times"+ kPSepS + "parametersTime_" + info + ".dat";
+			this->nameGreens = "greens" + info + ".dat";
+			this->nameGreensTime = "greensTime_" + info + ".dat";
+		};
+
+
+	};
+
+
 	class HubbardModel : public LatticeModel {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
 		int from_scratch;																		// number of Trotter times for Green to be calculated from scratch
 		int config_sign;																		// keep track of the configuration sign
+		bool cal_times;
 		long int pos_num;																		// helps with number of positive signs
 		long int neg_num;																		// helps with number of negative signs
+
+
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
 		std::vector<double> t;																	// hopping integral vector
 		double U;																				// Coulomb force strength
@@ -41,17 +81,19 @@ namespace hubbard {
 
 		arma::mat green_up, green_down;																// Green's matrix up and down at given (equal) time
 		arma::mat tempGreen_up; arma::mat tempGreen_down;											// temporary Green's for wrap updating
+		v_1d<arma::mat> g_up_diffs, g_down_diffs;													//
 
 		// -------------------------- HELPING PARAMETERS
 		std::string info;																			// info about the model for file creation
-		std::string neg_dir;																		// directory for negative configurations
-		std::string neg_log;																		// the name of negative sign log file
-		std::string pos_dir;																		// directory for positive configurations
-		std::string pos_log;																		// the name of positive sign log file
+		std::shared_ptr<directories> dir;															// directories for model parameters saving
+		
+
 		// -------------------------- METHODS --------------------------
+		void averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum = 1);
 
 		// -------------------------- PROTECTED SETTERS
 		void set_hs();																				// setting Hubbard-Stratonovich fields
+		void setConfDir();
 
 		// -------------------------- HELPING FUNCTIONS
 		std::tuple<double, double> cal_gamma(int lat_site) const;									// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
@@ -63,7 +105,7 @@ namespace hubbard {
 		virtual int heat_bath_single_step(int lat_site) = 0;										// calculates the single step of a heat-bath algorithm
 		virtual int heat_bath_single_step_no_upd(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm without flipping
 		virtual int heat_bath_single_step_conf(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm overloaded for saving directories
-		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet) = 0;							// uses heat-bath to equilibrate system
+		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) = 0;// uses heat-bath to equilibrate system
 		virtual void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) = 0;			// collect the averages from the simulation
 		virtual void sweep_0_M(std::function<int(int)> ptfptr, bool save_greens) = 0;				// sweep forward in time
 		virtual void sweep_M_0(std::function<int(int)> ptfptr, bool save_greens) = 0;				// sweep backwards
@@ -85,6 +127,7 @@ namespace hubbard {
 		virtual void upd_next_green(int which_time) = 0;
 		virtual void upd_prev_green(int which_time) = 0;
 		virtual void upd_Green_step(int im_time_step, bool forward) = 0;
+
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
 		double cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;									// calculate the kinetic energy part for averaging
 
@@ -100,18 +143,23 @@ namespace hubbard {
 
 		// -------------------------- EQUAL TIME FOURIER TRANSFORMS
 
+
 	public:
 		// -------------------------- PRINTERS
 		void print_hs_fields(std::ostream& output, int which_time_caused, \
 			int which_site_caused, short this_site_spin, std::string separator = "\t") const;			// prints current HS fields configuration
 
+		void save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum = 1);
+
 		// -------------------------- GETTERS
 		int get_M() const { return this->M; };
 		int get_M_0() const { return this->M_0; };
 		std::string get_info() const { return this->info; };
+		std::shared_ptr<directories> get_directories() const {return this->dir;};
 
 		// -------------------------- SETTERS
-		void setConfDir(std::string dir);																// sets the directory for saving configurations with a given sign
+		void setDirs(directories directories);
+		void setDirs(std::string working_directory);
 
 		// -------------------------- CALCULATORS OVERRIDE
 		void relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet) override;

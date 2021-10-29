@@ -1,4 +1,5 @@
 #pragma once
+#include "random.h"
 #include <string>
 #include <vector>
 #include <algorithm> // for std::ranges::copy depending on lib support
@@ -10,6 +11,7 @@
 #include <cmath>
 #include <filesystem>
 #include <complex>
+#include <armadillo>
 
 // -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
 
@@ -26,11 +28,13 @@ static const char* kPSep =
 namespace fs = std::filesystem;
 using clk = std::chrono::steady_clock;
 using cpx = std::complex<double>;
-using namespace arma;
+
 
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
-constexpr long double TWO = 2 * 3.141592653589793238462643383279502884L;	// it is me, 2pi
+constexpr long double TWOPI = 2 * 3.141592653589793238462643383279502884L;	// it is me, 2pi
 constexpr long double PI_half = PI / 2.0;
+constexpr cpx im_num = cpx(0,1);
+const std::string kPSepS = std::string(kPSep);
 
 // -------------------------------------------------------- ALGORITHMS FOR MC --------------------------------------------------------
 
@@ -80,6 +84,14 @@ inline double tim_s(clk::time_point start) {
 
 // ----------------------------------------------------------------------------- MATRIX MULTIPLICATION
 
+
+void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::mat& D) {
+	if (!arma::qr(Q, R, P, mat_to_multiply)) throw "decomposition failed\n";
+	for (int i = 0; i < D.size(); i++) {
+		D(i) = 1.0 / R(i,i);
+	}
+	T = ((diagmat(D) * R) * P.t()) * T;
+}
 /// <summary>
 /// 
 /// </summary>
@@ -88,33 +100,28 @@ inline double tim_s(clk::time_point start) {
 /// <param name="R"></param>
 /// <param name="P"></param>
 /// <param name="T"></param>
-void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply,arma::mat& temp, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T) {
+void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::mat& D) {
 
-	temp = (mat_to_multiply * Q) * diagmat(R);												// multiply by the former one
-	if (!arma::qr(Q, R, P, temp)) throw "decomposition failed\n";
-
-	T = (((diagmat(R).i()) * R) * (P.t())) * T;
+	//temp = (mat_to_multiply * Q) * diagmat(R);												// multiply by the former one
+	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * diagmat(R))) throw "decomposition failed\n";
+	for (int i = 0; i < D.size(); i++) {
+		D(i) = 1.0 / R(i,i);
+	}
+	T = ((diagmat(D) * R) * P.t()) * T;
 }
 
-/// <summary>
-/// 
-/// </summary>
-/// <param name="mat_to_multiply"></param>
-/// <param name="temp"></param>
-/// <param name="Q"></param>
-/// <param name="R"></param>
-/// <param name="P"></param>
-/// <param name="T"></param>
-void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply,arma::mat& temp, \
-	arma::mat& Qchange, arma::mat& Rchange, arma::umat& Pchange, arma::mat& Tchange, \
-	const arma::mat& Q, const arma::mat& R, const arma::umat& P, const arma::mat& T) 
-{
-	temp = (mat_to_multiply * Q) * diagmat(R);												// multiply by the former one
-	if (!arma::qr(Qchange, Rchange, Pchange, temp)) throw "decomposition failed\n";
-
-	Tchange = (((diagmat(Rchange).i()) * Rchange) * (Pchange.t())) * T;
+void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
+	for (int i = 0; i < D.n_rows; i++)
+	{
+		//if (abs(D_up(i)) > 1) {
+		if (abs(R(i,i)) > 1) {
+			R(i,i) = 1;
+		}
+		else {
+			D(i) = 1;
+		}
+	}
 }
-
 // ----------------------------------------------------------------------------- FILE AND STREAMS
 
 /// <summary>
@@ -163,14 +170,15 @@ inline int myModuloEuclidean(int a, int b)
 /// <param name="elements"></param>
 /// <param name="separtator"></param>
 template <typename T>
-inline void printSeparated(std::ostream& output, std::string separtator = "\t", std::initializer_list<T> elements = {}) {
-	const int elements_size = elements.size();
+inline void printSeparated(std::ostream& output, std::string separtator = "\t", std::initializer_list<T> elements = {}, arma::u16 width = 8, bool endline = true) {
+	//const int elements_size = elements.size();
 #pragma omp critical
 	for (auto elem : elements) {
-		output << elem << separtator;
+		output.width(width); output << elem << separtator;
 	}
 #pragma omp critical
-	output << std::endl;
+	if(endline)
+		output << std::endl;
 }
 
 /// <summary>
@@ -202,6 +210,7 @@ std::ostream& operator<< (std::ostream& out, const v_1d<v_1d<T>>& v) {
 }
 // -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
 
+
 /// <summary>
 /// Changes a value to a string with a given precision
 /// </summary>
@@ -209,7 +218,7 @@ std::ostream& operator<< (std::ostream& out, const v_1d<v_1d<T>>& v) {
 /// <param name="n">Precision</param>
 /// <returns>String of a value</returns>
 template <typename T>
-inline std::string to_string_prec(const T a_value, const int n = 3) {
+inline std::string to_string_prec(const T a_value, const int n = 2) {
 	std::ostringstream out;
 	out.precision(n);
 	out << std::fixed << a_value;

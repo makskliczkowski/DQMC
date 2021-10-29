@@ -25,8 +25,10 @@ namespace hubbard {
 		arma::mat T_up;
 
 		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
-		v_1d<arma::mat> g_up_eq, g_down_eq;																				// saved equal time Greens
 		arma::mat g_up_time, g_down_time;																				// time displaced Greens
+		v_1d<arma::mat> g_up_eq;v_1d<arma::mat> g_down_eq;		
+		v_1d<arma::mat> g_up_tim;v_1d<arma::mat> g_down_tim;
+		// -------------------------- DIRECTORIES AND SAVERS
 
 		// -------------------------- HELPING FUNCTIONS
 		void sweep_0_M(std::function<int(int)> ptfptr, bool save_greens) override;																		// sweep forward in time
@@ -60,12 +62,12 @@ namespace hubbard {
 		int heat_bath_single_step(int lat_site) override;																// single step with updating
 		int heat_bath_single_step_no_upd(int lat_site) override;														// single step without updating
 		int heat_bath_single_step_conf(int lat_site) override;															// single step with saving configurations
-		void heat_bath_eq(int mcSteps, bool conf, bool quiet) override;
+		void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) override;
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
 		void av_single_step(int current_elem_i, int sign) override;
 	public:
 		// -------------------------- CONSTRUCTORS
-		HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1);
+		HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1, bool ct = false);
 
 	};
 }

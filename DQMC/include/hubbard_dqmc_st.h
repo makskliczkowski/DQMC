@@ -15,6 +15,8 @@ namespace hubbard {
 		int current_time_in_silce;
 		int green_size;
 
+		// -------------------------- DIRECTORIES ETC.
+
 		// -------------------------- HELPING FUNCTIONS
 		int total_time(int tim, int tim_sector) { return tim_sector * this->M_0 + tim; };
 		void sweep_0_M(std::function<int(int)>, bool save_greens) override {};																		// sweep forward in time
@@ -33,7 +35,7 @@ namespace hubbard {
 		int heat_bath_single_step(int lat_site) override;																// single step with updating
 		int heat_bath_single_step_no_upd(int lat_site) override;														// single step without updating
 		int heat_bath_single_step_conf(int lat_site) override;															// single step with saving configurations
-		void heat_bath_eq(int mcSteps, bool conf, bool quiet) override;
+		void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) override;
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
 		void av_single_step(int current_elem_i, int sign) override;
 	public:
