@@ -55,6 +55,8 @@ namespace hubbard {
 		void cal_green_mat_times_cycle();
 		void cal_green_mat_times_hirsh();																				// obtain full space-time Green's matrix
 		void cal_green_mat_times_hirsh_cycle();																			// use wrapping for calculating space time Green's matrix
+		void unequalG_greaterFirst(int t1, int t2, arma::vec& D_tmp);
+
 		// comparison
 		void compare_green_direct(int tim, double toll, bool print_greens) override;
 

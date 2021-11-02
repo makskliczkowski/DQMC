@@ -89,7 +89,7 @@ namespace hubbard {
 		
 
 		// -------------------------- METHODS --------------------------
-		void averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum = 1);
+		void averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, uint bucketnum = 1);
 
 		// -------------------------- PROTECTED SETTERS
 		void set_hs();																				// setting Hubbard-Stratonovich fields
@@ -149,7 +149,7 @@ namespace hubbard {
 		void print_hs_fields(std::ostream& output, int which_time_caused, \
 			int which_site_caused, short this_site_spin, std::string separator = "\t") const;			// prints current HS fields configuration
 
-		void save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum = 1);
+		void save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, uint bucketnum = 1);
 
 		// -------------------------- GETTERS
 		int get_M() const { return this->M; };

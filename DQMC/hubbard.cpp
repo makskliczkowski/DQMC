@@ -55,15 +55,16 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 /// 
 /// </summary>
 /// <param name="useWrapping"></param>
-void hubbard::HubbardModel::averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum)
+void hubbard::HubbardModel::averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, uint bucketnum)
 {
 	const int Lx = this->lattice->get_Lx();
 	const int Ly = this->lattice->get_Ly();
-
+	
 	// average 
-	u32 tau1 = 0;
-	for (u32 tau2 = 0; tau2 < this->M; tau2++) {
+//#pragma omp parallel for num_threads(this->inner_threads)
+	for (uint tau2 = 0; tau2 < this->M; tau2++) {
 		std::vector<std::vector<double>> norma = std::vector<std::vector<double>>(2*Lx-1, v_1d<double>(2*Ly-1, 0));
+		const auto timeNorma = tau2 == 0 ? 1.0*this->M * bucketnum : (this->M - tau2) * bucketnum;
 		this->g_up_diffs[tau2].zeros();
 		this->g_down_diffs[tau2].zeros();
 		for (int a = 0; a < this->Ns; a++) {
@@ -72,15 +73,16 @@ void hubbard::HubbardModel::averageUnequalGreens(bool useWrapping, const v_1d<ar
 				const int j_minus_i_x = this->lattice->get_coordinates(b, 0) - this->lattice->get_coordinates(a, 0);
 				const int y = j_minus_i_y + Ly - 1;
 				const int x = j_minus_i_x + Lx - 1;
-				g_up_diffs[tau2](x,y) += up[tau2](b,a);
-				g_down_diffs[tau2](x,y) += down[tau2](b,a);
+				g_up_diffs[tau2](x,y) += up[tau2](a,b);
+				g_down_diffs[tau2](x,y) += down[tau2](a,b);
 				norma[x][y] += 1;
 			}
 		}
+//#pragma omp parallel for num_threads(this->inner_threads)
 		for (int i = 0; i < 2*Lx - 1; i++) {
 			for (int j = 0; j < 2*Ly - 1; j++) {
-				g_up_diffs[tau2](i,j) /= (norma[i][j] * bucketnum);
-				g_down_diffs[tau2](i,j) /= (norma[i][j] * bucketnum);
+				g_up_diffs[tau2](i,j) /= (norma[i][j] * timeNorma);
+				g_down_diffs[tau2](i,j) /= (norma[i][j] * timeNorma);
 			}
 		}
 	}
@@ -91,7 +93,7 @@ void hubbard::HubbardModel::averageUnequalGreens(bool useWrapping, const v_1d<ar
 /// </summary>
 /// <param name="filenum"></param>
 /// <param name="useWrapping"></param>
-void hubbard::HubbardModel::save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, u32 bucketnum)
+void hubbard::HubbardModel::save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, uint bucketnum)
 {
 	std::string information = " Some version\n\n This is the file that contains real space Green's functions for different times.\n";
 	information += " The structure of each is we average over time differences and first row\n";
@@ -136,11 +138,11 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, bool useWrapping, c
 
 	this->averageUnequalGreens(useWrapping, up, down, bucketnum);
 	const u16 width = 8;
-	for (u32 i = 0; i <= Lx/2; i++) {
+	for (uint i = 0; i <= Lx/2; i++) {
 		// we also have negative vectors included
-		const u32 x = i + Lx - 1;
-		for (u32 j = i; j <= Ly/2; j++) {
-			const u32 y = j + Ly - 1;
+		const uint x = i + Lx - 1;
+		for (uint j = i; j <= Ly/2; j++) {
+			const uint y = j + Ly - 1;
 			printSeparated(fileUp, "\t", {std::string(" G(nx,ny,ti):\n nx ="), std::to_string(i), std::string("ny ="), std::to_string(j)},6);
 			printSeparated(fileDown, "\t", {std::string(" G(nx,ny,ti):\n nx ="), std::to_string(i), std::string("ny ="), std::to_string(j)},6);
 			for (int tau1 = 0; tau1 < this->M; tau1++)
@@ -159,9 +161,9 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, bool useWrapping, c
 	const double kxStep = TWOPI / Lx;
 	const double kyStep = TWOPI / Ly;
 	// fourier transform
-	for (u32 i = 0; i <= Lx / 2; i++) {
+	for (uint i = 0; i <= Lx / 2; i++) {
 		double kx = -PI + i * kxStep;
-		for (u32 j = i; j <= Ly / 2; j++) {
+		for (uint j = i; j <= Ly / 2; j++) {
 			double ky = -PI + j * kyStep;
 			printSeparated(fileUp, "\t", {std::string(" G(qx,qy,ti):\n qx ="), std::to_string(i), std::string("qy ="), std::to_string(j)},5);
 			printSeparated(fileDown, "\t", {std::string(" G(qx,qy,ti):\n qx ="), std::to_string(i), std::string("qy ="), std::to_string(j)},5);
@@ -169,15 +171,12 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, bool useWrapping, c
 			{
 				cx_double sum_up = 0;
 				cx_double sum_down = 0;
-
-				int row = 0;
-				int col = 0;
 				for (int yy = -Ly + 1; yy < Ly; yy++)
 				{
-					const u32 yelem = yy + Ly - 1;
+					const uint yelem = yy + Ly - 1;
 					for (int xx = -Lx + 1; xx < Lx; xx++)
 					{
-						const u32 xelem = xx + Lx - 1;
+						const uint xelem = xx + Lx - 1;
 						auto exponential = std::exp(-im_num * (kx * xx + ky * yy));
 						sum_up += exponential * this->g_up_diffs[tau1](xelem, yelem);
 						sum_down += exponential * this->g_down_diffs[tau1](xelem, yelem);
@@ -553,14 +552,9 @@ void hubbard::HubbardModel::cal_B_mat() {
 		// Trotter times 
 		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
 		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l));
-		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l));
 
 		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
 		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
-
-		//this->b_mat_down[l] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		//this->b_mat_up[l] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
 	}
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }

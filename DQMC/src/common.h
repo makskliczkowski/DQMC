@@ -28,7 +28,9 @@ static const char* kPSep =
 namespace fs = std::filesystem;
 using clk = std::chrono::steady_clock;
 using cpx = std::complex<double>;
-
+using uint = unsigned int;
+using ulong = unsigned long;
+using ull = unsigned long long;
 
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
 constexpr long double TWOPI = 2 * 3.141592653589793238462643383279502884L;	// it is me, 2pi
@@ -84,13 +86,26 @@ inline double tim_s(clk::time_point start) {
 
 // ----------------------------------------------------------------------------- MATRIX MULTIPLICATION
 
+void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update = true, bool minus = false);
+void setSubmatrixFromMatrix(arma::mat& M2Set,  const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols,bool update = true, bool minus = false);
 
-void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::mat& D) {
+arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl, arma::vec& Dl, arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr, arma::vec& Dr, arma::vec& Dtmp);
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="mat_to_multiply"></param>
+/// <param name="Q"></param>
+/// <param name="R"></param>
+/// <param name="P"></param>
+/// <param name="T"></param>
+/// <param name="D"></param>
+void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
 	if (!arma::qr(Q, R, P, mat_to_multiply)) throw "decomposition failed\n";
-	for (int i = 0; i < D.size(); i++) {
+	for (int i = 0; i < D.n_rows; i++) {
 		D(i) = 1.0 / R(i,i);
 	}
-	T = ((diagmat(D) * R) * P.t()) * T;
+	T = ((diagmat(D) * R) * P.t());
 }
 /// <summary>
 /// 
@@ -100,20 +115,24 @@ void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::m
 /// <param name="R"></param>
 /// <param name="P"></param>
 /// <param name="T"></param>
-void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::mat& D) {
+void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
 
-	//temp = (mat_to_multiply * Q) * diagmat(R);												// multiply by the former one
 	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * diagmat(R))) throw "decomposition failed\n";
-	for (int i = 0; i < D.size(); i++) {
+	for (int i = 0; i < D.n_rows; i++) {
 		D(i) = 1.0 / R(i,i);
 	}
 	T = ((diagmat(D) * R) * P.t()) * T;
 }
 
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="R"></param>
+/// <param name="D"></param>
 void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 	for (int i = 0; i < D.n_rows; i++)
-	{
-		//if (abs(D_up(i)) > 1) {
+	{	
 		if (abs(R(i,i)) > 1) {
 			R(i,i) = 1;
 		}
@@ -122,6 +141,25 @@ void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 		}
 	}
 }
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="R"></param>
+/// <param name="D"></param>
+void inline makeTwoScalesFromUDT_full(arma::mat& R, arma::vec& D) {
+	for (int i = 0; i < D.n_rows; i++)
+	{	
+		if (abs(R(i,i)) > 1.0) {
+			D(i) = R(i,i);
+			R(i,i) = 1;
+		}
+		else {
+			D(i) = 1;
+		}
+	}
+}
+
 // ----------------------------------------------------------------------------- FILE AND STREAMS
 
 /// <summary>
@@ -266,7 +304,6 @@ private:
     double neededProgress = 100;												// final progress
 
 };
-
 
 
 #endif // COMMON_UTILS_H
