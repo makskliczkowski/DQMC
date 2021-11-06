@@ -17,6 +17,8 @@ public:
 	int get_Lx() const override { return this->Lx; };
 	int get_Ly() const override { return this->Ly; };
 	int get_Lz() const override { return this->Lz; };
+	std::tuple<int,int,int> getSiteDifference(uint i, uint j);
+
 	/* CALCULATORS */
 	void calculate_nn_pbc() override;
 	void calculate_nnn_pbc() override;

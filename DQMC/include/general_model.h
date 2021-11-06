@@ -102,7 +102,7 @@ public:
 	virtual int get_Lx() const = 0;
 	virtual int get_Ly() const = 0;
 	virtual int get_Lz() const = 0;
-
+	virtual std::tuple<int,int,int> getSiteDifference(uint i, uint j) = 0;
 	// ----------------------- GETTERS 
 	int get_Ns() const { return this->Ns; };
 	int get_Dim() const { return this->dimension; };

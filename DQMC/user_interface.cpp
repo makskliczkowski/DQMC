@@ -492,7 +492,7 @@ void hubbard::ui::collectAvs(double u, int M_0, double Dtau, int p, double Beta,
 			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app);
 			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz +",U=" + to_string_prec(u,2) + ",beta=" + to_string_prec(Beta,2) + ",dtau=" + to_string_prec(Dtau,4) + ".dat", std::ios::in | std::ios::app);
 			openFile(fileP, dirs->nameNormal);
-			printSeparated(fileP, ",", {"x","y","z"}, 3, 0);
+			printSeparated(fileP, ",", {"x","y","z"}, 8, 0);
 			printSeparated(fileP, ",", {"avM2z_corr","avCharge_corr" }, prec + 3);
 			// REST
 			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet, this->cal_times);
@@ -514,8 +514,8 @@ void hubbard::ui::collectAvs(double u, int M_0, double Dtau, int p, double Beta,
 						int x_pos = x + Lx - 1;
 						int y_pos = y + Ly - 1;
 						int z_pos = z + Lz - 1;
-						printSeparated(fileP, ",", { x , y, z }, 3, 0);
-						printSeparated(fileP, ",", {avs->av_M2z_corr[x_pos][y_pos][z_pos], (avs->av_ch2_corr[x_pos][y_pos][z_pos])}, prec +3);
+						printSeparated(fileP, ",", { x , y, z }, 8, 0);
+						printSeparated(fileP, ",", {avs->av_M2z_corr[x_pos][y_pos][z_pos], (avs->av_ch2_corr[x_pos][y_pos][z_pos])}, prec +6);
 						//if (times) {
 						//	for (int i = 0; i < M; i++) {
 								//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << (avs.av_M2z_corr_uneqTime[x_pos][y_pos][z_pos][i]) << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
@@ -551,8 +551,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 		//file_fouriers_time << "kx\tky\tkz\tdtau\toccupation_fourier\tgreen_up\tgreen_down\tmagnetic_susc\tcharge_susc" << endl;
 		file_fouriers_time << "kx\tky\tkz\ttau\tgreen_up\tgreen_down" << endl;
 	}*/
-	printSeparated(file_fouriers, ",", { "kx","ky","kz" }, 3, 0);
-	printSeparated(file_fouriers, ",", {"occupation_fourier","spin_structure_factor","charge_structure_factor" }, 12);
+	printSeparated(file_fouriers, ",", { "kx","ky","kz" }, 12, 0);
+	printSeparated(file_fouriers, ",", {"occ(k)","spin_str_fac","ch_str_fac" }, 16);
 
 	int kx_num = Lx; int ky_num = Ly; int kz_num = Lz;
 	int N = kx_num * ky_num * kz_num;
@@ -581,7 +581,7 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 							int x = i + kx_num - 1;
 							int y = j + ky_num - 1;
 							int z = k + kz_num - 1;
-							arma::cx_double expa = exp(-im_num * (kx * i + ky * j + kz * k));
+							arma::cx_double expa = exp(im_num * (kx * i + ky * j + kz * k));
 
 							occupation_fourier += expa * avs->av_occupation_corr[x][y][z];
 							spin_structure_factor += expa * avs->av_M2z_corr[x][y][z];
@@ -598,8 +598,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 						}
 					}
 				}
-				printSeparated(file_fouriers, ",", { kx,ky,kz }, 5, 0);
-				printSeparated(file_fouriers, ",", { 1 - occupation_fourier.real()/(2.0*N) , spin_structure_factor.real() ,charge_structure_factor.real()}, 8);
+				printSeparated(file_fouriers, ",", { kx,ky,kz }, 12, 0);
+				printSeparated(file_fouriers, ",", { 1 - occupation_fourier.real()/(2.0*N) , spin_structure_factor.real() ,charge_structure_factor.real()}, 16);
 				//if (qx == 0 && qy == 0) {
 				//	file_response.open(this->saving_dir + "response_U=" + to_string_prec(this->U, 2) +",occ=" + to_string_prec(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
 				//	file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;

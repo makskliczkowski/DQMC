@@ -295,7 +295,7 @@ void hubbard::HubbardST::upd_prev_green(int which_time_green) {
 /// A single step for calculating averages inside a loop
 /// </summary>
 /// <param name="current_elem_i"> Current Green matrix element in averages</param>
-void hubbard::HubbardST::av_single_step(int current_elem_i, int sign)
+void hubbard::HubbardST::av_single_step(int current_elem_i, int sign, bool times)
 {
 	const mat& g_up = this->green_up;
 	const mat& g_down = this->green_down;
@@ -525,7 +525,7 @@ void hubbard::HubbardST::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 					sign > 0 ? this->pos_num++ : this->neg_num++;										// increase sign
 					// compare Green's functions
 					// this->compare_green_direct(this->current_time, 1e-6, false);
-					this->av_single_step(j, sign);					// collect all averages
+					this->av_single_step(j, sign, false);					// collect all averages
 				}
 			}
 			this->upd_next_green(time_in_slice);

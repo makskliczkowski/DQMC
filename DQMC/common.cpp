@@ -2,6 +2,29 @@
 
 
 
+/*v_1d<double> fourierTransform(std::initializer_list<const arma::mat&> matToTransform, std::tuple<double, double, double> k, std::tuple<int, int, int> L) {
+	const auto [Lx,Ly,Lz] = L;
+	const auto [kx,ky,kz] = k;
+	v_1d<double> sum(matToTransform.size(), 0);
+	for (int zz = -Lz + 1; zz < Lz; zz++) {
+		for (int yy = -Ly + 1; yy < Ly; yy++) {
+			const auto yelem = (yy)+Ly - 1;
+			for (int xx = -Lx + 1; xx < Lx; xx++) {
+				const auto xelem = xx + Lx - 1;
+				const cpx exponential = std::exp(im_num * (kx * double(xx) + ky * double(yy) + kz * double(zz)));
+				int counter = 0;
+				for (auto& elem : matToTransform) {
+					sum[counter] += (exponential * elem(xelem, yelem)).real();
+					counter++;
+				}
+			}
+		}
+	}
+	return sum;
+}
+*/
+
+
 // -------------------------------------------------------- MATRIX MULTIPLICATION AND ARMA STUFF --------------------------------------------------------
 /// <summary>
 /// 
@@ -141,3 +164,5 @@ v_1d<std::string> split_str(const std::string& s, std::string delimiter) {
 	res.push_back(s.substr(pos_start));
 	return res;
 }
+
+

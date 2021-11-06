@@ -19,8 +19,8 @@ namespace hubbard {
 
 		// -------------------------- HELPING FUNCTIONS
 		int total_time(int tim, int tim_sector) { return tim_sector * this->M_0 + tim; };
-		void sweep_0_M(std::function<int(int)>, bool save_greens) override {};																		// sweep forward in time
-		void sweep_M_0(std::function<int(int)>, bool save_greens) override {};																		// sweep backwards
+		void sweep_0_M(std::function<int(int)>) override {};																		// sweep forward in time
+		void sweep_M_0(std::function<int(int)>) override {};																		// sweep backwards
 		// -------------------------- UPDATERS
 		void upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down) override;
 		void upd_next_green(int which_time) override;
@@ -37,7 +37,7 @@ namespace hubbard {
 		int heat_bath_single_step_conf(int lat_site) override;															// single step with saving configurations
 		void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) override;
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
-		void av_single_step(int current_elem_i, int sign) override;
+		void av_single_step(int current_elem_i, int sign, bool times) override;
 	public:
 		// -------------------------- CONSTRUCTORS
 		HubbardST(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1);

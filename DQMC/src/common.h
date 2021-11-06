@@ -1,5 +1,5 @@
 #pragma once
-#include "random.h"
+#include "../include/random.h"
 #include <string>
 #include <vector>
 #include <algorithm> // for std::ranges::copy depending on lib support
@@ -33,7 +33,7 @@ using ulong = unsigned long;
 using ull = unsigned long long;
 
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
-constexpr long double TWOPI = 2 * 3.141592653589793238462643383279502884L;	// it is me, 2pi
+constexpr long double TWOPI = 2 * PI;										// it is me, 2pi
 constexpr long double PI_half = PI / 2.0;
 constexpr cpx im_num = cpx(0,1);
 const std::string kPSepS = std::string(kPSep);
@@ -81,7 +81,7 @@ inline double tim_s(clk::time_point start) {
 
 // ----------------------------------------------------------------------------- TOOLS -----------------------------------------------------------------------------
 
-
+//v_1d<double> fourierTransform(std::initializer_list<const arma::mat&> matToTransform, std::tuple<double,double,double> k, std::tuple<int,int,int> L); 
 
 
 // ----------------------------------------------------------------------------- MATRIX MULTIPLICATION
@@ -102,11 +102,12 @@ arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, a
 /// <param name="D"></param>
 void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
 	if (!arma::qr(Q, R, P, mat_to_multiply)) throw "decomposition failed\n";
-	for (int i = 0; i < D.n_rows; i++) {
+	for (int i = 0; i < R.n_rows; i++) {
 		D(i) = 1.0 / R(i,i);
 	}
 	T = ((diagmat(D) * R) * P.t());
 }
+
 /// <summary>
 /// 
 /// </summary>
@@ -118,7 +119,7 @@ void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::m
 void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
 
 	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * diagmat(R))) throw "decomposition failed\n";
-	for (int i = 0; i < D.n_rows; i++) {
+	for (int i = 0; i < R.n_rows; i++) {
 		D(i) = 1.0 / R(i,i);
 	}
 	T = ((diagmat(D) * R) * P.t()) * T;
@@ -131,7 +132,7 @@ void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::
 /// <param name="R"></param>
 /// <param name="D"></param>
 void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
-	for (int i = 0; i < D.n_rows; i++)
+	for (int i = 0; i < R.n_rows; i++)
 	{	
 		if (abs(R(i,i)) > 1) {
 			R(i,i) = 1;
@@ -148,7 +149,7 @@ void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 /// <param name="R"></param>
 /// <param name="D"></param>
 void inline makeTwoScalesFromUDT_full(arma::mat& R, arma::vec& D) {
-	for (int i = 0; i < D.n_rows; i++)
+	for (int i = 0; i < R.n_rows; i++)
 	{	
 		if (abs(R(i,i)) > 1.0) {
 			D(i) = R(i,i);
@@ -290,6 +291,20 @@ public:
         stout << std::flush;
         currUpdateVal += 1;
     }
+	void printWithTime(const std::string& message, double percentage) {
+#pragma omp critical
+		{
+			stout << "\t\t\t\t-> time: " << tim_s(timer) << message << " : \n";
+			this->print();
+			stout << std::endl;
+		}
+		this->update(percentage);
+	}
+	// constructor
+	pBar() {
+		timer = std::chrono::high_resolution_clock::now();
+		amountOfFiller = 0;
+	}
 private:
 	// --------------------------- STRING ENDS
 	std::string firstPartOfpBar = "\t\t\t\t[";
@@ -297,6 +312,7 @@ private:
     std::string pBarFiller = "|";
     std::string pBarUpdater = "/-\\|";
 	// --------------------------- PROGRESS
+	clk::time_point timer;														// inner clock
 	int amountOfFiller;															// length of filled elements
 	int pBarLength = 50;														// length of a progress bar
     int currUpdateVal = 0;														// 

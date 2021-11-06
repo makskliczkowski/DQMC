@@ -23,6 +23,7 @@ namespace hubbard {
 		arma::vec D_up;
 		arma::mat T_down;
 		arma::mat T_up;
+		arma::vec D_tmp;
 
 		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
 		arma::mat g_up_time, g_down_time;																				// time displaced Greens
@@ -31,8 +32,8 @@ namespace hubbard {
 		// -------------------------- DIRECTORIES AND SAVERS
 
 		// -------------------------- HELPING FUNCTIONS
-		void sweep_0_M(std::function<int(int)> ptfptr, bool save_greens) override;																		// sweep forward in time
-		void sweep_M_0(std::function<int(int)> ptfptr, bool save_greens) override;																		// sweep backwards
+		void sweep_0_M(std::function<int(int)> ptfptr) override;																		// sweep forward in time
+		void sweep_M_0(std::function<int(int)> ptfptr) override;																		// sweep backwards
 		int sweep_lat_sites(std::function<int(int)> fptr);
 
 		// -------------------------- UPDATERS
@@ -55,7 +56,8 @@ namespace hubbard {
 		void cal_green_mat_times_cycle();
 		void cal_green_mat_times_hirsh();																				// obtain full space-time Green's matrix
 		void cal_green_mat_times_hirsh_cycle();																			// use wrapping for calculating space time Green's matrix
-		void unequalG_greaterFirst(int t1, int t2, arma::vec& D_tmp);
+		void unequalG_greaterFirst(int t1, int t2, const arma::mat& inv_series_up, const arma::mat & inv_series_down);
+		void unequalG_greaterLast(int t1, int t2, const arma::mat& inv_series_up, const arma::mat & inv_series_down);
 
 		// comparison
 		void compare_green_direct(int tim, double toll, bool print_greens) override;
@@ -66,7 +68,7 @@ namespace hubbard {
 		int heat_bath_single_step_conf(int lat_site) override;															// single step with saving configurations
 		void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) override;
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
-		void av_single_step(int current_elem_i, int sign) override;
+		void av_single_step(int current_elem_i, int sign, bool times) override;
 	public:
 		// -------------------------- CONSTRUCTORS
 		HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1, bool ct = false);

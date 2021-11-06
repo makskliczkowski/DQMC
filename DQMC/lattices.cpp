@@ -32,6 +32,20 @@ SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 }
 
 /// <summary>
+/// 
+/// </summary>
+/// <param name="i"></param>
+/// <param name="j"></param>
+/// <returns></returns>
+std::tuple<int, int, int> SquareLattice::getSiteDifference(uint i, uint j)
+{
+	const int z = this->get_coordinates(i, 2) - this->get_coordinates(j, 2);
+	const int y = this->get_coordinates(i, 1) - this->get_coordinates(j, 1);
+	const int x = this->get_coordinates(i, 0) - this->get_coordinates(j, 0);
+	return std::tuple<int, int, int>(x + Lx - 1,y + Ly - 1, z + Lz - 1);
+}
+
+/// <summary>
 /// Calculate the nearest neighbors with PBC
 /// </summary>
 void SquareLattice::calculate_nn_pbc()

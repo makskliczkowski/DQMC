@@ -74,6 +74,7 @@ namespace hubbard {
 		int p;																						// M/M_0 = p
 
 		// -------------------------- ALGORITHM RELATED PARAMETERS
+		v_3d<int> spatialNorm;
 		arma::mat hopping_exp;																		// exponential of a hopping matrix
 		arma::mat int_exp_up, int_exp_down;															// exponentials of up and down spin interaction matrices at all times
 		std::vector<arma::mat> b_mat_up, b_mat_down;												// up and down B matrices vector
@@ -81,7 +82,9 @@ namespace hubbard {
 
 		arma::mat green_up, green_down;																// Green's matrix up and down at given (equal) time
 		arma::mat tempGreen_up; arma::mat tempGreen_down;											// temporary Green's for wrap updating
-		v_1d<arma::mat> g_up_diffs, g_down_diffs;													//
+
+		v_1d<arma::mat> g_up_diffs, g_down_diffs;
+		v_1d<arma::cx_mat> g_up_diffs_k, g_down_diffs_k;
 
 		// -------------------------- HELPING PARAMETERS
 		std::string info;																			// info about the model for file creation
@@ -89,7 +92,6 @@ namespace hubbard {
 		
 
 		// -------------------------- METHODS --------------------------
-		void averageUnequalGreens(bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, uint bucketnum = 1);
 
 		// -------------------------- PROTECTED SETTERS
 		void set_hs();																				// setting Hubbard-Stratonovich fields
@@ -98,7 +100,7 @@ namespace hubbard {
 		// -------------------------- HELPING FUNCTIONS
 		std::tuple<double, double> cal_gamma(int lat_site) const;									// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
 		std::tuple<double, double> cal_proba(int lat_site, double g_up, double g_down) const;		// calculate probability for both spins (0 <-> up index, 1 <-> down index)
-		virtual void av_single_step(int current_elem_i, int sign) = 0;								// take all the averages of a single step
+		virtual void av_single_step(int current_elem_i, int sign, bool times) = 0;					// take all the averages of a single step
 		void av_normalise(int avNum, int timesNum, bool times = false);								// normalise all the averages after taking them
 
 		// -------------------------- HEAT BATH
@@ -107,8 +109,8 @@ namespace hubbard {
 		virtual int heat_bath_single_step_conf(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm overloaded for saving directories
 		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) = 0;// uses heat-bath to equilibrate system
 		virtual void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) = 0;			// collect the averages from the simulation
-		virtual void sweep_0_M(std::function<int(int)> ptfptr, bool save_greens) = 0;				// sweep forward in time
-		virtual void sweep_M_0(std::function<int(int)> ptfptr, bool save_greens) = 0;				// sweep backwards
+		virtual void sweep_0_M(std::function<int(int)> ptfptr) = 0;									// sweep forward in time
+		virtual void sweep_M_0(std::function<int(int)> ptfptr) = 0;									// sweep backwards
 
 		// -------------------------- CALCULATORS
 		virtual void cal_green_mat(int which_time) = 0;												// calculates the Green matrices
@@ -149,7 +151,7 @@ namespace hubbard {
 		void print_hs_fields(std::ostream& output, int which_time_caused, \
 			int which_site_caused, short this_site_spin, std::string separator = "\t") const;			// prints current HS fields configuration
 
-		void save_unequal_greens(int filenum, bool useWrapping, const v_1d<arma::mat>& up, const v_1d<arma::mat>& down, uint bucketnum = 1);
+		void save_unequal_greens(int filenum, uint bucketnum = 1);
 
 		// -------------------------- GETTERS
 		int get_M() const { return this->M; };
