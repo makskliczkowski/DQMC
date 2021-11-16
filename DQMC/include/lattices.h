@@ -10,16 +10,18 @@ private:
 	int Ly;																		// spatial y-length
 	int Lz;																		// spatial z-length
 public:
-	/* CONSTRUCTORS */
+	// CONSTRUCTORS
 	SquareLattice() = default;
 	SquareLattice(int Lx, int Ly = 1, int Lz = 1, int dim = 1, int bc = 0);		// general constructor
-	/* GETTERS */
+
+	// GETTERS
 	int get_Lx() const override { return this->Lx; };
 	int get_Ly() const override { return this->Ly; };
 	int get_Lz() const override { return this->Lz; };
-	std::tuple<int,int,int> getSiteDifference(uint i, uint j);
+	int get_norm(int x, int y, int z) const override { return this->spatialNorm[x + this->Lx - 1][y + this->Ly - 1][z + this->Lz - 1]; };
+	std::tuple<int, int, int> getSiteDifference(uint i, uint j) const override;
 
-	/* CALCULATORS */
+	// CALCULATORS
 	void calculate_nn_pbc() override;
 	void calculate_nnn_pbc() override;
 	void calculate_coordinates() override;

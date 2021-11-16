@@ -1,5 +1,5 @@
 #include "include/lattices.h"
-// -------------------------------------------------------- SQUARE LATTICE -------------------------------------------------------- 
+// -------------------------------------------------------- SQUARE LATTICE --------------------------------------------------------
 
 SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 {
@@ -29,20 +29,28 @@ SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 		break;
 	}
 	this->calculate_coordinates();
+	// spatial norm
+	this->spatialNorm = v_3d<int>(2 * Lx - 1, v_2d<int>(2 * Ly - 1, v_1d<int>(2 * Lz - 1, 0)));
+	for (int i = 0; i < this->Ns; i++) {
+		for (int j = 0; j < this->Ns; j++) {
+			const auto [x, y, z] = this->getSiteDifference(i, j);
+			spatialNorm[x][y][z]++;
+		}
+	}
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="i"></param>
 /// <param name="j"></param>
 /// <returns></returns>
-std::tuple<int, int, int> SquareLattice::getSiteDifference(uint i, uint j)
+std::tuple<int, int, int> SquareLattice::getSiteDifference(uint i, uint j) const
 {
 	const int z = this->get_coordinates(i, 2) - this->get_coordinates(j, 2);
 	const int y = this->get_coordinates(i, 1) - this->get_coordinates(j, 1);
 	const int x = this->get_coordinates(i, 0) - this->get_coordinates(j, 0);
-	return std::tuple<int, int, int>(x + Lx - 1,y + Ly - 1, z + Lz - 1);
+	return std::tuple<int, int, int>(x + Lx - 1, y + Ly - 1, z + Lz - 1);
 }
 
 /// <summary>

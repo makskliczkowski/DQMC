@@ -13,7 +13,7 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 	this->avs = std::make_shared<averages_par>(Lx, Ly, Lz);
 	this->t = t;
 
-	// Params 
+	// Params
 	this->U = U;
 	this->mu = mu;
 	this->beta = beta;
@@ -21,27 +21,26 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 	this->Ns = this->lattice->get_Ns();
 	this->ran = randomGen();																// random number generator initialization
 
-	// Trotter 
+	// Trotter
 	this->dtau = dtau;
 	this->M = static_cast<int>(this->beta / this->dtau);									// number of Trotter times
 	this->M_0 = M_0;
 	this->p = (this->M / this->M_0);														// number of QR decompositions
 	this->green_size = this->Ns * this->p;
 
-	// Calculate alghorithm parameters 
+	// Calculate alghorithm parameters
 	//this->lambda = 2 * std::atan(tanh((abs(this->U) * this->dtau) / 4.0));
 	this->lambda = std::acosh(std::exp((abs(this->U) * this->dtau) / 2.0));
 
-	// Calculate changing exponents before, not to calculate exp all the time 
+	// Calculate changing exponents before, not to calculate exp all the time
 	this->gammaExp = { std::exp(2.0 * this->lambda), std::exp(-2.0 * this->lambda) };			// 0 -> sigma * hsfield = -1, 1 -> sigma * hsfield = 1
 
-	// Helping params 
+	// Helping params
 	this->from_scratch = this->M_0;
 	this->pos_num = 0;
 	this->neg_num = 0;
 
-
-	// Say hi to the world 
+	// Say hi to the world
 #pragma omp critical
 	std::cout << "CREATING THE HUBBARD MODEL WITH SPACE-TIME FORMULATION WITH PARAMETERS:" << std::endl \
 		// decomposition
@@ -67,7 +66,7 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 		",beta=" + to_string_prec(this->beta) + ",U=" + to_string_prec(this->U) + \
 		",mu=" + to_string_prec(this->mu);
 
-	// Initialize memory 
+	// Initialize memory
 	this->hopping_exp.zeros(this->Ns, this->Ns);
 
 	// interaction for all times
@@ -98,11 +97,10 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 
 // -------------------------------------------------------- B MATS --------------------------------------------------------
 
-
 // -------------------------------------------------------- GREENS --------------------------------------------------------
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="tim"></param>
 /// <param name="toll"></param>
@@ -159,17 +157,16 @@ void hubbard::HubbardST::cal_green_mat(int which_time) {
 		//stout << std::endl;
 	};
 
-
 	this->tempGreen_up.eye();
 	this->tempGreen_down.eye();
 
-	int col_begin = (this->p-1)*this->Ns;
+	int col_begin = (this->p - 1) * this->Ns;
 	int col_end = col_begin + this->Ns - 1;
 	int row_begin = 0;
 	int row_end = row_begin + this->Ns - 1;
 	// submatrices starting from the right edge
-	arma::subview up = tempGreen_up.submat(row_begin, col_begin, row_end , col_end);
-	arma::subview down = tempGreen_down.submat(row_begin, col_begin, row_end , col_end);
+	arma::subview up = tempGreen_up.submat(row_begin, col_begin, row_end, col_end);
+	arma::subview down = tempGreen_down.submat(row_begin, col_begin, row_end, col_end);
 	// stout << "\trow sector: " << int(row_begin /this->Ns) << ", col sector t = " << int(col_begin/this->Ns) << std::endl;
 	multiplier(this->p - 1, which_time, up, down);
 	up *= -1;
@@ -178,7 +175,7 @@ void hubbard::HubbardST::cal_green_mat(int which_time) {
 	for (int sec = 0; sec < this->p - 1; sec++) {
 		row_begin = (sec + 1) * this->Ns;
 		row_end = row_begin + this->Ns - 1;
-		col_begin = (sec) * this->Ns;
+		col_begin = (sec)*this->Ns;
 		col_end = col_begin + this->Ns - 1;
 		// stout << "\trow sector: " << int(row_begin /this->Ns) << ", col sector" << int(col_begin/this->Ns) << std::endl;
 		arma::subview up = tempGreen_up.submat(row_begin, col_begin, row_end, col_end);
@@ -194,18 +191,17 @@ void hubbard::HubbardST::cal_green_mat(int which_time) {
 // -------------------------------------------------------- HELPERS
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="im_time_step"></param>
 void hubbard::HubbardST::upd_Green_step(int im_time_step, bool forward) {
-
 }
 
 // -------------------------------------------------------- GREEN UPDATERS --------------------------------------------------------
 
 /// <summary>
-/// 
-/// 
+///
+///
 /// </summary>
 void hubbard::HubbardST::upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down)
 {
@@ -223,7 +219,7 @@ void hubbard::HubbardST::upd_equal_green(int lat_site, double gamma_over_prob_up
 	up += up.col(lat_site) * (row_up * gamma_over_prob_up);
 	down += down.col(lat_site) * (row_down * gamma_over_prob_down);
 	*/
-	
+
 	/*
 	this->tempGreen_up = this->green_up;
 	this->tempGreen_down = this->green_down;
@@ -248,10 +244,10 @@ void hubbard::HubbardST::upd_equal_green(int lat_site, double gamma_over_prob_up
 		for (int b = 0; b < this->Ns; b++) {
 			// SPIN UP
 			const int j = a + begin;
-			this->green_up(i,j) += (delta - up(a,lat_site)) *gamma_over_prob_up * up(lat_site,b);
+			this->green_up(i, j) += (delta - up(a, lat_site)) * gamma_over_prob_up * up(lat_site, b);
 			// SPIN DOWN
 			//gamma_over_prob_down = gamma_down / (1+(1-tempGreen_down(lat_site, lat_site))*gamma_down);
-			this->green_down(i,j) -= (delta - down(a,lat_site))*gamma_over_prob_down * down(lat_site,b);
+			this->green_down(i, j) -= (delta - down(a, lat_site)) * gamma_over_prob_down * down(lat_site, b);
 		}
 	}
 }
@@ -261,16 +257,14 @@ void hubbard::HubbardST::upd_equal_green(int lat_site, double gamma_over_prob_up
 /// <param name="which_time">updating to which_time + 1</param>
 /// </summary>
 void hubbard::HubbardST::upd_next_green(int which_time_green) {
-
-
 	for (int row = 0; row < this->p; row++) {
 		const int row_begin = row * this->Ns;
 		const int row_end = row_begin + this->Ns - 1;
-		const int time_row = row*this->M_0 + which_time_green;
+		const int time_row = row * this->M_0 + which_time_green;
 		for (int col = 0; col < this->p; col++) {
 			const int col_begin = col * this->Ns;;
 			const int col_end = col_begin + this->Ns - 1;
-			const int time_col = col*this->M_0 + which_time_green; 
+			const int time_col = col * this->M_0 + which_time_green;
 
 			arma::subview up = this->green_up.submat(row_begin, col_begin, row_end, col_end);
 			arma::subview down = this->green_down.submat(row_begin, col_begin, row_end, col_end);
@@ -282,7 +276,7 @@ void hubbard::HubbardST::upd_next_green(int which_time_green) {
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="which_time"></param>
 void hubbard::HubbardST::upd_prev_green(int which_time_green) {
@@ -300,7 +294,7 @@ void hubbard::HubbardST::av_single_step(int current_elem_i, int sign, bool times
 	const mat& g_up = this->green_up;
 	const mat& g_down = this->green_down;
 	const int elem_i = current_elem_i;
-	current_elem_i += this->current_time_slice*this->Ns;
+	current_elem_i += this->current_time_slice * this->Ns;
 
 	this->avs->av_sign += sign;
 	// m_z
@@ -330,7 +324,7 @@ void hubbard::HubbardST::av_single_step(int current_elem_i, int sign, bool times
 		const int y = j_minus_i_y + this->lattice->get_Ly() - 1;
 		const int x = j_minus_i_x + this->lattice->get_Lx() - 1;
 		// normal equal - time correlations
-		const int current_elem_j = elem_j + this->Ns*this->current_time_slice;
+		const int current_elem_j = elem_j + this->Ns * this->current_time_slice;
 		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, g_up, g_down);
 		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, g_up, g_down);
 		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, g_up, g_down) / (this->Ns * 2.0);
@@ -345,7 +339,7 @@ void hubbard::HubbardST::av_single_step(int current_elem_i, int sign, bool times
 /// <returns>sign of probability</returns>
 int hubbard::HubbardST::heat_bath_single_step(int lat_site)
 {
-	const int green_elem = this->current_time_slice*this->Ns + lat_site;							// we need to take the element from the different site of Green
+	const int green_elem = this->current_time_slice * this->Ns + lat_site;							// we need to take the element from the different site of Green
 	const auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);									// first up then down
 	const auto [proba_up, proba_down] = this->cal_proba(green_elem, gamma_up, gamma_down);			// take the probabilities
 	double proba = proba_up * proba_down;															// Metropolis probability
@@ -355,80 +349,18 @@ int hubbard::HubbardST::heat_bath_single_step(int lat_site)
 	//auto r = this->ran.randomReal_uni(0,1);
 	//stout << "random-> " << r << ((r <= proba) ? " <= " : " > " ) << proba << "<-proba\n";
 	//if (this->ran.bernoulli(proba)) {
-	if(this->ran.randomReal_uni(0,1) <= sign * proba){
+	if (this->ran.randomReal_uni(0, 1) <= sign * proba) {
 		const double delta_up = gamma_up + 1;
 		const double delta_down = gamma_down + 1;
 		//stout << "\tI am in, updating\n";
 		this->upd_int_exp(lat_site, delta_up, delta_down);
 		//this->cal_B_mat(this->current_time);
 		this->upd_B_mat(lat_site, delta_up, delta_down);											// update the B matrices
-		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);				// update Greens via Dyson
-		this->hsFields(this->current_time,lat_site) *= -1;
+		this->upd_equal_green(lat_site, gamma_up / proba_up, gamma_down / proba_down);				// update Greens via Dyson
+		this->hsFields(this->current_time, lat_site) *= -1;
 	}
 	return sign;
 }
-
-/// <summary>
-/// Single step for the candidate to flip the HS field
-/// </summary>
-/// <param name="lat_site">the candidate lattice site</param>
-/// <returns>sign of probability</returns>
-int hubbard::HubbardST::heat_bath_single_step_no_upd(int lat_site)
-{
-	return 1;
-}
-
-/// <summary>
-/// Single step for the candidate to flip the HS field with saving configurations
-/// </summary>
-/// <param name="lat_site">the candidate lattice site</param>
-/// <returns>sign of probability</returns>
-int hubbard::HubbardST::heat_bath_single_step_conf(int lat_site)
-{
-	std::ofstream file_conf, file_log;														// savefiles
-	std::string name_conf, name_log;														// filenames to save
-	/*
-	if (proba < 0) {
-		sign = -1;
-		proba = -proba;																		// set abs(proba)
-		if (this->neg_num <= this->pos_num) {												// to maitain the same number of both signs
-			name_conf = this->neg_dir + "negative_" + this->info + \
-				",n=" + std::to_string(this->neg_num) + ".dat";
-			name_log = this->neg_log;
-		}
-	}
-	else {
-		if (this->neg_num <= this->pos_num) {												// to maitain the same number of both signs
-			name_conf = this->pos_dir + "positive_" + this->info + \
-				",n=" + std::to_string(this->pos_num) + ".dat";
-			name_log = this->pos_log;
-		}
-	}
-	// open files
-	file_log.open(name_log);
-	file_conf.open(name_conf);
-	if (!file_conf.is_open() || !file_log.is_open()) {
-		std::cout << "Couldn't open either: " + name_log + " , or " + name_conf + "\n";
-		throw - 1;
-		exit(-1);
-	}
-	else {
-		this->print_hs_fields(file_conf, this->current_time, lat_site, this->hsFields[this->current_time][lat_site]);
-		file_conf.close();
-		file_log << name_conf << "\t" << proba << "\t" << sign << std::endl;
-		file_log.close();
-	}
-	// continue with a standard approach
-	if (this->ran.randomReal_uni() < abs(proba)) {
-		this->hsFields[this->current_time][lat_site] *= -1;
-		this->upd_B_mat(lat_site, gamma_up + 1, gamma_down + 1);								// update the B matrices
-		this->upd_equal_green(lat_site, gamma_up/proba_up, gamma_down/proba_down);		// update Greens via Dyson
-	}
-	*/
-	return 1;
-}
-
-
 
 /// <summary>
 /// Drive the system to equilibrium with heat bath
@@ -451,13 +383,7 @@ void hubbard::HubbardST::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 
 	// function
 	int (HubbardST:: * ptfptr)(int);																	// pointer to a single step function depending on whether we do configs or not
-
-	if (conf) {
-		stout << "Saving configurations of Hubbard Stratonovich fields\n";
-		ptfptr = &HubbardST::heat_bath_single_step_conf;												// pointer to saving configs
-	}
-	else
-		ptfptr = &HubbardST::heat_bath_single_step;														// pointer to non-saving configs
+	ptfptr = &HubbardST::heat_bath_single_step;															// pointer to non-saving configs
 
 	for (int step = 0; step < mcSteps; step++) {
 		// Monte Carlo steps
@@ -478,10 +404,9 @@ void hubbard::HubbardST::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 					// this->compare_green_direct(this->current_time, 1e-6, false);
 				}
 			}
-
 		}
 		if (mcSteps != 1 && step % percentage_steps == 0) {
-			stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info  << " : \n";
+			stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info << " : \n";
 			progress.print();
 			stout << std::endl;
 			progress.update(percentage);
@@ -508,7 +433,7 @@ void hubbard::HubbardST::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	auto progress = pBar();
 	const double percentage = 25;
 	const int percentage_steps = static_cast<int>(percentage * avNum / 100.0);
-	
+
 	for (int step = 0; step < avNum; step++) {
 		// Monte Carlo steps
 		//stout << "Starting sweep number : " << step << std::endl;
@@ -534,7 +459,7 @@ void hubbard::HubbardST::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 			this->heat_bath_eq(1, false, true);
 
 		if (step % percentage_steps == 0) {
-			stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info  << " : \n";
+			stout << "\t\t\t\t-> time: " << tim_s(start) << " -> RELAXATION PROGRESS for " << this->info << " : \n";
 			progress.print();
 			stout << std::endl;
 			progress.update(percentage);

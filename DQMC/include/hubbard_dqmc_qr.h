@@ -2,11 +2,9 @@
 #include "hubbard.h"
 
 #ifndef HUBBARD_ST_H
-#define HUBBARD_ST_H	
+#define HUBBARD_ST_H
 // ---------------------------------------------------------------------- SPACE TIME ----------------------------------------------------------------------------
 namespace hubbard {
-
-
 	/// <summary>
 /// A DQMC model that uses the QR decomposition scheme
 /// </summary>
@@ -27,8 +25,8 @@ namespace hubbard {
 
 		std::vector<arma::mat> b_up_condensed, b_down_condensed;														// up and down B matrices vector premultiplied
 		arma::mat g_up_time, g_down_time;																				// time displaced Greens
-		v_1d<arma::mat> g_up_eq;v_1d<arma::mat> g_down_eq;		
-		v_1d<arma::mat> g_up_tim;v_1d<arma::mat> g_down_tim;
+		v_1d<arma::mat> g_up_eq; v_1d<arma::mat> g_down_eq;
+		v_1d<arma::mat> g_up_tim; v_1d<arma::mat> g_down_tim;
 		// -------------------------- DIRECTORIES AND SAVERS
 
 		// -------------------------- HELPING FUNCTIONS
@@ -56,25 +54,21 @@ namespace hubbard {
 		void cal_green_mat_times_cycle();
 		void cal_green_mat_times_hirsh();																				// obtain full space-time Green's matrix
 		void cal_green_mat_times_hirsh_cycle();																			// use wrapping for calculating space time Green's matrix
-		void unequalG_greaterFirst(int t1, int t2, const arma::mat& inv_series_up, const arma::mat & inv_series_down);
-		void unequalG_greaterLast(int t1, int t2, const arma::mat& inv_series_up, const arma::mat & inv_series_down);
+		void unequalG_greaterFirst(int t1, int t2, const arma::mat& inv_series_up, const arma::mat& inv_series_down);
+		void unequalG_greaterLast(int t1, int t2, const arma::mat& inv_series_up, const arma::mat& inv_series_down);
 
 		// comparison
 		void compare_green_direct(int tim, double toll, bool print_greens) override;
 
 		// -------------------------- HEAT-BATH
 		int heat_bath_single_step(int lat_site) override;																// single step with updating
-		int heat_bath_single_step_no_upd(int lat_site) override;														// single step without updating
-		int heat_bath_single_step_conf(int lat_site) override;															// single step with saving configurations
 		void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) override;
 		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;
 		void av_single_step(int current_elem_i, int sign, bool times) override;
 	public:
 		// -------------------------- CONSTRUCTORS
 		HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1, bool ct = false);
-
 	};
 }
-
 
 #endif

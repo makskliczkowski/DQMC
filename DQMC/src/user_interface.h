@@ -40,11 +40,11 @@ public:
 	virtual void make_simulation() = 0;
 
 	virtual void exit_with_help() = 0;
-	// ----------------------- REAL PARSING 
+	// ----------------------- REAL PARSING
 	virtual void parseModel(int argc, const v_1d<std::string>& argv) = 0;									 // the function to parse the command line
-	// ----------------------- HELPING FUNCIONS 
+	// ----------------------- HELPING FUNCIONS
 	virtual void set_default() = 0;																	 		// set default parameters
-	// ----------------------- NON-VIRTUALS 
+	// ----------------------- NON-VIRTUALS
 	v_1d<std::string> parseInputFile(std::string filename);													// if the input is taken from file we need to make it look the same way as the command line does
 };
 

@@ -35,7 +35,7 @@ using ull = unsigned long long;
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
 constexpr long double TWOPI = 2 * PI;										// it is me, 2pi
 constexpr long double PI_half = PI / 2.0;
-constexpr cpx im_num = cpx(0,1);
+constexpr cpx im_num = cpx(0, 1);
 const std::string kPSepS = std::string(kPSep);
 
 // -------------------------------------------------------- ALGORITHMS FOR MC --------------------------------------------------------
@@ -81,18 +81,17 @@ inline double tim_s(clk::time_point start) {
 
 // ----------------------------------------------------------------------------- TOOLS -----------------------------------------------------------------------------
 
-//v_1d<double> fourierTransform(std::initializer_list<const arma::mat&> matToTransform, std::tuple<double,double,double> k, std::tuple<int,int,int> L); 
-
+//v_1d<double> fourierTransform(std::initializer_list<const arma::mat&> matToTransform, std::tuple<double,double,double> k, std::tuple<int,int,int> L);
 
 // ----------------------------------------------------------------------------- MATRIX MULTIPLICATION
 
 void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update = true, bool minus = false);
-void setSubmatrixFromMatrix(arma::mat& M2Set,  const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols,bool update = true, bool minus = false);
+void setSubmatrixFromMatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update = true, bool minus = false);
 
 arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl, arma::vec& Dl, arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr, arma::vec& Dr, arma::vec& Dtmp);
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="mat_to_multiply"></param>
 /// <param name="Q"></param>
@@ -103,13 +102,13 @@ arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, a
 void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
 	if (!arma::qr(Q, R, P, mat_to_multiply)) throw "decomposition failed\n";
 	for (int i = 0; i < R.n_rows; i++) {
-		D(i) = 1.0 / R(i,i);
+		D(i) = 1.0 / R(i, i);
 	}
 	T = ((diagmat(D) * R) * P.t());
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="mat_to_multiply"></param>
 /// <param name="Q"></param>
@@ -117,25 +116,23 @@ void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::m
 /// <param name="P"></param>
 /// <param name="T"></param>
 void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
-
 	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * diagmat(R))) throw "decomposition failed\n";
 	for (int i = 0; i < R.n_rows; i++) {
-		D(i) = 1.0 / R(i,i);
+		D(i) = 1.0 / R(i, i);
 	}
 	T = ((diagmat(D) * R) * P.t()) * T;
 }
 
-
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="R"></param>
 /// <param name="D"></param>
 void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 	for (int i = 0; i < R.n_rows; i++)
-	{	
-		if (abs(R(i,i)) > 1) {
-			R(i,i) = 1;
+	{
+		if (abs(R(i, i)) > 1) {
+			R(i, i) = 1;
 		}
 		else {
 			D(i) = 1;
@@ -144,16 +141,16 @@ void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="R"></param>
 /// <param name="D"></param>
 void inline makeTwoScalesFromUDT_full(arma::mat& R, arma::vec& D) {
 	for (int i = 0; i < R.n_rows; i++)
-	{	
-		if (abs(R(i,i)) > 1.0) {
-			D(i) = R(i,i);
-			R(i,i) = 1;
+	{
+		if (abs(R(i, i)) > 1.0) {
+			D(i) = R(i, i);
+			R(i, i) = 1;
 		}
 		else {
 			D(i) = 1;
@@ -164,7 +161,7 @@ void inline makeTwoScalesFromUDT_full(arma::mat& R, arma::vec& D) {
 // ----------------------------------------------------------------------------- FILE AND STREAMS
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <param name="filename"></param>
 /// <param name="mode"></param>
@@ -175,7 +172,6 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 	if (!file.is_open()) throw "couldn't open a file: " + filename + "\n";
 }
 
-
 /// <summary>
 /// check the sign of a value
 /// </summary>
@@ -184,6 +180,11 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 template <typename T>
 inline int sgn(T val) {
 	return (T(0) < val) - (val < T(0));
+}
+
+template <typename T>
+inline T variance(T value, T average, int norm) {
+	return std::sqrt((value / norm - average * average) / norm);
 }
 
 /// <summary>
@@ -202,7 +203,7 @@ inline int myModuloEuclidean(int a, int b)
 }
 
 /// <summary>
-/// 
+///
 /// </summary>
 /// <typeparam name="T"></typeparam>
 /// <param name="output"></param>
@@ -210,14 +211,10 @@ inline int myModuloEuclidean(int a, int b)
 /// <param name="separtator"></param>
 template <typename T>
 inline void printSeparated(std::ostream& output, std::string separtator = "\t", std::initializer_list<T> elements = {}, arma::u16 width = 8, bool endline = true) {
-	//const int elements_size = elements.size();
-#pragma omp critical
 	for (auto elem : elements) {
 		output.width(width); output << elem << separtator;
 	}
-#pragma omp critical
-	if(endline)
-		output << std::endl;
+	if (endline) output << std::endl;
 }
 
 /// <summary>
@@ -225,30 +222,28 @@ inline void printSeparated(std::ostream& output, std::string separtator = "\t", 
 /// </summary>
 template <typename T>
 std::ostream& operator<< (std::ostream& out, const v_1d<T>& v) {
-    if ( !v.empty() ) {
-        out << '[';
-        for(int i = 0; i < v.size(); i++)
+	if (!v.empty()) {
+		out << '[';
+		for (int i = 0; i < v.size(); i++)
 			out << v[i] << ", ";
-        out << "\b\b]"; // use two ANSI backspace characters '\b' to overwrite final ", "
-    }
-    return out;
+		out << "\b\b]"; // use two ANSI backspace characters '\b' to overwrite final ", "
+	}
+	return out;
 }
 
 template <typename T>
 std::ostream& operator<< (std::ostream& out, const v_1d<v_1d<T>>& v) {
-	if ( !v.empty() ) {
+	if (!v.empty()) {
 		for (auto it : v) {
 			out << "\t\t\t\t";
 			for (int i = 0; i < it.size(); i++)
 				out << it[i] << "\t";
 			out << "\n";
 		}
-    }
-    return out;
-
+	}
+	return out;
 }
 // -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
-
 
 /// <summary>
 /// Changes a value to a string with a given precision
@@ -268,29 +263,28 @@ v_1d<std::string> split_str(const std::string& s, std::string delimiter = "\t");
 
 v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv);
 
-
 class pBar {
 public:
 	void update(double newProgress) {
-        currentProgress += newProgress;
-        amountOfFiller = (int)((currentProgress / neededProgress)*(double)pBarLength);
-    }
+		currentProgress += newProgress;
+		amountOfFiller = (int)((currentProgress / neededProgress) * (double)pBarLength);
+	}
 	void print() {
-        currUpdateVal %= pBarUpdater.length();
-        stout << "\r";															// Bring cursor to start of line
+		currUpdateVal %= pBarUpdater.length();
+		stout << "\r";															// Bring cursor to start of line
 		stout << firstPartOfpBar;												// Print out first part of pBar
-        for (int a = 0; a < amountOfFiller; a++) {								// Print out current progress
-            stout << pBarFiller;
-        }
-        stout << pBarUpdater[currUpdateVal];
-        for (int b = 0; b < pBarLength - amountOfFiller; b++) {					// Print out spaces
-            stout << " ";
-        }
-        stout << lastPartOfpBar;												// Print out last part of progress bar
-        stout << " (" << (int)(100*(currentProgress/neededProgress)) << "%)";	// This just prints out the percent
-        stout << std::flush;
-        currUpdateVal += 1;
-    }
+		for (int a = 0; a < amountOfFiller; a++) {								// Print out current progress
+			stout << pBarFiller;
+		}
+		stout << pBarUpdater[currUpdateVal];
+		for (int b = 0; b < pBarLength - amountOfFiller; b++) {					// Print out spaces
+			stout << " ";
+		}
+		stout << lastPartOfpBar;												// Print out last part of progress bar
+		stout << " (" << (int)(100 * (currentProgress / neededProgress)) << "%)";	// This just prints out the percent
+		stout << std::flush;
+		currUpdateVal += 1;
+	}
 	void printWithTime(const std::string& message, double percentage) {
 #pragma omp critical
 		{
@@ -308,18 +302,16 @@ public:
 private:
 	// --------------------------- STRING ENDS
 	std::string firstPartOfpBar = "\t\t\t\t[";
-    std::string lastPartOfpBar = "]";
-    std::string pBarFiller = "|";
-    std::string pBarUpdater = "/-\\|";
+	std::string lastPartOfpBar = "]";
+	std::string pBarFiller = "|";
+	std::string pBarUpdater = "/-\\|";
 	// --------------------------- PROGRESS
 	clk::time_point timer;														// inner clock
 	int amountOfFiller;															// length of filled elements
 	int pBarLength = 50;														// length of a progress bar
-    int currUpdateVal = 0;														// 
+	int currUpdateVal = 0;														//
 	double currentProgress = 0;													// current progress
-    double neededProgress = 100;												// final progress
-
+	double neededProgress = 100;												// final progress
 };
-
 
 #endif // COMMON_UTILS_H

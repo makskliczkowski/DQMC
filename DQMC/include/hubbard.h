@@ -9,18 +9,18 @@ namespace hubbard {
 
 	struct directories : public general_directories {
 		std::string fourier_dir = "";
-		std::string params_dir= "";
+		std::string params_dir = "";
 		std::string conf_dir = "";
 		std::string greens_dir = "";
 		std::string time_greens_dir = "";
 
-		// filenames											
-		std::string nameFouriers = "";							// 
-		std::string nameFouriersTime = "";						// 
-		std::string nameNormal = "";								// 
-		std::string nameNormalTime = "";							// 
-		std::string nameGreens = "";								// 
-		std::string nameGreensTime = "";							// 
+		// filenames
+		std::string nameFouriers = "";							//
+		std::string nameFouriersTime = "";						//
+		std::string nameNormal = "";								//
+		std::string nameNormalTime = "";							//
+		std::string nameGreens = "";								//
+		std::string nameGreensTime = "";							//
 
 		// configuration directories
 		std::string neg_dir = "";								// directory for negative configurations
@@ -30,28 +30,25 @@ namespace hubbard {
 
 		directories() = default;
 
-		void setFileNames(){
+		void setFileNames() {
 			this->nameFouriers = fourier_dir + "fouriers_" + info + ".dat";
-			this->nameFouriersTime = fourier_dir + "times"+ kPSepS + "fouriersTime_" + info + ".dat";
+			this->nameFouriersTime = fourier_dir + "times" + kPSepS + "fouriersTime_" + info + ".dat";
 			this->nameNormal = params_dir + "parameters_" + info + ".dat";
-			this->nameNormalTime = params_dir + "times"+ kPSepS + "parametersTime_" + info + ".dat";
+			this->nameNormalTime = params_dir + "times" + kPSepS + "parametersTime_" + info + ".dat";
 			this->nameGreens = "greens" + info + ".dat";
 			this->nameGreensTime = "greensTime_" + info + ".dat";
 		};
-
-
 	};
-
 
 	class HubbardModel : public LatticeModel {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
 		int from_scratch;																		// number of Trotter times for Green to be calculated from scratch
 		int config_sign;																		// keep track of the configuration sign
+		double probability;
 		bool cal_times;
 		long int pos_num;																		// helps with number of positive signs
 		long int neg_num;																		// helps with number of negative signs
-
 
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
 		std::vector<double> t;																	// hopping integral vector
@@ -83,13 +80,9 @@ namespace hubbard {
 		arma::mat green_up, green_down;																// Green's matrix up and down at given (equal) time
 		arma::mat tempGreen_up; arma::mat tempGreen_down;											// temporary Green's for wrap updating
 
-		v_1d<arma::mat> g_up_diffs, g_down_diffs;
-		v_1d<arma::cx_mat> g_up_diffs_k, g_down_diffs_k;
-
 		// -------------------------- HELPING PARAMETERS
 		std::string info;																			// info about the model for file creation
 		std::shared_ptr<directories> dir;															// directories for model parameters saving
-		
 
 		// -------------------------- METHODS --------------------------
 
@@ -105,8 +98,6 @@ namespace hubbard {
 
 		// -------------------------- HEAT BATH
 		virtual int heat_bath_single_step(int lat_site) = 0;										// calculates the single step of a heat-bath algorithm
-		virtual int heat_bath_single_step_no_upd(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm without flipping
-		virtual int heat_bath_single_step_conf(int lat_site) = 0;									// calculates the single step of a heat-bath algorithm overloaded for saving directories
 		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) = 0;// uses heat-bath to equilibrate system
 		virtual void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) = 0;			// collect the averages from the simulation
 		virtual void sweep_0_M(std::function<int(int)> ptfptr) = 0;									// sweep forward in time
@@ -145,11 +136,9 @@ namespace hubbard {
 
 		// -------------------------- EQUAL TIME FOURIER TRANSFORMS
 
-
 	public:
 		// -------------------------- PRINTERS
-		void print_hs_fields(std::ostream& output, int which_time_caused, \
-			int which_site_caused, short this_site_spin, std::string separator = "\t") const;			// prints current HS fields configuration
+		void print_hs_fields(std::string separator = "\t") const;			// prints current HS fields configuration
 
 		void save_unequal_greens(int filenum, uint bucketnum = 1);
 
@@ -157,20 +146,15 @@ namespace hubbard {
 		int get_M() const { return this->M; };
 		int get_M_0() const { return this->M_0; };
 		std::string get_info() const { return this->info; };
-		std::shared_ptr<directories> get_directories() const {return this->dir;};
+		std::shared_ptr<directories> get_directories() const { return this->dir; };
 
 		// -------------------------- SETTERS
-		void setDirs(directories directories);
+		void setDirs(directories* dirs) {this->dir.reset(dirs);};
 		void setDirs(std::string working_directory);
 
 		// -------------------------- CALCULATORS OVERRIDE
 		void relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet) override;
 		void average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet, int times = 0) override;
 	};
-
 }
 #endif
-
-
-
-
