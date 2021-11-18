@@ -139,7 +139,7 @@ namespace hubbard {
 	public:
 		// -------------------------- PRINTERS
 		void print_hs_fields(std::string separator = "\t") const;			// prints current HS fields configuration
-
+		void print_hs_fields(std::string separator, const arma::mat& toPrint) const;
 		void save_unequal_greens(int filenum, uint bucketnum = 1);
 
 		// -------------------------- GETTERS

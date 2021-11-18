@@ -555,6 +555,7 @@ int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
 		const auto lat_site = j;
 		sign = (fptr)(lat_site);
 	}
+	// return sign from the last possible flip
 	return sign;
 }
 
@@ -766,14 +767,17 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 
 	// function
 	std::function<int(int)> fptr = std::bind(&HubbardQR::heat_bath_single_step, this, std::placeholders::_1);	// pointer to non-saving configs;
-
+	arma::mat confMine(this->Ns, this->Ns);
 	// sweep all
 	for (int step = 0; step < mcSteps; step++) {
 		// Monte Carlo steps
+		
+		if (conf) confMine = this->hsFields;
+		// save how it was before
 		this->sweep_0_M(fptr);
 		if (!quiet) {
 			this->config_sign > 0 ? this->pos_num++ : this->neg_num++;								// increase sign
-			if(conf) this->print_hs_fields("\t");
+			if(conf) this->print_hs_fields("\t", confMine);
 			if (step % percentage_steps == 0) progress.printWithTime(" -> RELAXATION PROGRESS for " + this->info, percentage);
 		}
 	}
@@ -832,7 +836,7 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 		// increase sign
 		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;											
 
-		if (times && step != 0 && step % bucket_num == 0) {
+		if (times && step % bucket_num == 0) {
 			this->save_unequal_greens(step / bucket_num, bucket_num);
 			this->avs->resetGreens();
 		}

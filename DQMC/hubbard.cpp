@@ -91,17 +91,19 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 		"numpair =\t",std::string("don't know what is that"),"\n",
 		"lambda =\t", to_string_prec(this->lambda, 4),"\n",
 		"start = \t",std::to_string(0), "\n",
-		"sign = \t",to_string_prec(this->config_sign,5), "\n" };
+		"sign = \t",to_string_prec(this->config_sign,5), "\n\n\n" };
 	printSeparated(fileUp, " ", enter_params, 30);
 	printSeparated(fileDown, " ", enter_params, 30);
 
 	this->avs->normaliseGreens(bucketnum, Lx, Ly, this->lattice);
 
 	const u16 width = 8;
+	printSeparated(fileUp, "\t", { std::string(" G(nx,ny,ti):") });
+	printSeparated(fileDown, "\t", { std::string(" G(nx,ny,ti):") });
 	for (int x = 0; x <= Lx / 2; x++) {
 		for (int y = x; y <= Ly / 2; y++) {
-			printSeparated(fileUp, "\t", { std::string(" G(nx,ny,ti):\n nx ="), std::to_string(x), std::string("ny ="), std::to_string(y) }, 6);
-			printSeparated(fileDown, "\t", { std::string(" G(nx,ny,ti):\n nx ="), std::to_string(x), std::string("ny ="), std::to_string(y) }, 6);
+			printSeparated(fileUp, "\t", {std::string(" nx ="), std::to_string(x), std::string("ny ="), std::to_string(y)}, 6);
+			printSeparated(fileDown, "\t", { std::string(" nx ="), std::to_string(x), std::string("ny ="), std::to_string(y) }, 6);
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
 				printSeparated(fileUp, "\t", { std::to_string(tau1) }, 4, 0);
@@ -195,6 +197,7 @@ void hubbard::HubbardModel::setConfDir() {
 	// create directories
 	fs::create_directories(this->dir->neg_dir);
 	fs::create_directories(this->dir->pos_dir);
+
 	// add a separator
 	this->dir->neg_dir += kPSepS;
 	this->dir->pos_dir += kPSepS;
@@ -568,6 +571,38 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
 			file_conf << (this->hsFields(i,j) > 0 ? 1 : 0) << separator;
+		}
+		file_conf << "\n";
+	}
+	file_conf.close();
+	file_log.close();
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="separator"></param>
+/// <param name="toPrint"></param>
+void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
+{
+	std::ofstream file_conf, file_log;														// savefiles
+	std::string name_config ="", name_log ="";												// filenames to save
+	if (this->config_sign < 0) {
+		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + std::to_string(this->neg_num) + ".dat";
+		name_log = this->dir->neg_log;
+	}
+	else {
+		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + std::to_string(this->pos_num) + ".dat";
+		name_log = this->dir->pos_log;
+	}
+	// open files
+	openFile(file_log, name_log, ios::app);
+	openFile(file_conf, name_config);
+	printSeparated(file_log, ",", { name_config, to_string_prec(this->probability, 4), std::to_string(this->config_sign)},26 );
+	
+	for (int i = 0; i < this->M; i++) {
+		for (int j = 0; j < this->Ns; j++) {
+			file_conf << (toPrint(i,j) > 0 ? 1 : 0) << separator;
 		}
 		file_conf << "\n";
 	}
