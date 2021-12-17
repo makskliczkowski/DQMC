@@ -66,7 +66,8 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 
 	fileUp << " Up different time, real-space Greens\n" << information;
 	fileDown << " Down different time, real-space Greens\n" << information;
-	std::initializer_list<std::string> enter_params = { "n =\t", std::to_string(this->lattice->get_Lx()),"\n",
+	std::initializer_list<std::string> enter_params = { "n =\t",
+		std::to_string(this->lattice->get_Lx()),"\n",
 		"l =\t",std::to_string(this->M),"\n",
 		"tausk =\t",std::to_string(this->M),"\n",
 		"doall =\t",std::string("don't know what is that"),"\n",
@@ -192,9 +193,13 @@ void hubbard::HubbardModel::set_hs()
 /// </summary>
 /// <param name="dir">directory to be used for configurations</param>
 void hubbard::HubbardModel::setConfDir() {
-	this->dir->neg_dir = this->dir->conf_dir + kPSepS + "negative";
-	this->dir->pos_dir = this->dir->conf_dir + kPSepS + "positive";
+	this->dir->neg_dir = this->dir->conf_dir + kPSepS + this->info;
+	this->dir->pos_dir = this->dir->conf_dir + kPSepS + this->info;
 	// create directories
+
+	this->dir->neg_dir +=  kPSepS + "negative";
+	this->dir->pos_dir +=  kPSepS + "positive";
+
 	fs::create_directories(this->dir->neg_dir);
 	fs::create_directories(this->dir->pos_dir);
 
