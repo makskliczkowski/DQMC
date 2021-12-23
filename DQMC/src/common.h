@@ -9,8 +9,28 @@
 #include <thread>
 #include <sstream>
 #include <cmath>
-#include <filesystem>
 #include <complex>
+// filesystem for directory creation
+#ifdef __has_include
+#  if __has_include(<filesystem>)
+#    include <filesystem>
+#    define have_filesystem 1
+namespace fs = std::filesystem;
+#  elif __has_include(<experimental/filesystem>)
+#    include <experimental/filesystem>
+#    define have_filesystem 1
+#    define experimental_filesystem
+namespace fs = std::experimental::filesystem;
+#  else
+#    define have_filesystem 0
+#  endif
+#endif
+
+// armadillo
+#define ARMA_64BIT_WORD // enabling 64 integers in armadillo obbjects
+#define ARMA_BLAS_LONG_LONG // using long long inside LAPACK call
+#define ARMA_USE_OPENMP
+#define ARMA_ALLOW_FAKE_GCC
 #include <armadillo>
 
 // -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
@@ -20,7 +40,7 @@
 
 static const char* kPSep =
 #ifdef _WIN32
-"\\";
+R"(\)";
 #else
 "/";
 #endif
