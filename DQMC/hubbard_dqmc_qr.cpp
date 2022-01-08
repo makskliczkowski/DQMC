@@ -514,8 +514,8 @@ void hubbard::HubbardQR::cal_green_mat_times_hirsh()
 		setSubmatrixFromMatrix(g_up_time, this->b_mat_up[sec], row, col, this->Ns, this->Ns, true, true);
 		setSubmatrixFromMatrix(g_down_time, this->b_mat_down[sec], row, col, this->Ns, this->Ns, true, true);
 	}
-	this->g_up_time = arma::solve(this->g_up_time, arma::arma::diagmat(this->g_up_time));
-	this->g_down_time = arma::solve(this->g_down_time, arma::arma::diagmat(this->g_down_time));
+	this->g_up_time = arma::solve(this->g_up_time, arma::diagmat(this->g_up_time));
+	this->g_down_time = arma::solve(this->g_down_time, arma::diagmat(this->g_down_time));
 	//this->g_up_time = this->g_up_time.i();
 	//this->g_down_time = this->g_down_time.i();
 }
