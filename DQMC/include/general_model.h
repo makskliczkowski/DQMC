@@ -28,9 +28,10 @@ struct general_directories {
 };
 
 // -------------------------------------------------------- GENERAL LATTICE --------------------------------------------------------
-/// <summary>
-/// Pure virtual lattice class, it will allow to distinguish between different geometries in the model
-/// </summary>
+
+/*
+* Pure virtual lattice class, it will allow to distinguish between different geometries in the models
+*/
 class Lattice {
 protected:
 	// ----------------------- LATTICE PARAMETERS

@@ -69,17 +69,39 @@ void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, u
 				M2Set(a, b) = MSet(row + a, col + b);
 }
 
-
+/**
+ * @brief 
+ * 
+ * R diagonal has elements smaller than one -> D_m
+ * D is already inversed and has elements bigg
+ * @param Ql 
+ * @param Rl 
+ * @param Pl 
+ * @param Tl 
+ * @param Dl 
+ * @param Qr 
+ * @param Rr 
+ * @param Pr 
+ * @param Tr 
+ * @param Dr 
+ * @param Dtmp 
+ * @return arma::mat 
+ */
 arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl, arma::vec& Dl, arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr, arma::vec& Dr, arma::vec& Dtmp)
 {
 	// using loh
-	makeTwoScalesFromUDT(Rl, Dl);															// remember D already inversed!
-	makeTwoScalesFromUDT(Rr, Dr);															// remember D already inversed and we use tmp for help!
 
-	setUDTDecomp(diagmat(Rl) * Tl * arma::inv(Tr) * diagmat(Dr)\
-		+ diagmat(Dl) * Ql.t() * Qr * diagmat(Rr)\
-		, Qr, Rl, Pl, Tl, Dtmp);
+	makeTwoScalesFromUDT(Rl, Dl);																								// remember D already inversed!
+	makeTwoScalesFromUDT(Rr, Dr);																								// remember D already inversed!
+	//! D_lm*D_rp^{-1} * X_l * X_r^{-1} + U_l^{-1} * U_r * D_rm * D_lp^{-1}
+	setUDTDecomp(
+		diagmat(Rl) * diagmat(Dr) * Tl * arma::inv(Tr)  +
+		Ql.t() * Qr * diagmat(Rr) * diagmat(Dl),
+		Qr, Rl, Pl, Tl, Dtmp);
+	//! D_rp^{-1}
 	setUDTDecomp(diagmat(Dr) * arma::inv(Tl) * diagmat(Dtmp) * Qr.t() * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
+	//? direct inversion
+	//setUDTDecomp(diagmat(Dr) * arma::inv(Qr * diagmat(Rl) * Tl) * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
 	return (arma::inv(Tr) * Qr) * arma::diagmat(Rl) * (Tl * Ql.t());
 }
 

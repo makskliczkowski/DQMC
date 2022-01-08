@@ -5,7 +5,7 @@
 #define HUBBARD_ST_H
 // ---------------------------------------------------------------------- SPACE TIME ----------------------------------------------------------------------------
 namespace hubbard {
-	/*
+	/**
 	* Hubbard model with stable matrix multiplication
 	* @todo Add more complicated structure of the Hamiltonian
 	*/
@@ -72,13 +72,14 @@ namespace hubbard {
 		void av_single_step(int current_elem_i, int sign, bool times) override;											// single step of averaging
 	public:
 		// -------------------------- CONSTRUCTORS
-		/*
-		* initialize memory for all of the variables used later
-		*/
+		/**
+		 * @brief initialize memory for all of the variables used later
+		 */	
 		void initializeMemory();
 
-		/*
+		/**
 		* Standard constructor for the Hubbard model
+		* @constructor 
 		* @param t The vector of hopping integrals between lattice sites
 		* @param dtau Time step for inverse time cycle
 		* @param M_0 Number of stable multiplications in the cycle

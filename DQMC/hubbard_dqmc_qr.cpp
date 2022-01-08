@@ -1,6 +1,5 @@
 #include "include/hubbard_dqmc_qr.h"
-
-// ---------------------------------------------------------------------------------------------------------------- HUBBARD MODEL WITH QR DECOMPOSITION ----------------------------------------------------------------------------------------------------------------
+using namespace arma;
 
 void hubbard::HubbardQR::initializeMemory()
 {	
@@ -12,13 +11,13 @@ void hubbard::HubbardQR::initializeMemory()
 	this->int_exp_up.ones(this->Ns, this->M);
 
 	/// all times exponents multiplication
-	this->b_mat_up = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
-	this->b_mat_down = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
-	this->b_mat_up_inv = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
-	this->b_mat_down_inv = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_up = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_down = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_up_inv = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_down_inv = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
 
-	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::zeros(this->Ns, this->Ns));
-	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::zeros(this->Ns, this->Ns));
+	this->b_up_condensed = std::vector<mat>(this->p, arma::zeros(this->Ns, this->Ns));
+	this->b_down_condensed = std::vector<mat>(this->p, arma::zeros(this->Ns, this->Ns));
 
 	/// all times hs fields for real spin up and down
 	this->hsFields.ones(this->M, this->Ns);
@@ -43,11 +42,11 @@ void hubbard::HubbardQR::initializeMemory()
 	this->T_up.zeros(this->Ns, this->Ns);
 
 	/// set equal time Green's functions vectors
-	this->g_down_eq = v_1d<arma::mat>(this->M, arma::eye(this->Ns, this->Ns));
-	this->g_up_eq = v_1d<arma::mat>(this->M, arma::eye(this->Ns, this->Ns));
+	this->g_down_eq = v_1d<mat>(this->M, arma::eye(this->Ns, this->Ns));
+	this->g_up_eq = v_1d<mat>(this->M, arma::eye(this->Ns, this->Ns));
 }
 
-// -------------------------------------------------------- CONSTRUCTORS
+//? -------------------------------------------------------- CONSTRUCTORS
 hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads, bool ct)
 {
 	this->lattice = lattice;
@@ -107,12 +106,12 @@ hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, double dtau, int M_0, doubl
 	}
 }
 
-// -------------------------------------------------------- B MATS --------------------------------------------------------
+//! -------------------------------------------------------- B MATS --------------------------------------------------------
 
-/// <summary>
-/// Precalculate the multiplications of B matrices
-/// </summary>
-/// <param name="which_sector"></param>
+/**
+* Precalculate the multiplications of B matrices
+* @param which_sector
+*/
 void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 {
 	int tim = which_sector * this->M_0;
@@ -126,14 +125,15 @@ void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 	}
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="l_start"></param>
-/// <param name="l_end"></param>
-/// <param name="tmp_up"></param>
-/// <param name="tmp_down"></param>
-void hubbard::HubbardQR::b_mat_multiplier_left(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+//TODO ----------------------->
+/**
+*
+* @param l_start
+* @param l_end
+* @param tmp_up
+* @param tmp_down
+*/
+void hubbard::HubbardQR::b_mat_multiplier_left(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
 {
 	int timer = l_start;
 	const int how_many = abs(l_end - l_start);
@@ -155,8 +155,8 @@ void hubbard::HubbardQR::b_mat_multiplier_left(int l_start, int l_end, arma::mat
 			multiplyMatricesQrFromRight(this->b_mat_up[timer], Q_up, R_up, P_up, T_up, D_up);
 			multiplyMatricesQrFromRight(this->b_mat_down[timer], Q_down, R_down, P_down, T_down, D_down);
 		}
-		tmp_up = Q_up * diagmat(R_up) * T_up;
-		tmp_down = Q_down * diagmat(R_down) * T_down;
+		tmp_up = Q_up * arma::diagmat(R_up) * T_up;
+		tmp_down = Q_down * arma::diagmat(R_down) * T_down;
 	}
 	else {
 		for (int j = 1; j <= how_many; j++) {
@@ -168,14 +168,16 @@ void hubbard::HubbardQR::b_mat_multiplier_left(int l_start, int l_end, arma::mat
 	}
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="l_start"></param>
-/// <param name="l_end"></param>
-/// <param name="tmp_up"></param>
-/// <param name="tmp_down"></param>
-void hubbard::HubbardQR::b_mat_multiplier_right(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+//TODO ----------------------->
+/**
+ * @brief 
+ * 
+ * @param l_start 
+ * @param l_end 
+ * @param tmp_up 
+ * @param tmp_down 
+ */
+void hubbard::HubbardQR::b_mat_multiplier_right(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
 {
 	int timer = l_start;
 	const int how_many = abs(l_end - l_start);
@@ -189,16 +191,18 @@ void hubbard::HubbardQR::b_mat_multiplier_right(int l_start, int l_end, arma::ma
 	}
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="l_start"></param>
-/// <param name="l_end"></param>
-/// <param name="tmp_up"></param>
-/// <param name="tmp_down"></param>
-void hubbard::HubbardQR::b_mat_multiplier_left_inv(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+//TODO ----------------------->
+/**
+ * @brief 
+ * 
+ * @param l_start 
+ * @param l_end 
+ * @param tmp_up 
+ * @param tmp_down 
+ */
+void hubbard::HubbardQR::b_mat_multiplier_left_inv(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
 {
-	int timer = l_start;
+	auto timer = l_start;
 	const int how_many = abs(l_end - l_start);
 	tmp_up = this->b_mat_up_inv[timer];
 	tmp_down = this->b_mat_down_inv[timer];
@@ -210,14 +214,16 @@ void hubbard::HubbardQR::b_mat_multiplier_left_inv(int l_start, int l_end, arma:
 	}
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="l_start"></param>
-/// <param name="l_end"></param>
-/// <param name="tmp_up"></param>
-/// <param name="tmp_down"></param>
-void hubbard::HubbardQR::b_mat_multiplier_right_inv(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down)
+//TODO ----------------------->
+/**
+ * @brief 
+ * 
+ * @param l_start 
+ * @param l_end 
+ * @param tmp_up 
+ * @param tmp_down 
+ */
+void hubbard::HubbardQR::b_mat_multiplier_right_inv(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
 {
 	int timer = l_start;
 	const int how_many = abs(l_end - l_start);
@@ -231,18 +237,18 @@ void hubbard::HubbardQR::b_mat_multiplier_right_inv(int l_start, int l_end, arma
 	}
 }
 
-// -------------------------------------------------------- GREENS --------------------------------------------------------
+//! -------------------------------------------------------- GREENS --------------------------------------------------------
 
-/// <summary>
-///
-/// </summary>
-/// <param name="tim"></param>
-/// <param name="toll"></param>
-/// <param name="print_greens"></param>
+/**
+* Compare decomposition created Green's functions with directly calculated
+* @param tim at which time shall I compare them?
+* @param toll tollerance for them being equal
+* @param print_greens shall I print both explicitly?
+*/
 void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_greens)
 {
-	arma::mat tmp_up(this->Ns, this->Ns, arma::fill::eye);
-	arma::mat tmp_down(this->Ns, this->Ns, arma::fill::eye);
+	mat tmp_up(this->Ns, this->Ns, arma::fill::eye);
+	mat tmp_down(this->Ns, this->Ns, arma::fill::eye);
 	for (int i = 0; i < this->M; i++) {
 		tmp_up = this->b_mat_up[tim] * tmp_up;
 		tmp_down = this->b_mat_down[tim] * tmp_down;
@@ -261,13 +267,13 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 		stout << this->green_down - tmp_down << "\n\n\n";
 }
 
-// -------------------------------------------------------- EQUAL
+//? -------------------------------------------------------- EQUAL
 
-/// <summary>
-/// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023
-/// here we calculate the Green matrix at a given time, so we need to take care of the times away from precalculated sectors
-/// </summary>
-/// <param name="which_time">The time at which the Green's function is calculated</param>
+/**
+* Calculate Green with QR decomposition using LOH. Here we calculate the Green matrix at a given time, so we need to take care of the times away from precalculated sectors
+* @cite doi:10.1016/j.laa.2010.06.023
+* @param which_time The time at which the Green's function is calculated
+*/
 void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	auto tim = which_time;
 	auto sec = static_cast<int>(which_time / this->M_0);										// which sector is used for M_0 multiplication
@@ -297,25 +303,24 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	multiplyMatricesQrFromRight(tempGreen_down, Q_down, R_down, P_down, T_down, D_down);
 
 	//stout << el;
-	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(R_up)).i()*Q_up.t();
-	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(R_down)).i()*Q_down.t();
+	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + arma::diagmat(R_up)).i()*Q_up.t();
+	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + arma::diagmat(R_down)).i()*Q_down.t();
 
 	// Correction terms
 	makeTwoScalesFromUDT(R_up, D_up);
 	makeTwoScalesFromUDT(R_down, D_down);
 	// calculate equal time Green
-	this->green_up = arma::solve(diagmat(D_up) * Q_up.t() + diagmat(R_up) * T_up, diagmat(D_up) * Q_up.t());
-	this->green_down = arma::solve(diagmat(D_down) * Q_down.t() + diagmat(R_down) * T_down, diagmat(D_down) * Q_down.t());
+	this->green_up = arma::solve(arma::diagmat(D_up) * Q_up.t() + arma::diagmat(R_up) * T_up, arma::diagmat(D_up) * Q_up.t());
+	this->green_down = arma::solve(arma::diagmat(D_down) * Q_down.t() + arma::diagmat(R_down) * T_down, arma::diagmat(D_down) * Q_down.t());
 }
 
-// <summary>
-/// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices
-/// For more look into :
-/// "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems"
-/// In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
-/// We will use 
-/// </summary>
-/// <param name="sector">Which sector does the Green's function starrts at</param>
+/**
+* Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices. 
+* For more look into :
+* @copydetails "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems". 
+* In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices. 
+* @param sector Which sector does the Green's function starrts at
+*/
 void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 	auto sec = sector;
 	setUDTDecomp(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
@@ -329,60 +334,69 @@ void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 	// making two scales for the decomposition following Loh
 	makeTwoScalesFromUDT(R_up, D_up);
 	makeTwoScalesFromUDT(R_down, D_down);
-	this->green_up = arma::solve(diagmat(D_up) * Q_up.t() + diagmat(R_up) * T_up, diagmat(D_up) * Q_up.t());
-	this->green_down = arma::solve(diagmat(D_down) * Q_down.t() + diagmat(R_down) * T_down, diagmat(D_down) * Q_down.t());
+	this->green_up = arma::solve(arma::diagmat(D_up) * Q_up.t() + arma::diagmat(R_up) * T_up, arma::diagmat(D_up) * Q_up.t());
+	this->green_down = arma::solve(arma::diagmat(D_down) * Q_down.t() + arma::diagmat(R_down) * T_down, arma::diagmat(D_down) * Q_down.t());
 }
 
-// -------------------------------------------------------- TIMES
+//? -------------------------------------------------------- UNEQUAL
 
-/// <summary>
-///
-/// </summary>
-/// <param name="t1"></param>
-/// <param name="t2"></param>
-/// <param name="D_tmp"></param>
-void hubbard::HubbardQR::unequalG_greaterFirst(int t1, int t2, const arma::mat& inv_series_up, const arma::mat& inv_series_down)
+/**
+* Calculating unequal time Green's functions given by Bl_1*...*B_{l2+1}*G_{l2+1} \\rightarrow [B_{l2+1}^{-1}...B_l1^{-1} + B_l2...B_1B_{M-1}...B_{l1+1}]^{-1}. 
+* Make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using:
+* @cite SciPost Phys. Core 2, 011 (2020) 
+* @param t1 left time t1>t2
+* @param t2 right time t2<t1
+* @param inv_series_up precalculated inverse matrices multiplication for spin up
+* @param inv_series_down precalculated inverse matrices multiplication for spin down
+*/
+void hubbard::HubbardQR::unequalG_greaterFirst(int t1, int t2, const mat& inv_series_up, const mat& inv_series_down)
 {
-	if (t2 >= t1) throw "can't do that m8\n";
-	// make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using SciPost Phys. Core 2, 011 (2020)
+	assert("t2 should be higher than t1", t2 >= t1);
 	const auto row = t1 * this->Ns;
 	const auto col = t2 * this->Ns;
 
-	// ------------------------------------ up ------------------------------------ USE DOWN MATRICES AS HELPERS FOR RIGHT SUM!
-	// B(t2 + 1)^(-1)...B(t1)^(-1)
-	setUDTDecomp(inv_series_up, Q_up, R_up, P_up, T_up, D_up);
-	setUDTDecomp(arma::inv(T_up) * diagmat(D_up) * Q_up.t(), Q_up, R_up, P_up, T_up, D_up);
-	// B(M-1)...B(t1 + 1)
-	//setUDTDecomp(this->g_up_eq[t1], Q_down, R_down, P_down, T_down, D_down);
-	setUDTDecomp(this->g_up_eq[0], Q_down, R_down, P_down, T_down, D_down);
-	// B(t2)...B(0)
-	//multiplyMatricesQrFromRight(this->g_up_tim[t2], Q_down, R_down, P_down, T_down, D_down);
+	//! ------------------------------------ up ------------------------------------ 
+	//? USE DOWN MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
+	//! B(t2 + 1)^(-1)...B(t1)^(-1)
+	setUDTDecomp(inv_series_up, Q_up, R_up, P_up, T_up, D_up);												// decompose the premultiplied inversions to up temporaries
+	// setUDTDecomp(arma::inv(T_up) * arma::diagmat(D_up) * Q_up.t(), Q_up, R_up, P_up, T_up, D_up);		// if the inv_series_up was composed from non_inverses
 
-	// SET MATRIX ELEMENT
-	setSubmatrixFromMatrix(this->g_up_time, inv_left_plus_right_qr(Q_up, R_up, P_up, T_up, D_up, \
-		Q_down, R_down, P_down, T_down, D_down, D_tmp), row, col, this->Ns, this->Ns, false);
-	// ------------------ down ------------------
-	// B(t2 + 1)^(-1)...B(t1)^(-1)
-	setUDTDecomp(inv_series_down, Q_down, R_down, P_down, T_down, D_down);
-	setUDTDecomp(arma::inv(T_down) * diagmat(D_down) * Q_down.t(), Q_down, R_down, P_down, T_down, D_down);
-	// B(M-1)...B(t1 + 1)
-	//setUDTDecomp(this->g_down_eq[t1], Q_up, R_up, P_up, T_up, D_up);
+	//! B(M-1)...B(t1 + 1)
+	setUDTDecomp(this->g_up_eq[0], Q_down, R_down, P_down, T_down, D_down);									// decompose and use down matrices as temporaries + equal time Green at [0]
+
+	//! SET MATRIX ELEMENT
+	setSubmatrixFromMatrix(this->g_up_time,
+						inv_left_plus_right_qr(
+							Q_up, R_up, P_up, T_up, D_up,
+							Q_down, R_down, P_down, T_down, D_down, D_tmp
+						),
+						row, col, this->Ns, this->Ns, false);
+
+	//! ------------------------------------ down ------------------------------------
+	//? USE UP MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
+	//! B(t2 + 1)^(-1)...B(t1)^(-1)
+	setUDTDecomp(inv_series_down, Q_down, R_down, P_down, T_down, D_down);									// decompose the premultiplied inversions to up temporaries
+	//setUDTDecomp(arma::inv(T_down) * arma::diagmat(D_down) * Q_down.t(), Q_down, R_down, P_down, T_down, D_down);
+	
+	//! B(M-1)...B(t1 + 1)
 	setUDTDecomp(this->g_down_eq[0], Q_up, R_up, P_up, T_up, D_up);
-	// B(t2)...B(0)
-	//multiplyMatricesQrFromRight(this->g_down_tim[t2], Q_up, R_up, P_up, T_up, D_up);
 
-	// SET MATRIX ELEMENT
-	setSubmatrixFromMatrix(this->g_down_time, inv_left_plus_right_qr(Q_down, R_down, P_down, T_down, D_down, \
-		Q_up, R_up, P_up, T_up, D_up, D_tmp), row, col, this->Ns, this->Ns, false);
+	//! SET MATRIX ELEMENT
+	setSubmatrixFromMatrix(this->g_down_time,
+						inv_left_plus_right_qr(
+							Q_down, R_down, P_down, T_down, D_down,
+							Q_up, R_up, P_up, T_up, D_up, D_tmp
+						),
+						row, col, this->Ns, this->Ns, false);
 }
 
-/// <summary>
+/**
+/// @param t1
+/// @param t2
+/// @param D_tmp
 ///
-/// </summary>
-/// <param name="t1"></param>
-/// <param name="t2"></param>
-/// <param name="D_tmp"></param>
-void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const arma::mat& inv_series_up, const arma::mat& inv_series_down)
+*/
+void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const mat& inv_series_up, const mat& inv_series_down)
 {
 	if (t2 <= t1) throw "can't do that m8\n";
 	// make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using SciPost Phys. Core 2, 011 (2020)
@@ -392,7 +406,7 @@ void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const arma::mat& i
 	// ------------------------------------ up ------------------------------------ USE DOWN MATRICES AS HELPERS FOR RIGHT SUM!
 	// B(l2)...B(l1+1)
 	setUDTDecomp(inv_series_up, Q_up, R_up, P_up, T_up, D_up);
-	this->tempGreen_up = arma::inv(T_up) * diagmat(D_up) * Q_up.t();
+	this->tempGreen_up = arma::inv(T_up) * arma::diagmat(D_up) * Q_up.t();
 	// B(M-1)...B(t1 + 1)
 	//setUDTDecomp(this->g_up_eq[t1], Q_down, R_down, P_down, T_down, D_down);
 	setUDTDecomp(this->g_up_eq[0], Q_down, R_down, P_down, T_down, D_down);
@@ -402,14 +416,14 @@ void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const arma::mat& i
 	setUDTDecomp(inv_left_plus_right_qr(Q_up, R_up, P_up, T_up, D_up, \
 		Q_down, R_down, P_down, T_down, D_down, D_tmp), Q_up, R_up, P_up, T_up, D_up);
 	setUDTDecomp(this->tempGreen_up, Q_down, R_down, P_down, T_down, D_down);
-	setUDTDecomp(diagmat(R_up) * T_up * T_down.i() - Q_up.t() * Q_down * diagmat(R_down), Q_down, R_up, P_up, T_up, D_up);
+	setUDTDecomp(arma::diagmat(R_up) * T_up * T_down.i() - Q_up.t() * Q_down * arma::diagmat(R_down), Q_down, R_up, P_up, T_up, D_up);
 
-	setSubmatrixFromMatrix(this->g_up_time, Q_up * Q_down * diagmat(R_up) * T_up * T_down, row, col, this->Ns, this->Ns, false);
+	setSubmatrixFromMatrix(this->g_up_time, Q_up * Q_down * arma::diagmat(R_up) * T_up * T_down, row, col, this->Ns, this->Ns, false);
 
 	// ------------------ down ------------------
 	// B(l2)...B(l1+1)
 	setUDTDecomp(inv_series_down, Q_down, R_down, P_down, T_down, D_down);
-	this->tempGreen_down = arma::inv(T_down) * diagmat(D_down) * Q_down.t();
+	this->tempGreen_down = arma::inv(T_down) * arma::diagmat(D_down) * Q_down.t();
 	// B(M-1)...B(t1 + 1)
 	//setUDTDecomp(this->g_down_eq[t1], Q_up, R_up, P_up, T_up, D_up);
 	setUDTDecomp(this->g_down_eq[0], Q_up, R_up, P_up, T_up, D_up);
@@ -419,26 +433,28 @@ void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const arma::mat& i
 	setUDTDecomp(inv_left_plus_right_qr(Q_down, R_down, P_down, T_down, D_down, \
 		Q_up, R_up, P_up, T_up, D_up, D_tmp), Q_down, R_down, P_down, T_down, D_down);
 	setUDTDecomp(this->tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
-	setUDTDecomp(diagmat(R_down) * T_down * T_up.i() - Q_down.t() * Q_up * diagmat(R_up), Q_up, R_down, P_down, T_down, D_down);
+	setUDTDecomp(arma::diagmat(R_down) * T_down * T_up.i() - Q_down.t() * Q_up * arma::diagmat(R_up), Q_up, R_down, P_down, T_down, D_down);
 
-	setSubmatrixFromMatrix(this->g_down_time, Q_down * Q_up * diagmat(R_down) * T_down * T_up, row, col, this->Ns, this->Ns, false);
+	setSubmatrixFromMatrix(this->g_down_time, Q_down * Q_up * arma::diagmat(R_down) * T_down * T_up, row, col, this->Ns, this->Ns, false);
 }
 
-/// <summary>
+/**
 ///
-/// </summary>
-/// <param name="tau1"></param>
-/// <param name="tau2"></param>
+
+/// @param tau1
+/// @param tau2
+*/
 void hubbard::HubbardQR::cal_green_mat_times()
 {
 	const uint tau1 = this->M - 1;
 }
 
-/// <summary>
+/**
 ///
-/// </summary>
-/// <param name="tau1"></param>
-/// <param name="tau2"></param>
+
+/// @param tau1
+/// @param tau2
+*/
 void hubbard::HubbardQR::cal_green_mat_times_cycle()
 {
 	// inverses
@@ -453,8 +469,8 @@ void hubbard::HubbardQR::cal_green_mat_times_cycle()
 
 		multiplyMatricesQrFromRight(this->g_up_eq[i], Q_up, R_up, P_up, T_up, D_up);
 		multiplyMatricesQrFromRight(this->g_down_eq[i], Q_down, R_down, P_down, T_down, D_down);
-		this->g_up_eq[i - 1] = Q_up * diagmat(R_up) * T_up;
-		this->g_down_eq[i - 1] = Q_down * diagmat(R_down) * T_down;
+		this->g_up_eq[i - 1] = Q_up * arma::diagmat(R_up) * T_up;
+		this->g_down_eq[i - 1] = Q_down * arma::diagmat(R_down) * T_down;
 	}
 
 	// calculate all Greens
@@ -466,8 +482,8 @@ void hubbard::HubbardQR::cal_green_mat_times_cycle()
 			setUDTDecomp(this->g_down_eq[tau1], Q_down, R_down, P_down, T_down, D_down);
 			multiplyMatricesQrFromRight(this->b_mat_up[tau2], Q_up, R_up, P_up, T_up, D_up);
 			multiplyMatricesQrFromRight(this->b_mat_down[tau2], Q_down, R_down, P_down, T_down, D_down);
-			this->g_up_eq[0] = Q_up * diagmat(R_up) * T_up;
-			this->g_down_eq[0] = Q_down * diagmat(R_down) * T_down;
+			this->g_up_eq[0] = Q_up * arma::diagmat(R_up) * T_up;
+			this->g_down_eq[0] = Q_down * arma::diagmat(R_down) * T_down;
 
 			//if (tau2 > tau1) {
 			//	b_mat_multiplier_left(tau1 + 1, tau2, this->tempGreen_up, this->tempGreen_down);
@@ -481,9 +497,9 @@ void hubbard::HubbardQR::cal_green_mat_times_cycle()
 	}
 }
 
-/// <summary>
+/**
 ///
-/// </summary>
+*/
 void hubbard::HubbardQR::cal_green_mat_times_hirsh()
 {
 	this->g_up_time.eye();
@@ -498,15 +514,15 @@ void hubbard::HubbardQR::cal_green_mat_times_hirsh()
 		setSubmatrixFromMatrix(g_up_time, this->b_mat_up[sec], row, col, this->Ns, this->Ns, true, true);
 		setSubmatrixFromMatrix(g_down_time, this->b_mat_down[sec], row, col, this->Ns, this->Ns, true, true);
 	}
-	this->g_up_time = arma::solve(this->g_up_time, arma::diagmat(this->g_up_time));
-	this->g_down_time = arma::solve(this->g_down_time, arma::diagmat(this->g_down_time));
+	this->g_up_time = arma::solve(this->g_up_time, arma::arma::diagmat(this->g_up_time));
+	this->g_down_time = arma::solve(this->g_down_time, arma::arma::diagmat(this->g_down_time));
 	//this->g_up_time = this->g_up_time.i();
 	//this->g_down_time = this->g_down_time.i();
 }
 
-/// <summary>
+/**
 ///
-/// </summary>
+*/
 void hubbard::HubbardQR::cal_green_mat_times_hirsh_cycle()
 {
 	this->g_up_time.eye();
@@ -526,11 +542,12 @@ void hubbard::HubbardQR::cal_green_mat_times_hirsh_cycle()
 
 // -------------------------------------------------------- HELPERS
 
-/// <summary>
+/**
 ///
-/// </summary>
-/// <param name="fptr"></param>
+
+/// @param fptr
 /// <returns></returns>
+*/
 int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
 {
 	int sign = 1;
@@ -545,14 +562,15 @@ int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
 
 // -------------------------------------------------------- GREEN UPDATERS --------------------------------------------------------
 
-/// <summary>
+/**
 /// After changing one spin we need to update the Green matrices via the Dyson equation
-/// </summary>
-/// <param name="lat_site">the site on which HS field has been changed</param>
-/// <param name="prob_up">the changing probability for up channel</param>
-/// <param name="prob_down">the changing probability for down channel</param>
-/// <param name="gamma_up">changing parameter gamma for up channel</param>
-/// <param name="gamma_down">changing probability for down channel</param>
+
+/// @param lat_site the site on which HS field has been changed
+/// @param prob_up the changing probability for up channel
+/// @param prob_down the changing probability for down channel
+/// @param gamma_up changing parameter gamma for up channel
+/// @param gamma_down changing probability for down channel
+*/
 void hubbard::HubbardQR::upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down)
 {
 	this->D_up = this->green_up.row(lat_site).t();
@@ -571,19 +589,20 @@ void hubbard::HubbardQR::upd_equal_green(int lat_site, double gamma_over_prob_up
 	}
 }
 
-/// <summary>
+/**
 /// Update the Green's matrices after going to next Trotter time, remember, the time is taken to be the previous one
-/// <param name="which_time">updating to which_time + 1</param>
-/// </summary>
+/// @param which_time updating to which_time + 1
+*/
 void hubbard::HubbardQR::upd_next_green(int which_time_green) {
 	this->green_up = (this->b_mat_up[which_time_green] * this->green_up) * this->b_mat_up_inv[which_time_green];						// LEFT INCREASE
 	this->green_down = (this->b_mat_down[which_time_green] * this->green_down) * this->b_mat_down_inv[which_time_green];				// LEFT INCREASE;
 }
 
-/// <summary>
+/**
+
+/// @param which_time
 ///
-/// </summary>
-/// <param name="which_time"></param>
+*/
 void hubbard::HubbardQR::upd_prev_green(int which_time_green) {
 	this->green_up = (this->b_mat_up_inv[which_time_green - 1] * this->green_up) * this->b_mat_up[which_time_green - 1];						// LEFT INCREASE
 	this->green_down = (this->b_mat_down_inv[which_time_green - 1] * this->green_down) * this->b_mat_down[which_time_green - 1];				// LEFT INCREASE;
@@ -591,10 +610,10 @@ void hubbard::HubbardQR::upd_prev_green(int which_time_green) {
 
 // ----------------------------------------------------------------------------------------------------------------
 
-/// <summary>
+/**
 ///
-/// </summary>
-/// <param name="im_time_step"></param>
+*/
+/// @param im_time_step
 void hubbard::HubbardQR::upd_Green_step(int im_time_step, bool forward) {
 	if (im_time_step % this->from_scratch == 0) {
 		const auto sector_to_upd = myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)) - 1, this->p);
@@ -606,10 +625,11 @@ void hubbard::HubbardQR::upd_Green_step(int im_time_step, bool forward) {
 }
 // -------------------------------------------------------- CALCULATORS
 
-/// <summary>
+/**
 /// A single step for calculating averages inside a loop
-/// </summary>
-/// <param name="current_elem_i"> Current Green matrix element in averages</param>
+
+/// @param current_elem_i  Current Green matrix element in averages
+*/
 void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign, bool times)
 {
 	//this->avs->av_sign += sign;
@@ -674,9 +694,9 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign, bool times
 }
 // ---------------------------------------------------------------------------------------------------------------- HEAT BATH ----------------------------------------------------------------------------------------------------------------
 
-/// <summary>
+/**
 ///
-/// </summary>
+*/
 void hubbard::HubbardQR::sweep_0_M(std::function<int(int)> ptfptr)
 {
 	this->config_sign = 1;
@@ -687,10 +707,10 @@ void hubbard::HubbardQR::sweep_0_M(std::function<int(int)> ptfptr)
 	}
 }
 
-/// <summary>
+/**
 ///
-/// </summary>
-/// <param name="function"></param>
+*/
+/// @param function
 void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr)
 {
 	int sign = this->config_sign;
@@ -703,10 +723,10 @@ void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr)
 	this->config_sign = sign;// (sign == 1) ? +this->config_sign : -this->config_sign;
 }
 
-/// <summary>
+/**
 /// Single step for the candidate to flip the HS field
-/// </summary>
-/// <param name="lat_site">the candidate lattice site</param>
+*/
+/// @param lat_site the candidate lattice site
 /// <returns>sign of probability</returns>
 int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 {
@@ -729,12 +749,12 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	return sign;
 }
 
-/// <summary>
+/**
 /// Drive the system to equilibrium with heat bath
-/// </summary>
-/// <param name="mcSteps">Number of Monte Carlo steps</param>
-/// <param name="conf">If or if not to save configurations</param>
-/// <param name="quiet">If should be quiet</param>
+*/
+/// @param mcSteps Number of Monte Carlo steps
+/// @param conf If or if not to save configurations
+/// @param quiet If should be quiet
 void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens)
 {
 	if (!quiet && mcSteps != 1) {
@@ -751,7 +771,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 
 	// function
 	std::function<int(int)> fptr = std::bind(&HubbardQR::heat_bath_single_step, this, std::placeholders::_1);	// pointer to non-saving configs;
-	arma::mat confMine(this->Ns, this->Ns);
+	mat confMine(this->Ns, this->Ns);
 	// sweep all
 	for (int step = 0; step < mcSteps; step++) {
 		// Monte Carlo steps
@@ -767,13 +787,13 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 	}
 }
 
-/// <summary>
+/**
 ///
-/// </summary>
-/// <param name="corr_time"></param>
-/// <param name="avNum"></param>
-/// <param name="quiet"></param>
-/// <param name="times"></param>
+*/
+/// @param corr_time
+/// @param avNum
+/// @param quiet
+/// @param times
 void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool times)
 {
 #pragma omp critical
@@ -790,7 +810,7 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	const double percentage = 34;
 	const auto percentage_steps = static_cast<int>(percentage * avNum / 100.0);
 
-	v_1d<arma::mat> avs_up, avs_down;
+	v_1d<mat> avs_up, avs_down;
 	if (times) {
 		this->g_up_time.eye(Ns * M, Ns * M);
 		this->g_down_time.eye(Ns * M, Ns * M);

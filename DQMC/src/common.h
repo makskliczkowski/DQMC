@@ -12,7 +12,7 @@
 #include <sstream>
 #include <cmath>
 #include <complex>
-
+#include <cassert>
 /// filesystem for directory creation
 #ifdef __has_include
 #  if __has_include(<filesystem>)
@@ -173,7 +173,7 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 	// inverse during setting
 	for (int i = 0; i < R.n_rows; i++)
 		D(i) = 1.0 / R(i, i);
-	T = ((diagmat(D) * R) * P.t());
+	T = ((arma::diagmat(D) * R) * P.t());
 }
 
 
@@ -188,12 +188,12 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 * @param D inverse of the new R diagonal
 */
 void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
-	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * diagmat(R))) throw "decomposition failed\n";
+	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * arma::diagmat(R))) throw "decomposition failed\n";
 	// inverse during setting
 	for (int i = 0; i < R.n_rows; i++)
 		D(i) = 1.0 / R(i, i);
 	// premultiply old T by new T from left
-	T = ((diagmat(D) * R) * P.t()) * T;
+	T = ((arma::diagmat(D) * R) * P.t()) * T;
 }
 
 /*
