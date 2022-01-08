@@ -32,9 +32,9 @@ namespace hubbard {
 
 		void setFileNames() {
 			this->nameFouriers = fourier_dir + "fouriers_" + info + ".dat";
-			this->nameFouriersTime = fourier_dir + "times" + kPSepS + "fouriersTime_" + info + ".dat";
+			this->nameFouriersTime = fourier_dir + "times" + kPS + "fouriersTime_" + info + ".dat";
 			this->nameNormal = params_dir + "parameters_" + info + ".dat";
-			this->nameNormalTime = params_dir + "times" + kPSepS + "parametersTime_" + info + ".dat";
+			this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + info + ".dat";
 			this->nameGreens = "greens" + info + ".dat";
 			this->nameGreensTime = "greensTime_" + info + ".dat";
 		};
@@ -138,6 +138,29 @@ namespace hubbard {
 
 	public:
 		// -------------------------- PRINTERS
+		void say_hi(){
+			stout << "->M = " << this->M << el \
+			<< "->M0 = " << this->M_0 << el \
+			<< "->p = " << this->p << el \
+			// physical
+			<< "->beta = " << this->beta << el \
+			<< "->U = " << this->U << el \
+			<< "->dtau = " << this->dtau << el \
+			<< "->mu = " << this->mu << el \
+			<< "->t = " << this->t << el \
+			// lattice
+			<< "->dimension = " << this->getDim() << el \
+			<< "->Lx = " << this->lattice->get_Lx() << el \
+			<< "->Ly = " << this->lattice->get_Ly() << el \
+			<< "->Lz = " << this->lattice->get_Lz() << el \
+			<< "->lambda = " << this->lambda << el << el;
+		/// Setting info about the model for files
+		this->info = "M=" + str(this->M) + ",M0=" + str(this->M_0) + \
+			",dtau=" + str_p(this->dtau) + ",Lx=" + str(this->lattice->get_Lx()) + \
+			",Ly=" + str(this->lattice->get_Ly()) + ",Lz=" + str(this->lattice->get_Lz()) + \
+			",beta=" + str_p(this->beta) + ",U=" + str_p(this->U) + \
+			",mu=" + str_p(this->mu);
+		};
 		void print_hs_fields(std::string separator = "\t") const;			// prints current HS fields configuration
 		void print_hs_fields(std::string separator, const arma::mat& toPrint) const;
 		void save_unequal_greens(int filenum, uint bucketnum = 1);

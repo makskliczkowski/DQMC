@@ -61,61 +61,61 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	information += " The structure of each is we average over time differences and first row\n";
 	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
 
-	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + std::to_string(filenum) + "-up" + this->dir->nameGreensTime);
-	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + std::to_string(filenum) + "-down" + this->dir->nameGreensTime);
+	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + str(filenum) + "-up" + this->dir->nameGreensTime);
+	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + str(filenum) + "-down" + this->dir->nameGreensTime);
 
 	fileUp << " Up different time, real-space Greens\n" << information;
 	fileDown << " Down different time, real-space Greens\n" << information;
 	std::initializer_list<std::string> enter_params = { "n =\t",
-		std::to_string(this->lattice->get_Lx()),"\n",
-		"l =\t",std::to_string(this->M),"\n",
-		"tausk =\t",std::to_string(this->M),"\n",
+		str(this->lattice->get_Lx()),"\n",
+		"l =\t",str(this->M),"\n",
+		"tausk =\t",str(this->M),"\n",
 		"doall =\t",std::string("don't know what is that"),"\n",
 		"densw =\t",std::string("don't know what is that"),"\n",
 		"histn =\t",std::string("don't know what is that"),"\n",
 		"iran =\t",std::string("don't know what is that"),"\n",
-		"t  =\t",to_string_prec(this->t[0],5),"\n",
-		"mu  =\t",std::to_string(this->mu),"\n",
+		"t  =\t",str_p(this->t[0],5),"\n",
+		"mu  =\t",str(this->mu),"\n",
 		"delmu =\t",std::string("don't know what is that"),"\n",
 		"bpar  =\t",std::string("don't know what is that"),"\n",
-		"dtau  =\t",std::to_string(this->dtau),"\n",
-		"warms  =\t",std::to_string(2000),		"\n",
-		"sweeps =\t",std::to_string(2000),"\n",
-		"u =\t", std::to_string(this->U),"\n",
-		"nwrap =\t",std::to_string(this->M_0),"\n",
+		"dtau  =\t",str(this->dtau),"\n",
+		"warms  =\t",str(2000),		"\n",
+		"sweeps =\t",str(2000),"\n",
+		"u =\t", str(this->U),"\n",
+		"nwrap =\t",str(this->M_0),"\n",
 		"difflim =\t",std::string("don't know what is that"),"\n",
 		"errrat =\t",std::string("don't know what is that"),	"\n",
-		"doauto =\t",std::to_string(this->M_0),"\n",
+		"doauto =\t",str(this->M_0),"\n",
 		"orthlen =\t",std::string("don't know what is that"),"\n",
 		"eorth =\t",std::string("don't know what is that"),"\n",
 		"dopair =\t",std::string("don't know what is that"),"\n",
 		"numpair =\t",std::string("don't know what is that"),"\n",
-		"lambda =\t", to_string_prec(this->lambda, 4),"\n",
-		"start = \t",std::to_string(0), "\n",
-		"sign = \t",to_string_prec(this->config_sign,5), "\n\n\n" };
-	printSeparated(fileUp, " ", enter_params, 30);
-	printSeparated(fileDown, " ", enter_params, 30);
+		"lambda =\t", str_p(this->lambda, 4),"\n",
+		"start = \t",str(0), "\n",
+		"sign = \t",str_p(this->config_sign,5), "\n\n\n" };
+	printSeparated(fileUp, ' ', enter_params, 30);
+	printSeparated(fileDown, ' ', enter_params, 30);
 
 	this->avs->normaliseGreens(bucketnum, Lx, Ly, this->lattice);
 
 	const u16 width = 8;
-	printSeparated(fileUp, "\t", { std::string(" G(nx,ny,ti):") });
-	printSeparated(fileDown, "\t", { std::string(" G(nx,ny,ti):") });
+	printSeparated(fileUp, '\t', { std::string(" G(nx,ny,ti):") });
+	printSeparated(fileDown, '\t', { std::string(" G(nx,ny,ti):") });
 	for (int x = 0; x <= Lx / 2; x++) {
 		for (int y = x; y <= Ly / 2; y++) {
-			printSeparated(fileUp, "\t", {std::string(" nx ="), std::to_string(x), std::string("ny ="), std::to_string(y)}, 6);
-			printSeparated(fileDown, "\t", { std::string(" nx ="), std::to_string(x), std::string("ny ="), std::to_string(y) }, 6);
+			printSeparated(fileUp, '\t', {std::string(" nx ="), str(x), std::string("ny ="), str(y)}, 6);
+			printSeparated(fileDown, '\t', { std::string(" nx ="), str(x), std::string("ny ="), str(y) }, 6);
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
-				printSeparated(fileUp, "\t", { std::to_string(tau1) }, 4, 0);
-				printSeparated(fileUp, "\t", { to_string_prec(this->avs->g_up_diffs[tau1](x,y),width) }, width + 5, false);
-				printSeparated(fileUp, "\t", { std::string("+-") }, 5, false);
-				printSeparated(fileUp, "\t", { to_string_prec(this->avs->sd_g_up_diffs[tau1](x,y),width) }, width + 5, true);
+				printSeparated(fileUp, '\t', { str(tau1) }, 4, 0);
+				printSeparated(fileUp, '\t', { str_p(this->avs->g_up_diffs[tau1](x,y),width) }, width + 5, false);
+				printSeparated(fileUp, '\t', { std::string("+-") }, 5, false);
+				printSeparated(fileUp, '\t', { str_p(this->avs->sd_g_up_diffs[tau1](x,y),width) }, width + 5, true);
 
-				printSeparated(fileDown, "\t", { std::to_string(tau1) }, 4, 0);
-				printSeparated(fileDown, "\t", { to_string_prec(this->avs->g_down_diffs[tau1](x,y),width) }, width + 5, 0);
-				printSeparated(fileDown, "\t", { std::string("+-") }, 5, false);
-				printSeparated(fileDown, "\t", { to_string_prec(this->avs->sd_g_down_diffs[tau1](x,y),width) }, width + 5, true);
+				printSeparated(fileDown, '\t', { str(tau1) }, 4, 0);
+				printSeparated(fileDown, '\t', { str_p(this->avs->g_down_diffs[tau1](x,y),width) }, width + 5, 0);
+				printSeparated(fileDown, '\t', { std::string("+-") }, 5, false);
+				printSeparated(fileDown, '\t', { str_p(this->avs->sd_g_down_diffs[tau1](x,y),width) }, width + 5, true);
 			}
 		}
 	}
@@ -129,8 +129,8 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 		double kx = i * kxStep;
 		for (int j = i; j <= Ly / 2; j++) {
 			double ky = j * kyStep;
-			printSeparated(fileUp, "\t", { std::string(" G(qx,qy,ti): (qx,\tkx) ="), std::to_string(i) + ",\t" + to_string_prec(kx,3), std::string("(qy,\tky) ="), std::to_string(j) + ",\t" + to_string_prec(ky,3) }, 10);
-			printSeparated(fileDown, "\t", { std::string(" G(qx,qy,ti): (qx,\tkx) ="), std::to_string(i) + ",\t" + to_string_prec(kx,3), std::string("(qy,\tky) ="), std::to_string(j) + ",\t" + to_string_prec(ky,3) }, 10);
+			printSeparated(fileUp, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), str(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), str(j) + ",\t" + str_p(ky,3) }, 10);
+			printSeparated(fileDown, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), str(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), str(j) + ",\t" + str_p(ky,3) }, 10);
 			for (int yy = -Ly + 1; yy < Ly; yy++) {
 				const auto yelem = myModuloEuclidean(abs(yy), Ly / 2 + 1);
 				for (int xx = -Lx + 1; xx < Lx; xx++) {
@@ -151,19 +151,19 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 			}
 			// print
 			for (int tau1 = 0; tau1 < this->M; tau1++) {
-				printSeparated(fileUp, "\t", { std::to_string(tau1) }, 4, false);
+				printSeparated(fileUp, '\t', { str(tau1) }, 4, false);
 				auto elem_up = real(this->avs->g_up_diffs_k[tau1](i, j)) / TWOPI;
-				printSeparated(fileUp, "\t", { to_string_prec(elem_up, width) }, width + 5, false);
-				printSeparated(fileUp, "\t", { std::string("+-") }, 5, false);
+				printSeparated(fileUp, '\t', { str_p(elem_up, width) }, width + 5, false);
+				printSeparated(fileUp, '\t', { std::string("+-") }, 5, false);
 				elem_up = sqrt(abs(real(this->avs->sd_g_up_diffs_k[tau1](i, j)))) / TWOPI;
-				printSeparated(fileUp, "\t", { to_string_prec(elem_up,width) }, width + 5);
+				printSeparated(fileUp, '\t', { str_p(elem_up,width) }, width + 5);
 
-				printSeparated(fileDown, "\t", { std::to_string(tau1) }, 4, false);
+				printSeparated(fileDown, '\t', { str(tau1) }, 4, false);
 				auto elem_down = real(this->avs->g_down_diffs_k[tau1](i, j)) / TWOPI;
-				printSeparated(fileDown, "\t", { to_string_prec(elem_down, width) }, width + 5, false);
-				printSeparated(fileDown, "\t", { std::string("+-") }, 5, false);
+				printSeparated(fileDown, '\t', { str_p(elem_down, width) }, width + 5, false);
+				printSeparated(fileDown, '\t', { std::string("+-") }, 5, false);
 				elem_down = sqrt(abs(real(this->avs->sd_g_down_diffs_k[tau1](i, j)))) / TWOPI;
-				printSeparated(fileDown, "\t", { to_string_prec(elem_down,width) }, width + 5);
+				printSeparated(fileDown, '\t', { str_p(elem_down,width) }, width + 5);
 			}
 		}
 	}
@@ -183,7 +183,7 @@ void hubbard::HubbardModel::set_hs()
 			//int elem = this->ran.bernoulli(0.5) ? -1 : 1;
 			int elem = this->ran.randomReal_uni(0, 1) > 0.5 ? 1 : -1;
 			this->hsFields(l, i) = elem;	// set the hs fields to uniform -1 or 1
-			//this->hsFields_img[l][i] = elem > 0 ? " " : "|";
+			//this->hsFields_img[l][i] = elem > 0 ? ' ' : "|";
 		}
 	}
 }
@@ -193,19 +193,19 @@ void hubbard::HubbardModel::set_hs()
 /// </summary>
 /// <param name="dir">directory to be used for configurations</param>
 void hubbard::HubbardModel::setConfDir() {
-	this->dir->neg_dir = this->dir->conf_dir + kPSepS + this->info;
-	this->dir->pos_dir = this->dir->conf_dir + kPSepS + this->info;
+	this->dir->neg_dir = this->dir->conf_dir + kPS + this->info;
+	this->dir->pos_dir = this->dir->conf_dir + kPS + this->info;
 	// create directories
 
-	this->dir->neg_dir +=  kPSepS + "negative";
-	this->dir->pos_dir +=  kPSepS + "positive";
+	this->dir->neg_dir +=  kPS + "negative";
+	this->dir->pos_dir +=  kPS + "positive";
 
 	fs::create_directories(this->dir->neg_dir);
 	fs::create_directories(this->dir->pos_dir);
 
 	// add a separator
-	this->dir->neg_dir += kPSepS;
-	this->dir->pos_dir += kPSepS;
+	this->dir->neg_dir += kPS;
+	this->dir->pos_dir += kPS;
 	// for .log files
 	std::ofstream fileN, fileP;																	// files for saving the configurations
 	this->dir->neg_log = this->dir->neg_dir.substr(0, \
@@ -231,33 +231,33 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 	int Lz = this->lattice->get_Lz();
 	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
 	this->dir->info = this->info;
-	this->dir->LxLyLz = "Lx=" + std::to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
+	this->dir->LxLyLz = "Lx=" + str(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
 
-	this->dir->lat_type = this->lattice->get_type() + kPSepS;																// making folder for given lattice type
+	this->dir->lat_type = this->lattice->get_type() + kPS;																// making folder for given lattice type
 	this->dir->working_dir = working_directory + this->dir->lat_type + \
 		to_string(this->lattice->get_Dim()) + \
-		"D" + kPSepS + this->dir->LxLyLz + kPSepS;																		// name of the working directory
+		"D" + kPS + this->dir->LxLyLz + kPS;																		// name of the working directory
 
 	// CREATE DIRECTORIES
 	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
 	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
-	fs::create_directories(this->dir->fourier_dir + kPSepS + "times");																	// and with different times
-	this->dir->fourier_dir += kPSepS;
+	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
+	this->dir->fourier_dir += kPS;
 
 	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
 	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
 	fs::create_directories(this->dir->greens_dir);
-	this->dir->greens_dir += kPSepS + this->dir->info;
-	this->dir->time_greens_dir = this->dir->greens_dir + kPSepS + "times";
+	this->dir->greens_dir += kPS + this->dir->info;
+	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
 	fs::create_directories(this->dir->params_dir);
-	fs::create_directories(this->dir->params_dir + kPSepS + "times");
+	fs::create_directories(this->dir->params_dir + kPS + "times");
 	fs::create_directories(this->dir->greens_dir);
 	fs::create_directories(this->dir->time_greens_dir);
-	this->dir->greens_dir += kPSepS;
-	this->dir->time_greens_dir += kPSepS;
-	this->dir->params_dir += kPSepS;
+	this->dir->greens_dir += kPS;
+	this->dir->time_greens_dir += kPS;
+	this->dir->params_dir += kPS;
 
-	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPSepS;
+	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPS;
 
 	// FILES
 	this->setConfDir();
@@ -560,18 +560,18 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 	std::string name_conf, name_log;														// filenames to save
 	if (this->config_sign < 0) {
 		name_conf = this->dir->neg_dir + "neg_" + this->info + \
-			",n=" + std::to_string(this->neg_num) + ".dat";
+			",n=" + str(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
 	}
 	else {
 		name_conf = this->dir->pos_dir + "pos_" + this->info + \
-			",n=" + std::to_string(this->pos_num) + ".dat";
+			",n=" + str(this->pos_num) + ".dat";
 		name_log = this->dir->pos_log;
 	}
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_conf);
-	printSeparated(file_log, ",", { name_conf, to_string_prec(this->probability, 4), std::to_string(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), str(this->config_sign)},26 );
 
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
@@ -593,17 +593,17 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::m
 	std::ofstream file_conf, file_log;														// savefiles
 	std::string name_config ="", name_log ="";												// filenames to save
 	if (this->config_sign < 0) {
-		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + std::to_string(this->neg_num) + ".dat";
+		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + str(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
 	}
 	else {
-		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + std::to_string(this->pos_num) + ".dat";
+		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + str(this->pos_num) + ".dat";
 		name_log = this->dir->pos_log;
 	}
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_config);
-	printSeparated(file_log, ",", { name_config, to_string_prec(this->probability, 4), std::to_string(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), str(this->config_sign)},26 );
 	
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {

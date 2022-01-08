@@ -2,81 +2,16 @@
 
 // ---------------------------------------------------------------------------------------------------------------- HUBBARD MODEL WITH QR DECOMPOSITION ----------------------------------------------------------------------------------------------------------------
 
-// -------------------------------------------------------- CONSTRUCTORS
-
-hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads, bool ct)
-{
-	this->lattice = lattice;
-	this->inner_threads = threads;
-	this->dir = std::shared_ptr<hubbard::directories>(new directories());
-	this->cal_times = ct;
-	this->Lx = this->lattice->get_Lx();
-	this->Ly = this->lattice->get_Ly();
-	this->Lz = this->lattice->get_Lz();
-	this->t = t;
-	this->config_sign = 1;
-
-	// Params
-	this->U = U;
-	this->mu = mu;
-	this->beta = beta;
-	this->T = 1.0 / this->beta;
-	this->Ns = this->lattice->get_Ns();
-	this->ran = randomGen();																// random number generator initialization
-
-	// Trotter
-	this->dtau = dtau;
-	this->M = static_cast<int>(this->beta / this->dtau);									// number of Trotter times
-	this->M_0 = M_0;
-	this->p = (this->M / this->M_0);														// number of QR decompositions
-
-	this->avs = std::make_shared<averages_par>(Lx, Ly, Lz, M, this->cal_times);
-	// Calculate alghorithm parameters
-	//this->lambda = 2 * std::atan(tanh((abs(this->U) * this->dtau) / 4.0));
-	this->lambda = std::acosh(exp((abs(this->U) * this->dtau) * 0.5));
-
-	// Calculate changing exponents before, not to calculate exp all the time
-	this->gammaExp = { std::expm1(-2.0 * this->lambda), std::expm1(2.0 * this->lambda) };			// 0 -> sigma * hsfield = 1, 1 -> sigma * hsfield = -1
-
-	// Helping params
-	this->from_scratch = this->M_0;
-	this->pos_num = 0;
-	this->neg_num = 0;
-
-	// Say hi to the world
-#pragma omp critical
-	std::cout << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << std::endl \
-		// decomposition
-		<< "->M = " << this->M << std::endl \
-		<< "->M0 = " << this->M_0 << std::endl \
-		<< "->p = " << this->p << std::endl \
-		// physical
-		<< "->beta = " << this->beta << std::endl \
-		<< "->U = " << this->U << std::endl \
-		<< "->dtau = " << this->dtau << std::endl \
-		<< "->mu = " << this->mu << std::endl \
-		<< "->t = " << this->t << std::endl \
-		// lattice
-		<< "->dimension = " << this->getDim() << std::endl \
-		<< "->Lx = " << this->lattice->get_Lx() << std::endl \
-		<< "->Ly = " << this->lattice->get_Ly() << std::endl \
-		<< "->Lz = " << this->lattice->get_Lz() << std::endl \
-		<< "->lambda = " << this->lambda << std::endl << std::endl;
-	/* Setting info about the model for files */
-	this->info = "M=" + std::to_string(this->M) + ",M0=" + std::to_string(this->M_0) + \
-		",dtau=" + to_string_prec(this->dtau) + ",Lx=" + std::to_string(this->lattice->get_Lx()) + \
-		",Ly=" + std::to_string(this->lattice->get_Ly()) + ",Lz=" + std::to_string(this->lattice->get_Lz()) + \
-		",beta=" + to_string_prec(this->beta) + ",U=" + to_string_prec(this->U) + \
-		",mu=" + to_string_prec(this->mu);
-
-	// Initialize memory
+void hubbard::HubbardQR::initializeMemory()
+{	
+	/// hopping exponent
 	this->hopping_exp.zeros(this->Ns, this->Ns);
 
-	// interaction for all times
+	/// interaction for all times
 	this->int_exp_down.ones(this->Ns, this->M);
 	this->int_exp_up.ones(this->Ns, this->M);
 
-	// all times exponents multiplication
+	/// all times exponents multiplication
 	this->b_mat_up = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
 	this->b_mat_down = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
 	this->b_mat_up_inv = std::vector<arma::mat>(this->M, arma::zeros(this->Ns, this->Ns));
@@ -85,15 +20,16 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->b_up_condensed = std::vector<arma::mat>(this->p, arma::zeros(this->Ns, this->Ns));
 	this->b_down_condensed = std::vector<arma::mat>(this->p, arma::zeros(this->Ns, this->Ns));
 
-	// all times hs fields for real spin up and down
+	/// all times hs fields for real spin up and down
 	this->hsFields.ones(this->M, this->Ns);
 	//this->hsFields_img = v_1d<v_1d<std::string>>(this->M, v_1d<std::string>(this->Ns," "));
-	// Green's function matrix
+	/// Green's function matrix
 	this->green_up.zeros(this->Ns, this->Ns);
 	this->green_down.zeros(this->Ns, this->Ns);
 	this->tempGreen_up.zeros(this->Ns, this->Ns);
 	this->tempGreen_down.zeros(this->Ns, this->Ns);
 
+	/// decomposition stuff
 	this->Q_up.zeros(this->Ns, this->Ns);
 	this->Q_down.zeros(this->Ns, this->Ns);
 	this->P_up.zeros(this->Ns, this->Ns);
@@ -106,18 +42,66 @@ hubbard::HubbardQR::HubbardQR(const std::vector<double>& t, double dtau, int M_0
 	this->T_down.zeros(this->Ns, this->Ns);
 	this->T_up.zeros(this->Ns, this->Ns);
 
-	// set equal time greens
+	/// set equal time Green's functions vectors
 	this->g_down_eq = v_1d<arma::mat>(this->M, arma::eye(this->Ns, this->Ns));
 	this->g_up_eq = v_1d<arma::mat>(this->M, arma::eye(this->Ns, this->Ns));
+}
 
-	// Set HS fields
-	this->set_hs();
+// -------------------------------------------------------- CONSTRUCTORS
+hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads, bool ct)
+{
+	this->lattice = lattice;
+	this->inner_threads = threads;
+	this->dir = std::shared_ptr<hubbard::directories>(new directories());
+	this->cal_times = ct;
+	this->Lx = this->lattice->get_Lx();
+	this->Ly = this->lattice->get_Ly();
+	this->Lz = this->lattice->get_Lz();
+	this->t = t;
+	this->config_sign = 1;
 
-	// Calculate something
+	/// Params
+	this->U = U;
+	this->mu = mu;
+	this->beta = beta;
+	this->T = 1.0 / this->beta;
+	this->Ns = this->lattice->get_Ns();
+	this->ran = randomGen();																		// random number generator initialization
+
+	/// Trotter
+	this->dtau = dtau;
+	this->M = static_cast<int>(this->beta / this->dtau);											// number of Trotter times
+	this->M_0 = M_0;																				
+	this->p = (this->M / this->M_0);																// number of QR decompositions (sectors)
+
+	this->avs = std::make_shared<averages_par>(Lx, Ly, Lz, M, this->cal_times);
+	/// Calculate alghorithm parameters
+	this->lambda = std::acosh(exp((abs(this->U) * this->dtau) * 0.5));
+
+	/// Calculate changing exponents before, not to calculate exp all the time
+	this->gammaExp = { std::expm1(-2.0 * this->lambda), std::expm1(2.0 * this->lambda) };			// 0 -> sigma * hsfield = 1, 1 -> sigma * hsfield = -1
+
+	/// Helping params
+	this->from_scratch = this->M_0;
+	this->pos_num = 0;
+	this->neg_num = 0;
+
+	/// Say hi to the world
+#pragma omp critical
+	stout << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << el;
+#pragma omp critical
+	this->say_hi();
+
+	/// Initialize memory
+	this->initializeMemory();
+	/// Set HS fields												
+	this->set_hs();																					
+
+	/// Calculate something
 	this->cal_hopping_exp();
 	this->cal_int_exp();
 	this->cal_B_mat();
-	// Precalculate the multipliers of B matrices for convinience
+	/// Precalculate the multipliers of B matrices for convinience
 	for (int i = 0; i < this->p; i++) {
 		this->cal_B_mat_cond(i);
 	}
@@ -246,6 +230,7 @@ void hubbard::HubbardQR::b_mat_multiplier_right_inv(int l_start, int l_end, arma
 		tmp_up = tmp_up * this->b_mat_up_inv[timer];
 	}
 }
+
 // -------------------------------------------------------- GREENS --------------------------------------------------------
 
 /// <summary>
@@ -267,11 +252,11 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 	tmp_down = (arma::eye(this->Ns, this->Ns) + tmp_down).i();
 	bool up = approx_equal(this->green_up, tmp_up, "absdiff", toll);
 	bool down = approx_equal(this->green_down, tmp_down, "absdiff", toll);
-	stout << " -------------------------------- FOR TIME : " << tim << std::endl;
-	stout << "up Green:\n" << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << std::endl;
+	stout << " -------------------------------- FOR TIME : " << tim << el;
+	stout << "up Green:\n" << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << el;
 	if (print_greens)
-		stout << this->green_up - tmp_up << std::endl;
-	stout << "down Green:\n" << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << std::endl;
+		stout << this->green_up - tmp_up << el;
+	stout << "down Green:\n" << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << el;
 	if (print_greens)
 		stout << this->green_down - tmp_down << "\n\n\n";
 }
@@ -280,24 +265,23 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 
 /// <summary>
 /// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023
-/// For more look into :
-/// "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems"
-/// In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices
+/// here we calculate the Green matrix at a given time, so we need to take care of the times away from precalculated sectors
 /// </summary>
-/// <param name="which_time"></param>
+/// <param name="which_time">The time at which the Green's function is calculated</param>
 void hubbard::HubbardQR::cal_green_mat(int which_time) {
-	int tim = (which_time);
-	int sec = static_cast<int>(which_time / this->M_0);
-	int sector_end = (sec + 1) * this->M_0 - 1;
+	auto tim = which_time;
+	auto sec = static_cast<int>(which_time / this->M_0);										// which sector is used for M_0 multiplication
+	auto sector_end = (sec + 1) * this->M_0 - 1;
 	// multiply those B matrices that are not yet multiplied
-	b_mat_multiplier_left(tim, sector_end, tempGreen_up, tempGreen_down);
+	b_mat_multiplier_left(tim, sector_end, tempGreen_up, tempGreen_down);						// using tempGreens to store the starting multiplication
 
+	// decomposition
 	setUDTDecomp(this->tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
 	setUDTDecomp(this->tempGreen_down, Q_down, R_down, P_down, T_down, D_down);
 
+	// multiply by new precalculated sectors
 	for (int i = 1; i < this->p - 1; i++)
 	{
-		// starting the multiplication
 		sec++;
 		if (sec == this->p) sec = 0;
 		multiplyMatricesQrFromRight(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
@@ -312,7 +296,7 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	multiplyMatricesQrFromRight(tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
 	multiplyMatricesQrFromRight(tempGreen_down, Q_down, R_down, P_down, T_down, D_down);
 
-	//stout << std::endl;
+	//stout << el;
 	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + diagmat(R_up)).i()*Q_up.t();
 	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + diagmat(R_down)).i()*Q_down.t();
 
@@ -328,21 +312,21 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 /// Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices
 /// For more look into :
 /// "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems"
-/// In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices
+/// In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
+/// We will use 
 /// </summary>
-/// <param name="which_time"></param>
+/// <param name="sector">Which sector does the Green's function starrts at</param>
 void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
-	//stout << "STARTING CALCULATING GREEN FOR : " << which_time << std::endl;
-	//bool loh = true;
-	uint sec = sector;
-	setUDTDecomp(this->b_up_condensed[sector], Q_up, R_up, P_up, T_up, D_up);
-	setUDTDecomp(this->b_down_condensed[sector], Q_down, R_down, P_down, T_down, D_down);
+	auto sec = sector;
+	setUDTDecomp(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
+	setUDTDecomp(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
 	for (int i = 1; i < this->p; i++) {
 		sec++;
 		if (sec == this->p) sec = 0;
 		multiplyMatricesQrFromRight(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
 		multiplyMatricesQrFromRight(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
 	}
+	// making two scales for the decomposition following Loh
 	makeTwoScalesFromUDT(R_up, D_up);
 	makeTwoScalesFromUDT(R_down, D_down);
 	this->green_up = arma::solve(diagmat(D_up) * Q_up.t() + diagmat(R_up) * T_up, diagmat(D_up) * Q_up.t());
@@ -755,7 +739,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 {
 	if (!quiet && mcSteps != 1) {
 #pragma omp critical
-		stout << "\t\t----> STARTING RELAXING FOR : " + this->info << std::endl;
+		stout << "\t\t----> STARTING RELAXING FOR : " + this->info << el;
 		this->neg_num = 0;																				// counter of negative signs
 		this->pos_num = 0;																				// counter of positive signs
 	}
@@ -793,7 +777,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool times)
 {
 #pragma omp critical
-	stout << "\t\t----> STARTING AVERAGING FOR : " + this->info << std::endl;
+	stout << "\t\t----> STARTING AVERAGING FOR : " + this->info << el;
 	this->neg_num = 0;																				// counter of negative signs
 	this->pos_num = 0;																				// counter of positive signs
 	this->avs->av_sign = 0;
