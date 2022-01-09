@@ -7,26 +7,26 @@ void hubbard::HubbardQR::initializeMemory()
 	this->hopping_exp.zeros(this->Ns, this->Ns);
 
 	/// interaction for all times
-	this->int_exp_down.ones(this->Ns, this->M);
-	this->int_exp_up.ones(this->Ns, this->M);
+	this->int_exp_down.ones(this->Ns, this->M);															// for storing M interaction exponents for down spin
+	this->int_exp_up.ones(this->Ns, this->M);															// for storing M interaction exponents for up spin
 
 	/// all times exponents multiplication
-	this->b_mat_up = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
-	this->b_mat_down = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
-	this->b_mat_up_inv = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
-	this->b_mat_down_inv = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));
+	this->b_mat_up = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));						// for storing M B up matrices
+	this->b_mat_down = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));						// for storing M B down matrices
+	this->b_mat_up_inv = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));					// for storing M B up matrices inverses
+	this->b_mat_down_inv = std::vector<mat>(this->M, arma::zeros(this->Ns, this->Ns));					// for storing M B down matrices inverses
 
-	this->b_up_condensed = std::vector<mat>(this->p, arma::zeros(this->Ns, this->Ns));
-	this->b_down_condensed = std::vector<mat>(this->p, arma::zeros(this->Ns, this->Ns));
+	this->b_up_condensed = std::vector<mat>(this->p, arma::zeros(this->Ns, this->Ns));					// for storing the precalculated multiplications of B up matrices series
+	this->b_down_condensed = std::vector<mat>(this->p, arma::zeros(this->Ns, this->Ns));				// for storing the precalculated multiplications of B down matrices series
 
 	/// all times hs fields for real spin up and down
-	this->hsFields.ones(this->M, this->Ns);
-	//this->hsFields_img = v_1d<v_1d<std::string>>(this->M, v_1d<std::string>(this->Ns," "));
+	this->hsFields.ones(this->M, this->Ns);																// for storing the Hubbard-Strattonovich auxliary fields
+
 	/// Green's function matrix
-	this->green_up.zeros(this->Ns, this->Ns);
-	this->green_down.zeros(this->Ns, this->Ns);
-	this->tempGreen_up.zeros(this->Ns, this->Ns);
-	this->tempGreen_down.zeros(this->Ns, this->Ns);
+	this->green_up.zeros(this->Ns, this->Ns);															// for storing equal time Green up matrix
+	this->green_down.zeros(this->Ns, this->Ns);															// for storing equal time Green down matrix
+	this->tempGreen_up.zeros(this->Ns, this->Ns);														// for storing temporary Green up matrices
+	this->tempGreen_down.zeros(this->Ns, this->Ns);														// for storing temporary Green down matrices
 
 	/// decomposition stuff
 	this->Q_up.zeros(this->Ns, this->Ns);
@@ -44,6 +44,16 @@ void hubbard::HubbardQR::initializeMemory()
 	/// set equal time Green's functions vectors
 	this->g_down_eq = v_1d<mat>(this->M, arma::eye(this->Ns, this->Ns));
 	this->g_up_eq = v_1d<mat>(this->M, arma::eye(this->Ns, this->Ns));
+
+	if(this->cal_times){
+		//! B matrices inverses
+		this->b_mat_up_inv = v_1d<mat>(this->M, arma::zeros(this->Ns, this->Ns));
+		this->b_mat_down_inv = v_1d<mat>(this->M, arma::zeros(this->Ns, this->Ns));
+
+		//! Big Green's functions
+		this->g_up_time.eye(Ns * M, Ns * M);
+		this->g_down_time.eye(Ns * M, Ns * M);
+	}
 }
 
 //? -------------------------------------------------------- CONSTRUCTORS
@@ -87,7 +97,7 @@ hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, double dtau, int M_0, doubl
 
 	/// Say hi to the world
 #pragma omp critical
-	stout << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << el;
+	stout << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << EL;
 #pragma omp critical
 	this->say_hi();
 
@@ -125,118 +135,57 @@ void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 	}
 }
 
-//TODO ----------------------->
 /**
-*
-* @param l_start
-* @param l_end
-* @param tmp_up
-* @param tmp_down
-*/
-void hubbard::HubbardQR::b_mat_multiplier_left(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
-{
-	int timer = l_start;
-	const int how_many = abs(l_end - l_start);
-	tmp_up = this->b_mat_up[timer];
-	tmp_down = this->b_mat_down[timer];
-
-	if (how_many > this->M_0) {
-		for (int j = 1; j < this->M_0; j++) {
-			timer++;
-			if (timer == this->M) timer = 0;
-			tmp_down = this->b_mat_down[timer] * tmp_down;
-			tmp_up = this->b_mat_up[timer] * tmp_up;
-		}
-		setUDTDecomp(tmp_up, Q_up, R_up, P_up, T_up, D_up);
-		setUDTDecomp(tmp_down, Q_down, R_down, P_down, T_down, D_down);
-		for (int j = 0; j <= how_many - this->M_0; j++) {
-			timer++;
-			if (timer == this->M) timer = 0;
-			multiplyMatricesQrFromRight(this->b_mat_up[timer], Q_up, R_up, P_up, T_up, D_up);
-			multiplyMatricesQrFromRight(this->b_mat_down[timer], Q_down, R_down, P_down, T_down, D_down);
-		}
-		tmp_up = Q_up * arma::diagmat(R_up) * T_up;
-		tmp_down = Q_down * arma::diagmat(R_down) * T_down;
-	}
-	else {
-		for (int j = 1; j <= how_many; j++) {
-			timer++;
-			if (timer == this->M) timer = 0;
-			tmp_down = this->b_mat_down[timer] * tmp_down;
-			tmp_up = this->b_mat_up[timer] * tmp_up;
-		}
-	}
-}
-
-//TODO ----------------------->
-/**
- * @brief 
- * 
- * @param l_start 
- * @param l_end 
- * @param tmp_up 
- * @param tmp_down 
+ * @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B matrices of connected spin from left.
+ * @param l_start firts time for B matrix to multiply
+ * @param l_end ending time for the B matrices chain multiplication
+ * @param toMultUp spin up matrix to multiply from the left
+ * @param toMultDown spin down matrix to multiply from the right
+ * @param toSetUp where to set the up multiplication
+ * @param toSetDown where to set the down multiplication
  */
-void hubbard::HubbardQR::b_mat_multiplier_right(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
+void hubbard::HubbardQR::b_mat_mult_left(int l_start, int l_end, const mat& toMultUp,const mat& toMultDown, mat& toSetUp, mat& toSetDown)
 {
+	assert("the hell? they should be different, those times", l_start != l_end);
 	int timer = l_start;
+	int step = l_start > l_end ? -1 : 1;
+
 	const int how_many = abs(l_end - l_start);
-	tmp_up = this->b_mat_up[timer];
-	tmp_down = this->b_mat_down[timer];
-	for (int j = 1; j <= how_many; j++) {
-		timer++;
-		if (timer == this->M) timer = 0;
-		tmp_down = tmp_down * this->b_mat_down[timer];
-		tmp_up = tmp_up * this->b_mat_up[timer];
+	toSetUp = stableMultiplication(toMultUp, this->b_mat_up[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+	toSetDown = stableMultiplication(toMultDown, this->b_mat_down[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+	for(int i = 1; i < how_many; i++){
+		const auto prev = timer;
+		timer = l_start + step * i;
+		toSetUp = stableMultiplication(this->b_mat_up[prev], this->b_mat_up[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+		toSetUp = stableMultiplication(this->b_mat_down[prev], this->b_mat_down[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
 	}
 }
 
-//TODO ----------------------->
 /**
- * @brief 
- * 
- * @param l_start 
- * @param l_end 
- * @param tmp_up 
- * @param tmp_down 
+ * @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B_INV matrices of connected spin from left.
+ * @param l_start firts time for B_INV matrix to multiply
+ * @param l_end ending time for the B_INV matrices chain multiplication
+ * @param toMultUp spin up matrix to multiply from the left
+ * @param toMultDown spin down matrix to multiply from the right
+ * @param toSetUp where to set the up multiplication
+ * @param toSetDown where to set the down multiplication
  */
-void hubbard::HubbardQR::b_mat_multiplier_left_inv(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
+void hubbard::HubbardQR::b_mat_mult_left_inv(int l_start, int l_end, const mat& toMultUp,const mat& toMultDown, mat& toSetUp, mat& toSetDown)
 {
-	auto timer = l_start;
-	const int how_many = abs(l_end - l_start);
-	tmp_up = this->b_mat_up_inv[timer];
-	tmp_down = this->b_mat_down_inv[timer];
-	for (int j = 1; j <= how_many; j++) {
-		timer++;
-		if (timer == this->M) timer = 0;
-		tmp_up = this->b_mat_up_inv[timer] * tmp_up;
-		tmp_down = this->b_mat_down_inv[timer] * tmp_down;
-	}
-}
-
-//TODO ----------------------->
-/**
- * @brief 
- * 
- * @param l_start 
- * @param l_end 
- * @param tmp_up 
- * @param tmp_down 
- */
-void hubbard::HubbardQR::b_mat_multiplier_right_inv(int l_start, int l_end, mat& tmp_up, mat& tmp_down)
-{
+	assert("the hell? they should be different, those times", l_start != l_end);
 	int timer = l_start;
+	int step = l_start > l_end ? -1 : 1;
+
 	const int how_many = abs(l_end - l_start);
-	tmp_up = this->b_mat_up_inv[timer];
-	tmp_down = this->b_mat_down_inv[timer];
-	for (int j = 1; j <= how_many; j++) {
-		timer++;
-		if (timer == this->M) timer = 0;
-		tmp_down = tmp_down * this->b_mat_down_inv[timer];
-		tmp_up = tmp_up * this->b_mat_up_inv[timer];
+	toSetUp = stableMultiplication(toMultUp, this->b_mat_up_inv[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+	toSetDown = stableMultiplication(toMultDown, this->b_mat_down_inv[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+	for(int i = 1; i < how_many; i++){
+		const auto prev = timer;
+		timer = l_start + step * i;
+		toSetUp = stableMultiplication(this->b_mat_up_inv[prev], this->b_mat_up_inv[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+		toSetUp = stableMultiplication(this->b_mat_down_inv[prev], this->b_mat_down_inv[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
 	}
 }
-
 //! -------------------------------------------------------- GREENS --------------------------------------------------------
 
 /**
@@ -258,11 +207,11 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 	tmp_down = (arma::eye(this->Ns, this->Ns) + tmp_down).i();
 	bool up = approx_equal(this->green_up, tmp_up, "absdiff", toll);
 	bool down = approx_equal(this->green_down, tmp_down, "absdiff", toll);
-	stout << " -------------------------------- FOR TIME : " << tim << el;
-	stout << "up Green:\n" << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << el;
+	stout << " -------------------------------- FOR TIME : " << tim << EL;
+	stout << "up Green:\n" << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << EL;
 	if (print_greens)
-		stout << this->green_up - tmp_up << el;
-	stout << "down Green:\n" << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << el;
+		stout << this->green_up - tmp_up << EL;
+	stout << "down Green:\n" << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << EL;
 	if (print_greens)
 		stout << this->green_down - tmp_down << "\n\n\n";
 }
@@ -302,7 +251,7 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	multiplyMatricesQrFromRight(tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
 	multiplyMatricesQrFromRight(tempGreen_down, Q_down, R_down, P_down, T_down, D_down);
 
-	//stout << el;
+	//stout << EL;
 	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + arma::diagmat(R_up)).i()*Q_up.t();
 	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + arma::diagmat(R_down)).i()*Q_down.t();
 
@@ -349,7 +298,7 @@ void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 * @param inv_series_up precalculated inverse matrices multiplication for spin up
 * @param inv_series_down precalculated inverse matrices multiplication for spin down
 */
-void hubbard::HubbardQR::unequalG_greaterFirst(int t1, int t2, const mat& inv_series_up, const mat& inv_series_down)
+void hubbard::HubbardQR::uneqG_t1gtt2(int t1, int t2, const mat& inv_up, const mat& inv_down, const mat& up, const mat& down)
 {
 	assert("t2 should be higher than t1", t2 >= t1);
 	const auto row = t1 * this->Ns;
@@ -358,11 +307,10 @@ void hubbard::HubbardQR::unequalG_greaterFirst(int t1, int t2, const mat& inv_se
 	//! ------------------------------------ up ------------------------------------ 
 	//? USE DOWN MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
 	//! B(t2 + 1)^(-1)...B(t1)^(-1)
-	setUDTDecomp(inv_series_up, Q_up, R_up, P_up, T_up, D_up);												// decompose the premultiplied inversions to up temporaries
-	// setUDTDecomp(arma::inv(T_up) * arma::diagmat(D_up) * Q_up.t(), Q_up, R_up, P_up, T_up, D_up);		// if the inv_series_up was composed from non_inverses
+	setUDTDecomp(inv_up, Q_up, R_up, P_up, T_up, D_up);												// decompose the premultiplied inversions to up temporaries
 
 	//! B(M-1)...B(t1 + 1)
-	setUDTDecomp(this->g_up_eq[0], Q_down, R_down, P_down, T_down, D_down);									// decompose and use down matrices as temporaries + equal time Green at [0]
+	setUDTDecomp(up, Q_down, R_down, P_down, T_down, D_down);									// decompose and use down matrices as temporaries + equal time Green at [0]
 
 	//! SET MATRIX ELEMENT
 	setSubmatrixFromMatrix(this->g_up_time,
@@ -375,11 +323,10 @@ void hubbard::HubbardQR::unequalG_greaterFirst(int t1, int t2, const mat& inv_se
 	//! ------------------------------------ down ------------------------------------
 	//? USE UP MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
 	//! B(t2 + 1)^(-1)...B(t1)^(-1)
-	setUDTDecomp(inv_series_down, Q_down, R_down, P_down, T_down, D_down);									// decompose the premultiplied inversions to up temporaries
-	//setUDTDecomp(arma::inv(T_down) * arma::diagmat(D_down) * Q_down.t(), Q_down, R_down, P_down, T_down, D_down);
+	setUDTDecomp(inv_down, Q_down, R_down, P_down, T_down, D_down);									// decompose the premultiplied inversions to up temporaries
 	
 	//! B(M-1)...B(t1 + 1)
-	setUDTDecomp(this->g_down_eq[0], Q_up, R_up, P_up, T_up, D_up);
+	setUDTDecomp(down, Q_up, R_up, P_up, T_up, D_up);
 
 	//! SET MATRIX ELEMENT
 	setSubmatrixFromMatrix(this->g_down_time,
@@ -390,13 +337,14 @@ void hubbard::HubbardQR::unequalG_greaterFirst(int t1, int t2, const mat& inv_se
 						row, col, this->Ns, this->Ns, false);
 }
 
+//TODO ----------------------->
 /**
 /// @param t1
 /// @param t2
 /// @param D_tmp
 ///
 */
-void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const mat& inv_series_up, const mat& inv_series_down)
+void hubbard::HubbardQR::uneqG_t1ltt2(int t1, int t2)
 {
 	if (t2 <= t1) throw "can't do that m8\n";
 	// make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using SciPost Phys. Core 2, 011 (2020)
@@ -439,62 +387,77 @@ void hubbard::HubbardQR::unequalG_greaterLast(int t1, int t2, const mat& inv_ser
 }
 
 /**
-///
-
-/// @param tau1
-/// @param tau2
-*/
+ * @brief Calculate time displaced Greens. NOW ONLY t1>t2
+ * TODO make t2>t1
+ */
 void hubbard::HubbardQR::cal_green_mat_times()
 {
-	const uint tau1 = this->M - 1;
+	//! inverses precalculated according to the second time
+	//? B(t2 + 1)^(-1)...B(t1)^(-1)
+	if(this->M > 3){
+		// it usually is but keep it tho'
+		this->b_up_inv_cond[this->M-3] = this->b_mat_up_inv[this->M-2] * this->b_mat_up_inv[this->M-1];
+		this->b_down_inv_cond[this->M-3] = this->b_mat_down_inv[this->M-2] * this->b_mat_down_inv[this->M-1];
+	}
+	auto counter = 1;
+	for(int t2 = this->M-4; t2 > 0; t2--){
+		// normal multiplication
+		auto stable = counter % this->M_0 == 0;
+		this->b_up_inv_cond[t2] = this->multiplyMatrices(this->b_mat_up_inv[t2+1], this->b_up_inv_cond[t2+1], stable);
+		this->b_down_inv_cond[t2] = this->multiplyMatrices(this->b_mat_down_inv[t2+1], this->b_down_inv_cond[t2+1], stable);
+		if(stable) counter = 0;
+		counter++;
+	}
+	//! non-inverses -> do the same, use g_eq as it is unused
+	//TODO change the name of g_eq probably
+	//? B(t2)...B(0)B(M-1)...B(t1+1)
+	// we will cover the stuff for the l2's
+	this->g_up_eq[1] = this->b_mat_up[1] * this->b_mat_up[0];
+	this->g_down_eq[1] = this->b_mat_down[1] * this->b_mat_down[0];
+	counter = 1;
+	for(int t2 = 2; t2 < this->M-2; t2++){
+		auto stable = counter % this->M_0 == 0;
+		this->g_up_eq[t2] = this->multiplyMatrices(this->b_mat_up[t2-1],this->g_up_eq[t2-1],stable);
+		this->g_down_eq[this->M-2] = this->multiplyMatrices(this->b_mat_down[t2-1],this->g_down_eq[t2-1],stable);
+		if(stable) counter = 0;
+		counter++;
+	}
+
+	//! calculate all Greens but only for t1 > t2
+	// inverses start from highest on right
+	// non-inverses start from 0 basically
+	// so we need to multiply by according B(t1) after first loop
+	for (int tau1 = this->M - 1; tau1 > 0; tau1--) {
+		for (int tau2 = tau1 - 1; tau2 < tau1; tau2++) {
+			auto inv_up = std::ref(this->b_up_inv_cond[tau2]);
+			auto inv_down = std::ref(this->b_down_inv_cond[tau2]);
+			auto up = std::ref(this->g_up_eq[tau2]);
+			auto down = std::ref(this->g_down_eq[tau2]);
+			if(tau2 == this->M-2){
+				inv_up = std::ref(this->b_mat_up_inv[this->M-1]);
+				inv_down = std::ref(this->b_mat_down_inv[this->M-1]);
+			}
+			else if(tau2==0){
+				up = std::ref(this->b_mat_up[0]);
+				down = std::ref(this->b_mat_down[0]);
+			}
+			uneqG_t1gtt2(tau1,tau2,inv_up,inv_down,up,down);
+		}
+	}
 }
 
 /**
-///
-
-/// @param tau1
-/// @param tau2
+* Calculates the unequal times Green's functions using precalculated B matrices
 */
 void hubbard::HubbardQR::cal_green_mat_times_cycle()
 {
-	// inverses
-	//this->g_down_eq[this->M-1].eye();
-	//this->g_up_eq[this->M-1].eye();
-	this->g_down_eq[this->M - 2] = this->b_mat_down[this->M - 1];
-	this->g_up_eq[this->M - 2] = this->b_mat_up[this->M - 1];
-	for (int i = this->M - 2; i > 0; i--) {
-		// give the new matrices a save
-		setUDTDecomp(this->b_mat_down[i], Q_down, R_down, P_down, T_down, D_down);
-		setUDTDecomp(this->b_mat_up[i], Q_up, R_up, P_up, T_up, D_up);
+	//! inverses precalculated
 
-		multiplyMatricesQrFromRight(this->g_up_eq[i], Q_up, R_up, P_up, T_up, D_up);
-		multiplyMatricesQrFromRight(this->g_down_eq[i], Q_down, R_down, P_down, T_down, D_down);
-		this->g_up_eq[i - 1] = Q_up * arma::diagmat(R_up) * T_up;
-		this->g_down_eq[i - 1] = Q_down * arma::diagmat(R_down) * T_down;
-	}
+	//? use the temp Greens for the setup of B matrices inverses
+	this->tempGreen_down = this->b_mat_down_inv[this->M - 1];
+	this->tempGreen_up = this->b_mat_up_inv[this->M - 1];
+	//! calculate all Greens but only for t1 > t2
 
-	// calculate all Greens
-	for (int tau1 = 1; tau1 < this->M; tau1++) {
-		//this->g_up_eq[0] = this->g_up_eq[tau1];
-		//this->g_down_eq[0] = this->g_down_eq[tau1];
-		for (int tau2 = 0; tau2 < 1; tau2++) {
-			setUDTDecomp(this->g_up_eq[tau1], Q_up, R_up, P_up, T_up, D_up);
-			setUDTDecomp(this->g_down_eq[tau1], Q_down, R_down, P_down, T_down, D_down);
-			multiplyMatricesQrFromRight(this->b_mat_up[tau2], Q_up, R_up, P_up, T_up, D_up);
-			multiplyMatricesQrFromRight(this->b_mat_down[tau2], Q_down, R_down, P_down, T_down, D_down);
-			this->g_up_eq[0] = Q_up * arma::diagmat(R_up) * T_up;
-			this->g_down_eq[0] = Q_down * arma::diagmat(R_down) * T_down;
-
-			//if (tau2 > tau1) {
-			//	b_mat_multiplier_left(tau1 + 1, tau2, this->tempGreen_up, this->tempGreen_down);
-			//	unequalG_greaterLast(tau1, tau2, this->tempGreen_up, this->tempGreen_down);
-			//}
-			//else{
-			b_mat_multiplier_left(tau2 + 1, tau1, this->tempGreen_up, this->tempGreen_down);
-			unequalG_greaterFirst(tau1, tau2, this->tempGreen_up, this->tempGreen_down);
-			//}
-		}
-	}
 }
 
 /**
@@ -543,22 +506,38 @@ void hubbard::HubbardQR::cal_green_mat_times_hirsh_cycle()
 // -------------------------------------------------------- HELPERS
 
 /**
-///
-
-/// @param fptr
-/// <returns></returns>
-*/
+ * @brief A function to sweep all the auxliary Ising fields for a given time configuration in the model
+ * @param fptr pointer to single update try
+ * @return sign of the configuration 
+ */
 int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
 {
 	int sign = 1;
-	for (int j = 0; j < this->Ns; j++) {
-		//const auto lat_site = ran.randomInt_uni(0, this->Ns - 1);
+	for (int j = 0; j < this->Ns; j++) 
+		//const auto lat_site = ran.random{Int_uni(0, this->Ns - 1);
 		const auto lat_site = j;
 		sign = (fptr)(lat_site);
 	}
 	// return sign from the last possible flip
 	return sign;
 }
+
+/**
+ * @brief Choose between stable multiplication of matrices according to condition
+ * @param left left matrix to multiply
+ * @param right right matrix to multiply
+ * @param stable should use stable one?
+ * @return left*right
+ */
+mat hubbard::HubbardQR::multiplyMatrices(arma::mat left, arma::mat right, bool stable){
+	if(stable)
+		return stableMultiplication(right, left,
+							Q_up, R_up, P_up, T_up,
+							Q_down, R_down, P_down, T_down);
+	else
+		return left * right;
+}
+
 
 // -------------------------------------------------------- GREEN UPDATERS --------------------------------------------------------
 
@@ -727,7 +706,7 @@ void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr)
 /// Single step for the candidate to flip the HS field
 */
 /// @param lat_site the candidate lattice site
-/// <returns>sign of probability</returns>
+/// @returnsign of probability</returns>
 int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 {
 	auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);										// first up then down
@@ -759,7 +738,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 {
 	if (!quiet && mcSteps != 1) {
 #pragma omp critical
-		stout << "\t\t----> STARTING RELAXING FOR : " + this->info << el;
+		stout << "\t\t----> STARTING RELAXING FOR : " + this->info << EL;
 		this->neg_num = 0;																				// counter of negative signs
 		this->pos_num = 0;																				// counter of positive signs
 	}
@@ -797,7 +776,7 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool times)
 {
 #pragma omp critical
-	stout << "\t\t----> STARTING AVERAGING FOR : " + this->info << el;
+	stout << "\t\t----> STARTING AVERAGING FOR : " + this->info << EL;
 	this->neg_num = 0;																				// counter of negative signs
 	this->pos_num = 0;																				// counter of positive signs
 	this->avs->av_sign = 0;
@@ -811,10 +790,7 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	const auto percentage_steps = static_cast<int>(percentage * avNum / 100.0);
 
 	v_1d<mat> avs_up, avs_down;
-	if (times) {
-		this->g_up_time.eye(Ns * M, Ns * M);
-		this->g_down_time.eye(Ns * M, Ns * M);
-	}
+
 	const bool useHirsh = true;
 	// check if this saved already
 	for (int step = 0; step < avNum; step++) {
