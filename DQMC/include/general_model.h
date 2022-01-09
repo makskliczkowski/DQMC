@@ -1,12 +1,13 @@
 #pragma once
-#ifndef GENERAL.H
-#define GENERAL.H
+#ifndef GENERAL_H
+#define GENERAL_H
 
 #include "../src/progress.h"
 #include "random.h"
 #include <chrono>
 #include <stdlib.h>
 
+using namespace std;
 // -------------------------------------------------------- armadillo definitions --------------------------------------------------------
 #define ARMA_BLAS_CAPITALS
 #define ARMA_BLAS_UNDERSCORE
@@ -21,10 +22,10 @@
 */
 
 struct general_directories {
-	std::string LxLyLz;
-	std::string lat_type;
-	std::string working_dir;
-	std::string info;
+	string LxLyLz;
+	string lat_type;
+	string working_dir;
+	string info;
 };
 
 // -------------------------------------------------------- GENERAL LATTICE --------------------------------------------------------
@@ -37,7 +38,7 @@ protected:
 	// ----------------------- LATTICE PARAMETERS
 	unsigned int dimension;											// the dimensionality of the lattice 1,2,3
 	unsigned int Ns;												// number of lattice sites
-	std::string type;												// type of the lattice
+	string type;												// type of the lattice
 	int boundary_conditions;										// boundary conditions 0 = PBC, 1 = OBC
 	//impDef::lattice_types lattice_type;								// the type of lattice this is
 	v_2d<int> nearest_neighbors;									// vector of the nearest neighbors
@@ -66,7 +67,7 @@ public:
 		{ return this->next_nearest_neighbors[lat_site].size(); };	// returns the number of nnn
 	int get_coordinates(int lat_site, int axis) const 
 		{ return this->coordinates[lat_site][axis]; };				// returns the given coordinate
-	std::string get_type() const 
+	string get_type() const 
 		{ return this->type; };										// returns the type of the lattice as a string
 
 	// ----------------------- CALCULATORS
@@ -201,4 +202,4 @@ public:
 	std::shared_ptr<averages_par> get_avs() const { return this->avs; };
 	// ----------------------- SETTERS
 };
-#endif // !GENERAL.H
+#endif // !GENERAL_H

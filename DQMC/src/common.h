@@ -48,10 +48,12 @@ R"(\)";
 // -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
 
 #define stout std::cout << std::setprecision(8) << std::fixed				// standard out
-#define el std::endl
-#define str std::to_string
+#define EL std::endl
+#define STR std::to_string
+#define DIAG arma::diagmat
 #define PRNT(name) valueEquals(#name,(name))
 #define PRT(name,prec) valueEquals(#name,(name),prec)
+
 
 /// using types
 using cpx = std::complex<double>;
@@ -65,7 +67,6 @@ constexpr long double TWOPI = 2 * PI;										// it is me, 2pi
 constexpr long double PI_half = PI / 2.0;
 constexpr cpx imn = cpx(0, 1);
 const std::string kPS = std::string(kPSep);
-
 // -------------------------------------------------------- ALGORITHMS FOR MC --------------------------------------------------------
 
 /*
@@ -176,6 +177,49 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 	T = ((arma::diagmat(D) * R) * P.t());
 }
 
+/*
+* Creates the UDT decomposition using QR decomposition. WITHOUT D VECTOR
+* @cite doi:10.1016/j.laa.2010.06.023
+* </summary>
+* @param mat 
+* @param Q unitary Q matrix
+* @param R right triangular matrix
+* @param P permutation matrix
+* @param T upper triangular matrix
+* @param D diagonal vector -> saves the inverse already
+*/
+void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T) {
+	if (!arma::qr(Q, R, P, mat)) throw "decomposition failed\n";
+	// inverse during setting
+	T = ((arma::inv(arma::diagmat(R)) * R) * P.t());
+}
+
+
+/**
+ * @brief Calculate the multiplication of two matrices with numerical stability.
+ * @param right right matrix of multiplication
+ * @param left left matrix of multiplication
+ * @param Ql 
+ * @param Rl 
+ * @param Pl 
+ * @param Tl 
+ * @param Qr 
+ * @param Rr 
+ * @param Pr 
+ * @param Tr 
+ * @return matrix after multiplication
+ */
+arma::mat inline stableMultiplication(const arma::mat& right, const arma::mat& left,
+									arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl,
+									arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr
+									)
+{
+	setUDTDecomp(left,Ql,Rl,Pl,Tl);
+	setUDTDecomp(right,Qr,Rr,Pr,Tr);
+	setUDTDecomp(DIAG(Rl) * ( (Tl * Ql) * DIAG(Rr) ), Qr, Rr, Pr, Tl);
+	return (Ql * Qr) * DIAG(Rr) * (Tl * Tr);
+}
+
 
 /*
 * Using ASvQRD - Accurate Solution via QRD with column pivoting to multiply the QR on the right and multiply new matrix mat_to_multiply on the left side.
@@ -216,7 +260,7 @@ void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 * @param R the R matrix from QR decompositon. As it's diagonal is mostly not used anymore it will be used to store (<= 1) elements of previous R
 * @param D vector to store (> 1) elements of previous R
 */
-void inline makeTwoScalesFromUDT(const arma::mat& R, arma::vec& Db,arma::vec& Ds) {
+void inline makeTwoScalesFromUDT(const arma::mat& R, arma::vec& Db, arma::vec& Ds) {
 	Db.ones();
 	Ds.ones();
 	for (int i = 0; i < R.n_rows; i++)
@@ -253,7 +297,7 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 template <typename T>
 inline void printSeparated(std::ostream& output, char separtator = '\t', std::initializer_list<T> elements = {}, arma::u16 width = 8, bool endline = true) {
 	for (auto elem : elements) {
-		output.width(width); output << elem << std::string(separtator);
+		output.width(width); output << elem << std::string(1,separtator);
 	}
 	if (endline) output << std::endl;
 }
@@ -269,7 +313,7 @@ inline void printSeparated(std::ostream& output, char separtator = '\t', std::in
 template <typename... Types>
 inline void printSeparated(std::ostream& output, char separtator, arma::u16 width, bool endline, Types... elements) {
 	for (auto elem : elements) {
-		output.width(width); output << elem << std::string(separtator);
+		output.width(width); output << elem << std::string(1,separtator);
 	}
 	if (endline) output << std::endl;
 }
@@ -285,7 +329,7 @@ template <typename T>
 inline void printSeparated(char separtator = '\t', std::initializer_list<T> elements = {}, uint prec = 2) {
 	std::string tmp = ""
 	for (auto elem : elements) {
-		tmp += PRT(elem,prec) + std::string(separtator);
+		tmp += PRT(elem,prec) + std::string(1,separtator);
 	}
 	tmp.pop_back();
 	return tmp
@@ -302,7 +346,7 @@ template <typename... Types>
 inline void printSeparated(char separtator, uint prec, Types... elements) {
 	std::string tmp = ""
 	for (auto elem : elements) {
-		tmp += PRT(elem,prec) + std::string(separtator);
+		tmp += PRT(elem,prec) + std::string(1,separtator);
 	}
 	tmp.pop_back();
 	return tmp
@@ -335,7 +379,7 @@ std::ostream& operator << (std::ostream& out, const v_2d<T>& v ) {
 		for (auto it : v) {
 			out << "\t\t\t\t";
 			for (int i = 0; i < it.size(); i++)
-				out << it[i] << "\t";
+				out << it[i] << '\t';
 			out << "\n";
 		}
 	}
@@ -380,7 +424,7 @@ inline int myModuloEuclidean(int a, int b)
 */
 template <typename T>
 inline std::string ValEquals(char* name, T value, int prec = 2){
-	return str(name)+"="+str_p(value,prec);
+	return string(name)+"="+str_p(value,prec);
 }
 
 // -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------

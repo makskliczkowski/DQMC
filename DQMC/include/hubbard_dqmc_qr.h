@@ -26,12 +26,15 @@ namespace hubbard {
 
 		v_1d<arma::mat> b_up_condensed, b_down_condensed;																// up and down B matrices vector premultiplied
 		/// time displaced Green's functions
+
 		arma::mat g_up_time, g_down_time;
 		v_1d<arma::mat> g_up_eq; v_1d<arma::mat> g_down_eq;
 		v_1d<arma::mat> g_up_tim; v_1d<arma::mat> g_down_tim;
+		v_1d<mat> b_up_inv_cond; v_1d<mat> b_down_inv_cond;																// to store mult of B matrices inverses e.g.B_{M-1}^{-1},B_{M-2}^{-1}*B_{M-1}^{-1}, ... 
 		// -------------------------- DIRECTORIES AND SAVERS
 
 		// -------------------------- HELPING FUNCTIONS
+		arma::mat multiplyMatrices(arma::mat, arma::mat, bool);															// choose between stable and normal multiplication
 		void sweep_0_M(std::function<int(int)> ptfptr) override;														// sweep forward in time
 		void sweep_M_0(std::function<int(int)> ptfptr) override;														// sweep backwards in time
 		int sweep_lat_sites(std::function<int(int)> ptfptr);															// sweep the lattice sites for auxliary Ising spins
@@ -44,11 +47,9 @@ namespace hubbard {
 		void cal_B_mat_cond(int which_sector);																			// update the condensation of the B matrices for a given sector
 
 		// -------------------------- CALCULATORS
-		/// b matrices mutliplication
-		void b_mat_multiplier_right(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down);					
-		void b_mat_multiplier_left(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down);
-		void b_mat_multiplier_right_inv(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down);
-		void b_mat_multiplier_left_inv(int l_start, int l_end, arma::mat& tmp_up, arma::mat& tmp_down);
+		/// b matrices mutliplication					
+		void b_mat_mult_left(int l_start, int l_end, const mat& toMultUp,const mat& toMultDown, mat& toSetUp, mat& toSetDown);
+		void b_mat_mult_left_inv(int l_start, int l_end, const mat& toMultUp,const mat& toMultDown, mat& toSetUp, mat& toSetDown);
 
 		/// eq time Green's matrices calculators
 		void cal_green_mat(int which_time) override;
@@ -59,8 +60,8 @@ namespace hubbard {
 		void cal_green_mat_times_cycle();																				// only at given positions in the M_0 cycle
 		void cal_green_mat_times_hirsh();																				// obtain full space-time Green's matrix - all of them
 		void cal_green_mat_times_hirsh_cycle();																			// use wrapping for calculating space time Green's matrix - some of them only
-		void unequalG_greaterFirst(int t1, int t2, const arma::mat& inv_series_up, const arma::mat& inv_series_down);
-		void unequalG_greaterLast(int t1, int t2, const arma::mat& inv_series_up, const arma::mat& inv_series_down);
+		void uneqG_t1gtt2(int, int, const mat&, const mat&, const mat&, const mat&);									// after obtaining series of inverses and series of non-invs it calculates the Green's mat
+		void uneqG_t1ltt2(int t1, int t2);
 
 		/// comparison & stability tests
 		void compare_green_direct(int tim, double toll, bool print_greens) override;

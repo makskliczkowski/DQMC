@@ -60,11 +60,11 @@ hubbard::HubbardST::HubbardST(const std::vector<double>& t, double dtau, int M_0
 		<< "->Lz = " << this->lattice->get_Lz() << std::endl \
 		<< "->lambda = " << this->lambda << std::endl << std::endl;
 	/* Setting info about the model for files */
-	this->info = "M=" + std::to_string(this->M) + ",M_0=" + std::to_string(this->M_0) + \
-		",dtau=" + to_string_prec(this->dtau) + ",Lx=" + std::to_string(this->lattice->get_Lx()) + \
-		",Ly=" + std::to_string(this->lattice->get_Ly()) + ",Lz=" + std::to_string(this->lattice->get_Lz()) + \
-		",beta=" + to_string_prec(this->beta) + ",U=" + to_string_prec(this->U) + \
-		",mu=" + to_string_prec(this->mu);
+	this->info = "M=" + STR(this->M) + ",M_0=" + STR(this->M_0) + \
+		",dtau=" + STR(this->dtau) + ",Lx=" + STR(this->lattice->get_Lx()) + \
+		",Ly=" + STR(this->lattice->get_Ly()) + ",Lz=" + STR(this->lattice->get_Lz()) + \
+		",beta=" + STR(this->beta) + ",U=" + STR(this->U) + \
+		",mu=" + STR(this->mu);
 
 	// Initialize memory
 	this->hopping_exp.zeros(this->Ns, this->Ns);

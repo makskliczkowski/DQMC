@@ -61,37 +61,37 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	information += " The structure of each is we average over time differences and first row\n";
 	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
 
-	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + str(filenum) + "-up" + this->dir->nameGreensTime);
-	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + str(filenum) + "-down" + this->dir->nameGreensTime);
+	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + this->dir->nameGreensTime);
+	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + this->dir->nameGreensTime);
 
 	fileUp << " Up different time, real-space Greens\n" << information;
 	fileDown << " Down different time, real-space Greens\n" << information;
 	std::initializer_list<std::string> enter_params = { "n =\t",
-		str(this->lattice->get_Lx()),"\n",
-		"l =\t",str(this->M),"\n",
-		"tausk =\t",str(this->M),"\n",
+		STR(this->lattice->get_Lx()),"\n",
+		"l =\t",STR(this->M),"\n",
+		"tausk =\t",STR(this->M),"\n",
 		"doall =\t",std::string("don't know what is that"),"\n",
 		"densw =\t",std::string("don't know what is that"),"\n",
 		"histn =\t",std::string("don't know what is that"),"\n",
 		"iran =\t",std::string("don't know what is that"),"\n",
 		"t  =\t",str_p(this->t[0],5),"\n",
-		"mu  =\t",str(this->mu),"\n",
+		"mu  =\t",STR(this->mu),"\n",
 		"delmu =\t",std::string("don't know what is that"),"\n",
 		"bpar  =\t",std::string("don't know what is that"),"\n",
-		"dtau  =\t",str(this->dtau),"\n",
-		"warms  =\t",str(2000),		"\n",
-		"sweeps =\t",str(2000),"\n",
-		"u =\t", str(this->U),"\n",
-		"nwrap =\t",str(this->M_0),"\n",
+		"dtau  =\t",STR(this->dtau),"\n",
+		"warms  =\t",STR(2000),		"\n",
+		"sweeps =\t",STR(2000),"\n",
+		"u =\t", STR(this->U),"\n",
+		"nwrap =\t",STR(this->M_0),"\n",
 		"difflim =\t",std::string("don't know what is that"),"\n",
 		"errrat =\t",std::string("don't know what is that"),	"\n",
-		"doauto =\t",str(this->M_0),"\n",
+		"doauto =\t",STR(this->M_0),"\n",
 		"orthlen =\t",std::string("don't know what is that"),"\n",
 		"eorth =\t",std::string("don't know what is that"),"\n",
 		"dopair =\t",std::string("don't know what is that"),"\n",
 		"numpair =\t",std::string("don't know what is that"),"\n",
 		"lambda =\t", str_p(this->lambda, 4),"\n",
-		"start = \t",str(0), "\n",
+		"start = \t",STR(0), "\n",
 		"sign = \t",str_p(this->config_sign,5), "\n\n\n" };
 	printSeparated(fileUp, ' ', enter_params, 30);
 	printSeparated(fileDown, ' ', enter_params, 30);
@@ -103,16 +103,16 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	printSeparated(fileDown, '\t', { std::string(" G(nx,ny,ti):") });
 	for (int x = 0; x <= Lx / 2; x++) {
 		for (int y = x; y <= Ly / 2; y++) {
-			printSeparated(fileUp, '\t', {std::string(" nx ="), str(x), std::string("ny ="), str(y)}, 6);
-			printSeparated(fileDown, '\t', { std::string(" nx ="), str(x), std::string("ny ="), str(y) }, 6);
+			printSeparated(fileUp, '\t', {std::string(" nx ="), STR(x), std::string("ny ="), STR(y)}, 6);
+			printSeparated(fileDown, '\t', { std::string(" nx ="), STR(x), std::string("ny ="), STR(y) }, 6);
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
-				printSeparated(fileUp, '\t', { str(tau1) }, 4, 0);
+				printSeparated(fileUp, '\t', { STR(tau1) }, 4, 0);
 				printSeparated(fileUp, '\t', { str_p(this->avs->g_up_diffs[tau1](x,y),width) }, width + 5, false);
 				printSeparated(fileUp, '\t', { std::string("+-") }, 5, false);
 				printSeparated(fileUp, '\t', { str_p(this->avs->sd_g_up_diffs[tau1](x,y),width) }, width + 5, true);
 
-				printSeparated(fileDown, '\t', { str(tau1) }, 4, 0);
+				printSeparated(fileDown, '\t', { STR(tau1) }, 4, 0);
 				printSeparated(fileDown, '\t', { str_p(this->avs->g_down_diffs[tau1](x,y),width) }, width + 5, 0);
 				printSeparated(fileDown, '\t', { std::string("+-") }, 5, false);
 				printSeparated(fileDown, '\t', { str_p(this->avs->sd_g_down_diffs[tau1](x,y),width) }, width + 5, true);
@@ -129,8 +129,8 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 		double kx = i * kxStep;
 		for (int j = i; j <= Ly / 2; j++) {
 			double ky = j * kyStep;
-			printSeparated(fileUp, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), str(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), str(j) + ",\t" + str_p(ky,3) }, 10);
-			printSeparated(fileDown, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), str(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), str(j) + ",\t" + str_p(ky,3) }, 10);
+			printSeparated(fileUp, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), STR(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), STR(j) + ",\t" + str_p(ky,3) }, 10);
+			printSeparated(fileDown, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), STR(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), STR(j) + ",\t" + str_p(ky,3) }, 10);
 			for (int yy = -Ly + 1; yy < Ly; yy++) {
 				const auto yelem = myModuloEuclidean(abs(yy), Ly / 2 + 1);
 				for (int xx = -Lx + 1; xx < Lx; xx++) {
@@ -151,14 +151,14 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 			}
 			// print
 			for (int tau1 = 0; tau1 < this->M; tau1++) {
-				printSeparated(fileUp, '\t', { str(tau1) }, 4, false);
+				printSeparated(fileUp, '\t', { STR(tau1) }, 4, false);
 				auto elem_up = real(this->avs->g_up_diffs_k[tau1](i, j)) / TWOPI;
 				printSeparated(fileUp, '\t', { str_p(elem_up, width) }, width + 5, false);
 				printSeparated(fileUp, '\t', { std::string("+-") }, 5, false);
 				elem_up = sqrt(abs(real(this->avs->sd_g_up_diffs_k[tau1](i, j)))) / TWOPI;
 				printSeparated(fileUp, '\t', { str_p(elem_up,width) }, width + 5);
 
-				printSeparated(fileDown, '\t', { str(tau1) }, 4, false);
+				printSeparated(fileDown, '\t', { STR(tau1) }, 4, false);
 				auto elem_down = real(this->avs->g_down_diffs_k[tau1](i, j)) / TWOPI;
 				printSeparated(fileDown, '\t', { str_p(elem_down, width) }, width + 5, false);
 				printSeparated(fileDown, '\t', { std::string("+-") }, 5, false);
@@ -231,11 +231,11 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 	int Lz = this->lattice->get_Lz();
 	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
 	this->dir->info = this->info;
-	this->dir->LxLyLz = "Lx=" + str(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
+	this->dir->LxLyLz = "Lx=" + STR(Lx) + ",Ly=" + STR(Ly) + ",Lz=" + STR(Lz);
 
 	this->dir->lat_type = this->lattice->get_type() + kPS;																// making folder for given lattice type
 	this->dir->working_dir = working_directory + this->dir->lat_type + \
-		to_string(this->lattice->get_Dim()) + \
+		STR(this->lattice->get_Dim()) + \
 		"D" + kPS + this->dir->LxLyLz + kPS;																		// name of the working directory
 
 	// CREATE DIRECTORIES
@@ -560,18 +560,18 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 	std::string name_conf, name_log;														// filenames to save
 	if (this->config_sign < 0) {
 		name_conf = this->dir->neg_dir + "neg_" + this->info + \
-			",n=" + str(this->neg_num) + ".dat";
+			",n=" + STR(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
 	}
 	else {
 		name_conf = this->dir->pos_dir + "pos_" + this->info + \
-			",n=" + str(this->pos_num) + ".dat";
+			",n=" + STR(this->pos_num) + ".dat";
 		name_log = this->dir->pos_log;
 	}
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_conf);
-	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), str(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign)},26 );
 
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
@@ -593,17 +593,17 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::m
 	std::ofstream file_conf, file_log;														// savefiles
 	std::string name_config ="", name_log ="";												// filenames to save
 	if (this->config_sign < 0) {
-		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + str(this->neg_num) + ".dat";
+		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + STR(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
 	}
 	else {
-		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + str(this->pos_num) + ".dat";
+		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + STR(this->pos_num) + ".dat";
 		name_log = this->dir->pos_log;
 	}
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_config);
-	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), str(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign)},26 );
 	
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {

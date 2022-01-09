@@ -139,25 +139,25 @@ namespace hubbard {
 	public:
 		// -------------------------- PRINTERS
 		void say_hi(){
-			stout << "->M = " << this->M << el \
-			<< "->M0 = " << this->M_0 << el \
-			<< "->p = " << this->p << el \
+			stout << "->M = " << this->M << EL \
+			<< "->M0 = " << this->M_0 << EL \
+			<< "->p = " << this->p << EL \
 			// physical
-			<< "->beta = " << this->beta << el \
-			<< "->U = " << this->U << el \
-			<< "->dtau = " << this->dtau << el \
-			<< "->mu = " << this->mu << el \
-			<< "->t = " << this->t << el \
+			<< "->beta = " << this->beta << EL \
+			<< "->U = " << this->U << EL \
+			<< "->dtau = " << this->dtau << EL \
+			<< "->mu = " << this->mu << EL \
+			<< "->t = " << this->t << EL \
 			// lattice
-			<< "->dimension = " << this->getDim() << el \
-			<< "->Lx = " << this->lattice->get_Lx() << el \
-			<< "->Ly = " << this->lattice->get_Ly() << el \
-			<< "->Lz = " << this->lattice->get_Lz() << el \
-			<< "->lambda = " << this->lambda << el << el;
+			<< "->dimension = " << this->getDim() << EL \
+			<< "->Lx = " << this->lattice->get_Lx() << EL \
+			<< "->Ly = " << this->lattice->get_Ly() << EL \
+			<< "->Lz = " << this->lattice->get_Lz() << EL \
+			<< "->lambda = " << this->lambda << EL << EL;
 		/// Setting info about the model for files
-		this->info = "M=" + str(this->M) + ",M0=" + str(this->M_0) + \
-			",dtau=" + str_p(this->dtau) + ",Lx=" + str(this->lattice->get_Lx()) + \
-			",Ly=" + str(this->lattice->get_Ly()) + ",Lz=" + str(this->lattice->get_Lz()) + \
+		this->info = "M=" + STR(this->M) + ",M0=" + STR(this->M_0) + \
+			",dtau=" + str_p(this->dtau) + ",Lx=" + STR(this->lattice->get_Lx()) + \
+			",Ly=" + STR(this->lattice->get_Ly()) + ",Lz=" + STR(this->lattice->get_Lz()) + \
 			",beta=" + str_p(this->beta) + ",U=" + str_p(this->U) + \
 			",mu=" + str_p(this->mu);
 		};

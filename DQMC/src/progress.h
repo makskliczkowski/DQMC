@@ -1,8 +1,8 @@
 #pragma once
 #include "common.h"
 
-#ifndef PROGRESS.H
-#define PROGRESS.H
+#ifndef PROGRESS_H
+#define PROGRESS_H
 // -------------------------------------------------------- PROGRESS BAR --------------------------------------------------------
 class pBar {
 public:
@@ -52,4 +52,4 @@ private:
 };
 
 
-#endif // !PROGRESS.H
+#endif // !PROGRESS_H
