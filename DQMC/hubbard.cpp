@@ -2,18 +2,19 @@
 // -------------------------------------------------------- HUBBARD MODEL -------------------------------------------------------- */
 // -------------------------------------------------------- HELPERS
 
-/*
-/// Normalise all the averages taken during simulation
-/// <param name="avNum">Number of avs taken</param>
-/// <param name="times">If the non-equal time properties were calculated</param>
-*/
+/**
+ * @brief Normalise all the averages taken during simulation
+ * 
+ * @param avNum number of avs taken
+ * @param timesNum number of Trotter times used
+ * @param times if the non-equal time properties were calculated
+ */
 void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 {
-	const double normalization = static_cast<double>(avNum * timesNum * this->Ns);								// average points taken
-	//this->avs->av_sign /= double(avNum);																			// average sign is needed
+	const auto normalization = static_cast<double>(avNum * timesNum * this->Ns);						// average points taken
 	this->avs->av_sign = (this->pos_num - this->neg_num) / double(this->pos_num + this->neg_num);
-	this->avs->sd_sign = variance(static_cast<long double>(avNum), this->avs->av_sign, avNum);
-	const double normalisation_sign = normalization * this->avs->av_sign;										// we divide by average sign actually
+	this->avs->sd_sign = variance(static_cast<ld>(avNum), this->avs->av_sign, avNum);
+	const double normalisation_sign = normalization * this->avs->av_sign;								// we divide by average sign actually
 	// with minus
 	//this->avs->av_gr_down /= normalisation_sign / this->Ns;
 	//this->avs->av_gr_up /= normalisation_sign / this->Ns;
@@ -52,8 +53,8 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 
 /*
 ///
-/// <param name="filenum"></param>
-/// <param name="useWrapping"></param>
+/// @param filenum 
+/// @param useWrapping 
 */
 void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 {
@@ -61,8 +62,10 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	information += " The structure of each is we average over time differences and first row\n";
 	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
 
-	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + this->dir->nameGreensTime);
-	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + this->dir->nameGreensTime);
+	std::ofstream fileUp; 
+	openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + this->dir->nameGreensTime);
+	std::ofstream fileDown; 
+	openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + this->dir->nameGreensTime);
 
 	fileUp << " Up different time, real-space Greens\n" << information;
 	fileDown << " Down different time, real-space Greens\n" << information;
@@ -96,7 +99,7 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	printSeparated(fileUp, ' ', enter_params, 30);
 	printSeparated(fileDown, ' ', enter_params, 30);
 
-	this->avs->normaliseGreens(bucketnum, Lx, Ly, this->lattice);
+	this->avs->normaliseGreens(this->lattice, bucketnum, this->all_times);
 
 	const u16 width = 8;
 	printSeparated(fileUp, '\t', { std::string(" G(nx,ny,ti):") });
@@ -119,6 +122,7 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 			}
 		}
 	}
+	
 	/*
 	fileUp.flush();
 	fileDown.flush();
@@ -172,9 +176,10 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	fileDown.close();
 }
 
-// -------------------------------------------------------- SETTERS
+//! -------------------------------------------------------- SETTERS
+
 /*
-/// Setting the Hubbard - Stratonovich fields
+* Setting the Hubbard - Stratonovich fields
 */
 void hubbard::HubbardModel::set_hs()
 {
@@ -189,8 +194,8 @@ void hubbard::HubbardModel::set_hs()
 }
 
 /*
-/// Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
-/// <param name="dir">directory to be used for configurations</param>
+* Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
+/// @param dir directory to be used for configurations
 */
 void hubbard::HubbardModel::setConfDir() {
 	this->dir->neg_dir = this->dir->conf_dir + kPS + this->info;
@@ -218,11 +223,10 @@ void hubbard::HubbardModel::setConfDir() {
 	fileP.close();																				// close just to create file pos
 }
 
-/*
-///
-/// <param name="working_directory"></param>
-/// <returns></returns>
-*/
+/**
+ * @brief setting the model directories
+ * @param working_directory current working directory
+ */
 void hubbard::HubbardModel::setDirs(std::string working_directory)
 {
 	using namespace std;
@@ -240,18 +244,18 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 
 	// CREATE DIRECTORIES
 	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
-	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
+	//fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
 	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
 	this->dir->fourier_dir += kPS;
 
 	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
 	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
 	fs::create_directories(this->dir->greens_dir);
-	this->dir->greens_dir += kPS + this->dir->info;
+	//this->dir->greens_dir += kPS + this->dir->info;
 	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
-	fs::create_directories(this->dir->params_dir);
+	//fs::create_directories(this->dir->params_dir);
 	fs::create_directories(this->dir->params_dir + kPS + "times");
-	fs::create_directories(this->dir->greens_dir);
+	//fs::create_directories(this->dir->greens_dir);
 	fs::create_directories(this->dir->time_greens_dir);
 	this->dir->greens_dir += kPS;
 	this->dir->time_greens_dir += kPS;
@@ -264,13 +268,13 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 	this->dir->setFileNames();
 }
 
-// -------------------------------------------------------- HELPERS --------------------------------------------------------
+//! -------------------------------------------------------- HELPERS --------------------------------------------------------
 
 /*
-/// Function to calculate the change in the potential exponential
-/// Attractive case needs to be done
-/// <param name="lat_site">lattice site on which the change has been made</param>
-/// <returns>A tuple for gammas for two spin channels, 0 is spin up, 1 is spin down</returns>
+* Function to calculate the change in the potential exponential
+* Attractive case needs to be done
+* @param lattice site on which the change has been made
+* @return A tuple for gammas for two spin channels, 0 is spin up, 1 is spin down
 */
 std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 {
@@ -288,18 +292,14 @@ std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 }
 
 /*
-/// Return probabilities of spin flip for both spin channels
-/// <param name="lat_stie">flipping candidate site</param>
-/// <param name="gamma_up">the changing parameter for spin up</param>
-/// <param name="gamma_down">the changing parameter for spin down</param>
-/// <returns>A tuple for probabilities on both spin channels, remember, 0 is spin up, 1 is spin down</returns>
+* Return probabilities of spin flip for both spin channels
+* @param lat_stie flipping candidate site
+* @param gamma_up the changing parameter for spin up
+* @param gamma_down the changing parameter for spin down
+* @return tuple for probabilities on both spin channels, remember, 0 is spin up, 1 is spin down
 */
 std::tuple<double, double> hubbard::HubbardModel::cal_proba(int lat_site, double gamma_up, double gamma_down) const
 {
-	//double tmp_up = exp(-2*this->lambda * this->hsFields[this->current_time][lat_site]) - 1.0;
-	//double tmp_down = exp(2*this->lambda * this->hsFields[this->current_time][lat_site]) - 1.0;
-	//stout << "up: " << tmp_up << "\tdown: " << tmp_down << std::endl;
-	//stout << "gammaUp: " << gamma_up << "\tgamma_down: " << gamma_down << std::endl << std::endl << std::endl;
 	// SPIN UP
 	long double p_up = 1.0 + (gamma_up) * (1.0 - this->green_up(lat_site, lat_site));;
 	long double p_down = 0;
@@ -314,11 +314,11 @@ std::tuple<double, double> hubbard::HubbardModel::cal_proba(int lat_site, double
 // -------------------------------------------------------- UPDATERS --------------------------------------------------------
 
 /*
-/// Update the interaction matrix for current spin whenever the given lattice site HS field is changed
-/// Only for testing purpose
-/// <param name="lat_site">the site of changed HS field</param>
-/// <param name="delta_sigma">difference between changed and not</param>
-/// <param name="sigma">spin channel</param>
+* Update the interaction matrix for current spin whenever the given lattice site HS field is changed
+* Only for testing purpose
+* @param lat_site the site of changed HS field
+* @param delta_sigma difference between changed and not
+* @param sigma spin channel
 */
 void hubbard::HubbardModel::upd_int_exp(int lat_site, double delta_up, double delta_down)
 {
@@ -327,10 +327,10 @@ void hubbard::HubbardModel::upd_int_exp(int lat_site, double delta_up, double de
 }
 
 /*
-/// After accepting spin change update the B matrix by multiplying it by diagonal element ( the delta )
-/// <param name="lat_site"></param>
-/// <param name="delta_up"></param>
-/// <param name="delta_down"></param>
+* After accepting spin change update the B matrix by multiplying it by diagonal element ( the delta )
+* @param lat_site current lattice site for the update
+* @param delta_up based on parameter gamma + 1, this updates up spin B
+* @param delta_down based on parameter gamma + 1, this updates down spin B
 */
 void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delta_down) {
 	for (int i = 0; i < this->Ns; i++) {
@@ -339,24 +339,15 @@ void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delt
 		this->b_mat_up_inv[this->current_time](lat_site, i) *= delta_down;
 		this->b_mat_down_inv[this->current_time](lat_site, i) *= delta_up;
 	}
-
-	//this->b_mat_up[this->current_time].col(lat_site) *= delta_up;				// spin up
-	//this->b_mat_down[this->current_time].col(lat_site) *= delta_down;			// spin down
-
-	// the names are opposite because we need to divide in principle, not multiply
-	//this->b_mat_up_inv[this->current_time].row(lat_site) *= delta_down;			// spin up
-	//this->b_mat_down_inv[this->current_time].row(lat_site) *= delta_up;		// spin down
-
-	//this->b_mat_up[this->current_time](j, lat_site) *= delta_up;						// spin up
-	//this->b_mat_down[this->current_time](j, lat_site) *= delta_down;					// spin down
 }
 
-// -------------------------------------------------------- GETTERS
+//! -------------------------------------------------------- GETTERS
 
-// -------------------------------------------------------- CALCULATORS
+//! -------------------------------------------------------- CALCULATORS
 
+// TODO ------------------------>
 /*
-/// Function to calculate the hopping matrix exponential (with nn for now)
+* Function to calculate the hopping matrix exponential (with nn for now)
 */
 void hubbard::HubbardModel::cal_hopping_exp()
 {
@@ -482,31 +473,26 @@ void hubbard::HubbardModel::cal_hopping_exp()
 }
 
 /*
-/// Function to calculate the interaction exponential at all times, each column represents the given Trotter time
+* Function to calculate the interaction exponential at all times, each column represents the given Trotter time
 */
 void hubbard::HubbardModel::cal_int_exp() {
 	const arma::vec dtau_vec = arma::ones(this->Ns) * this->dtau * (this->mu);
-	if (this->U > 0) {
+	if (this->U > 0)
 		// Repulsive case
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times
 			this->int_exp_up.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (this->lambda));
 			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (-this->lambda));
 		}
-	}
-	else if (U < 0) {
-		//const double exp_plus = exp(this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
-		//const double exp_minus = exp(-this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
+	else if (U < 0)
 		// Attractive case
-		for (int l = 0; l < M; l++) {
+		for (int l = 0; l < M; l++)
 			// Trotter times
 			for (int i = 0; i < Ns; i++) {
 				// Lattice sites
 				this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * this->lambda);
 				this->int_exp_up.col(l) = this->int_exp_down.col(l);
 			}
-		}
-	}
 	else {
 		this->int_exp_down = arma::eye(this->Ns, this->Ns);
 		this->int_exp_up = arma::eye(this->Ns, this->Ns);
@@ -515,7 +501,7 @@ void hubbard::HubbardModel::cal_int_exp() {
 }
 
 /*
-/// Function to calculate all B exponents for a given model. Those are used for the Gibbs weights
+* Function to calculate all B exponents for a given model. Those are used for the Gibbs weights
 */
 void hubbard::HubbardModel::cal_B_mat() {
 	//#pragma omp parallel for num_threads(this->inner_threads)
@@ -544,15 +530,15 @@ void hubbard::HubbardModel::cal_B_mat(int which_time)
 	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
 }
 
-// -------------------------------------------------------- PRINTERS
-
+//! -------------------------------------------------------- PRINTERS
+// TODO ----------->
 /*
-///
-/// <param name="output"></param>
-/// <param name="which_time_caused"></param>
-/// <param name="which_site_caused"></param>
-/// <param name="this_site_spin"></param>
-/// <param name="separator"></param>
+* TODO
+* @param output 
+* @param which_time_caused 
+* @param which_site_caused 
+* @param this_site_spin 
+* @param separator 
 */
 void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 {
@@ -585,8 +571,8 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 
 /*
 /// 
-/// <param name="separator"></param>
-/// <param name="toPrint"></param>
+/// @param separator 
+/// @param toPrint 
 */
 void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
 {
@@ -697,10 +683,10 @@ double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, i
 /*
 /// Equilivrate the simulation
 */
-/// <param name="algorithm">type of equilibration algorithm</param>
-/// <param name="mcSteps">Number of Monte Carlo steps</param>
-/// <param name="conf">Shall print configurations?</param>
-/// <param name="quiet">Shall be quiet?</param>
+/// @param algorithm type of equilibration algorithm
+/// @param mcSteps Number of Monte Carlo steps
+/// @param conf Shall print configurations?
+/// @param quiet Shall be quiet?
 void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet)
 {
 	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
@@ -723,13 +709,13 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 }
 
 /*
-/// Collect the averages from the simulation
-/// <param name="algorithm">type of equilibration algorithm</param>
-/// <param name="corr_time">how many times to wait for correlations breakout</param>
-/// <param name="avNum">number of averages to take</param>
-/// <param name="bootStraps">Number of bootstraps - NOT IMPLEMENTED </param>
-/// <param name="quiet">Shall be quiet?</param>
-/// <param name="times"></param>
+* Collect the averages from the simulation
+* @param algorithm type of equilibration algorithm
+* @param corr_time how many times to wait for correlations breakout
+* @param avNum number of averages to take
+* @param bootStraps Number of bootstraps - NOT IMPLEMENTED 
+* @param quiet shall be quiet?
+* @param times shall calculate time properties?
 */
 void hubbard::HubbardModel::average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet, int times)
 {

@@ -42,16 +42,6 @@ void setSubmatrixFromMatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, u
 				M2Set(row + a, col + b) = MSet(a, b);
 }
 
-/*
-///
-/// </summary>
-/// @paramM2Set
-/// @paramMSet
-/// @paramrow
-/// @paramcol
-/// @paramupdate
-/// @paramminus
-*/
 void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update, bool minus) {
 	//if(row + Nrows > MSet.n_rows ||  col + Ncols > MSet.n_cols) throw "incompatible matrix dimensions\n";
 	if (update)

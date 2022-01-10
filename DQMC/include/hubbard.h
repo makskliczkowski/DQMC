@@ -40,6 +40,10 @@ namespace hubbard {
 		};
 	};
 
+	/**
+	 * @brief 
+	 * 
+	 */
 	class HubbardModel : public LatticeModel {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
@@ -47,6 +51,7 @@ namespace hubbard {
 		int config_sign;																		// keep track of the configuration sign
 		double probability;
 		bool cal_times;
+		bool all_times;																			// if we calculate only the positive part of the Green's or all of them
 		long int pos_num;																		// helps with number of positive signs
 		long int neg_num;																		// helps with number of negative signs
 

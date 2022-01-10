@@ -17,6 +17,7 @@
 *.dat
 *.h5
 *.png
+*c_cpp_properties.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

@@ -38,13 +38,13 @@ SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int bc)
 		}
 	}
 }
-
-/// <summary>
-///
-/// </summary>
-/// <param name="i"></param>
-/// <param name="j"></param>
-/// <returns></returns>
+/**
+ * @brief Returns the real space difference between lattice site cooridinates given in ascending order.
+ * From left to right. Then second row left to right etc.
+ * @param i First coordinate
+ * @param j Second coordinate
+ * @return Three-dimensional tuple (vector of vec[i]-vec[j])
+ */
 std::tuple<int, int, int> SquareLattice::getSiteDifference(uint i, uint j) const
 {
 	const int z = this->get_coordinates(i, 2) - this->get_coordinates(j, 2);

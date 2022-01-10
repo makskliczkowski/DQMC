@@ -60,6 +60,7 @@ using cpx = std::complex<double>;
 using uint = unsigned int;
 using ul = unsigned long;
 using ull = unsigned long long;
+using ld = long double;
 
 /// constexpressions
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
@@ -237,7 +238,7 @@ void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::
 	for (int i = 0; i < R.n_rows; i++)
 		D(i) = 1.0 / R(i, i);
 	// premultiply old T by new T from left
-	T = ((arma::diagmat(D) * R) * P.t()) * T;
+	T = ((DIAG(D) * R) * P.t()) * T;
 }
 
 /*
@@ -272,7 +273,7 @@ void inline makeTwoScalesFromUDT(const arma::mat& R, arma::vec& Db, arma::vec& D
 	}
 }
 
-// ----------------------------------------------------------------------------- FILE AND STREAMS
+//! ----------------------------------------------------------------------------- FILE AND STREAMS
 
 /*
 * Opens a file
@@ -385,7 +386,7 @@ std::ostream& operator << (std::ostream& out, const v_2d<T>& v ) {
 	}
 	return out;
 }
-// ----------------------------------------------------------------------------- HELPERS
+//! ----------------------------------------------------------------------------- HELPERS
 
 template <typename T>
 inline T variance(T value, T average, int norm) {
@@ -427,7 +428,7 @@ inline std::string ValEquals(char* name, T value, int prec = 2){
 	return string(name)+"="+str_p(value,prec);
 }
 
-// -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
+//! -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
 
 /*
 *Changes a value to a string with a given precision

@@ -17,6 +17,7 @@ using namespace std;
 #define ARMA_USE_MKL_TYPES1
 #define ARMA_DONT_USE_OPENMP
 
+using namespace arma;
 /* 
 * In this file we define the virtual class for Monte Carlo simulations models of condensed matter systems
 */
@@ -38,9 +39,8 @@ protected:
 	// ----------------------- LATTICE PARAMETERS
 	unsigned int dimension;											// the dimensionality of the lattice 1,2,3
 	unsigned int Ns;												// number of lattice sites
-	string type;												// type of the lattice
+	string type;													// type of the lattice
 	int boundary_conditions;										// boundary conditions 0 = PBC, 1 = OBC
-	//impDef::lattice_types lattice_type;								// the type of lattice this is
 	v_2d<int> nearest_neighbors;									// vector of the nearest neighbors
 	v_2d<int> next_nearest_neighbors;								// vector of the next nearest neighbors
 	v_2d<int> coordinates;											// vector of real coordiates allowing to get the distance between lattice points
@@ -89,36 +89,48 @@ struct averages_par {
 		this->av_ch2_corr = v_3d<double>(2 * Lx - 1, v_2d<double>(2 * Ly - 1, v_1d<double>(2 * Lz - 1, 0.0)));
 		// Setting av Greens
 		if (times) {
-			this->g_up_diffs = v_1d<arma::mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->g_down_diffs = v_1d<arma::mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->sd_g_up_diffs = v_1d<arma::mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->sd_g_down_diffs = v_1d<arma::mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->g_up_diffs_k = v_1d<arma::cx_mat>(M, arma::cx_mat(Lx, Ly, arma::fill::zeros));
-			this->g_down_diffs_k = v_1d<arma::cx_mat>(M, arma::cx_mat(Lx, Ly, arma::fill::zeros));
-			this->sd_g_up_diffs_k = v_1d<arma::cx_mat>(M, arma::cx_mat(Lx, Ly, arma::fill::zeros));
-			this->sd_g_down_diffs_k = v_1d<arma::cx_mat>(M, arma::cx_mat(Lx, Ly, arma::fill::zeros));
+			this->g_up_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
+			this->g_down_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
+			this->sd_g_up_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
+			this->sd_g_down_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
+			this->g_up_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
+			this->g_down_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
+			this->sd_g_up_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
+			this->sd_g_down_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
 		}
 	}
-	// ----------------- functions
+	//! ----------------- functions for Green's
+	/**
+	 * @brief Resets the Green's functions
+	 */
 	void resetGreens() {
 		for (int i = 0; i < g_up_diffs.size(); i++) {
 			this->g_up_diffs[i].zeros();
 			this->g_down_diffs[i].zeros();
 			this->sd_g_up_diffs[i].zeros();
 			this->sd_g_down_diffs[i].zeros();
-			this->g_up_diffs_k[i].zeros();
-			this->g_down_diffs_k[i].zeros();
-			this->sd_g_up_diffs_k[i].zeros();
-			this->sd_g_down_diffs_k[i].zeros();
+			//this->g_up_diffs_k[i].zeros();
+			//this->g_down_diffs_k[i].zeros();
+			//this->sd_g_up_diffs_k[i].zeros();
+			//this->sd_g_down_diffs_k[i].zeros();
 		}
 	}
-	void normaliseGreens(int bucketNum, int Lx, int Ly, std::shared_ptr<Lattice>& lattice) {
+
+	/**
+	 * @brief Normalizes the Green's given the model parameters and the lattice
+	 * @param lattice general lattice class -> allows the normalisation
+	 * @param bucketNum number of bucket on which the Green's are averaged
+	 */
+	void normaliseGreens(std::shared_ptr<Lattice>& lat, int bucketNum, bool all = true) {
 		const auto M = this->g_up_diffs.size();
+		const auto Lx = lat->get_Lx();
+		const auto Ly = lat->get_Ly();
+		const auto Lz = lat->get_Lz();
 		const double timeNorma = -bucketNum * 1.0 * M;
 		for (int tau = 0; tau < M; tau++) {
 			for (int x = 0; x < this->g_up_diffs[tau].n_rows; x++) {
 				for (int y = 0; y < this->g_up_diffs[tau].n_cols; y++) {
-					const auto norm = timeNorma * lattice->get_norm(x, y, 0);
+					const auto norm = (all ? timeNorma : M-tau) * lat->get_norm(x, y, 0);
 					this->g_up_diffs[tau](x, y) /= norm;
 					this->g_down_diffs[tau](x, y) /= norm;
 					this->sd_g_up_diffs[tau](x, y) = variance(this->sd_g_up_diffs[tau](x, y), this->g_up_diffs[tau](x, y), norm);
@@ -163,10 +175,10 @@ struct averages_par {
 	long double av_occupation = 0;											// average site ocupation -> varies from 0 to 2 for one band fermions
 	long double sd_occupation = 0;											// sd of it
 	// Green functions
-	v_1d<arma::mat> g_up_diffs, g_down_diffs;
-	v_1d<arma::mat> sd_g_up_diffs, sd_g_down_diffs;
-	v_1d<arma::cx_mat> g_up_diffs_k, g_down_diffs_k;
-	v_1d<arma::cx_mat> sd_g_up_diffs_k, sd_g_down_diffs_k;
+	v_1d<mat> g_up_diffs, g_down_diffs;
+	v_1d<mat> sd_g_up_diffs, sd_g_down_diffs;
+	v_1d<cx_mat> g_up_diffs_k, g_down_diffs_k;
+	v_1d<cx_mat> sd_g_up_diffs_k, sd_g_down_diffs_k;
 
 	v_3d<double> av_occupation_corr;										// \sum _sigma <c_jsigma c_isigma> -> AVERAGE OF EQUAL TIME GREEN FUNCTION ELEMENTS
 };
