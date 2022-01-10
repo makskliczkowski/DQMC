@@ -8,14 +8,7 @@
 #include <stdlib.h>
 
 using namespace std;
-// -------------------------------------------------------- armadillo definitions --------------------------------------------------------
-#define ARMA_BLAS_CAPITALS
-#define ARMA_BLAS_UNDERSCORE
-#define ARMA_BLAS_LONG
-#define ARMA_BLAS_LONG_LONG
-#define ARMA_USE_MKL_ALLOC
-#define ARMA_USE_MKL_TYPES1
-#define ARMA_DONT_USE_OPENMP
+
 
 using namespace arma;
 /* 

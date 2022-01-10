@@ -89,9 +89,9 @@ arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, a
 		Ql.t() * Qr * diagmat(Rr) * diagmat(Dl),
 		Qr, Rl, Pl, Tl, Dtmp);
 	//! D_rp^{-1}
-	setUDTDecomp(diagmat(Dr) * arma::inv(Tl) * diagmat(Dtmp) * Qr.t() * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
+	//setUDTDecomp(diagmat(Dr) * arma::inv(Tl) * diagmat(Dtmp) * Qr.t() * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
 	//? direct inversion
-	//setUDTDecomp(diagmat(Dr) * arma::inv(Qr * diagmat(Rl) * Tl) * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
+	setUDTDecomp(diagmat(Dr) * arma::inv(Qr * diagmat(Rl) * Tl) * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
 	return (arma::inv(Tr) * Qr) * arma::diagmat(Rl) * (Tl * Ql.t());
 }
 

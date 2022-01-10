@@ -38,11 +38,16 @@ R"(\)";
 "/";
 #endif
 
-/// armadillo
-//#define ARMA_64BIT_WORD // enabling 64 integers in armadillo obbjects
-//#define ARMA_BLAS_LONG_LONG // using long long inside LAPACK call
-//#define ARMA_USE_OPENMP
-//#define ARMA_ALLOW_FAKE_GCC
+// -------------------------------------------------------- armadillo definitions --------------------------------------------------------
+//#define ARMA_BLAS_CAPITALS
+//#define ARMA_BLAS_UNDERSCORE
+//#define ARMA_BLAS_LONG
+//#define ARMA_BLAS_LONG_LONG
+//#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
+#define ARMA_USE_MKL_ALLOC
+#define ARMA_USE_MKL_TYPES
+#define ARMA_DONT_USE_OPENMP
+
 #include <armadillo>
 
 // -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
@@ -275,6 +280,8 @@ void inline makeTwoScalesFromUDT(const arma::mat& R, arma::vec& Db, arma::vec& D
 
 //! ----------------------------------------------------------------------------- FILE AND STREAMS
 
+
+
 /*
 * Opens a file
 * @param filename filename
@@ -286,6 +293,15 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 	if (!file.is_open()) throw "couldn't open a file: " + filename + "\n";
 }
 
+template <typename T>
+inline std::string valueEquals(char* name, T value, int prec = 2) {
+	return std::string(name)+ "=" + str_p(value, prec);
+}
+
+template <typename T>
+inline std::string  printSeparated(T x, char separtator, uint prec) {
+	return PRT(x, prec) + std::string(1, separtator);
+}
 
 /*
 * printing the separated number of variables using the variadic functions initializer
@@ -327,13 +343,13 @@ inline void printSeparated(std::ostream& output, char separtator, arma::u16 widt
 *@refitem PRT compiler definition
 */
 template <typename T>
-inline void printSeparated(char separtator = '\t', std::initializer_list<T> elements = {}, uint prec = 2) {
-	std::string tmp = ""
+inline std::string printSeparated(char separtator = '\t', std::initializer_list<T> elements = {}, uint prec = 2) {
+	std::string tmp = "";
 	for (auto elem : elements) {
 		tmp += PRT(elem,prec) + std::string(1,separtator);
 	}
-	tmp.pop_back();
-	return tmp
+	tmp += "\b";
+	return tmp;
 }
 
 /*
@@ -343,14 +359,12 @@ inline void printSeparated(char separtator = '\t', std::initializer_list<T> elem
 *@param prec precision of a string formatting
 *@refitem PRT compiler definition
 */
-template <typename... Types>
-inline void printSeparated(char separtator, uint prec, Types... elements) {
-	std::string tmp = ""
-	for (auto elem : elements) {
-		tmp += PRT(elem,prec) + std::string(1,separtator);
-	}
-	tmp.pop_back();
-	return tmp
+template <typename T, typename... Types>
+inline std::string printSeparated(T t, char separtator, uint prec, Types... elements) {
+	std::string tmp = "";
+	tmp += printSeparated(elements..., separtator, prec);
+	tmp += "\b";
+	return tmp;
 }
 
 /*

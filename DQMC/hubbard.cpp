@@ -244,14 +244,14 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 
 	// CREATE DIRECTORIES
 	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
-	//fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
+	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
 	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
 	this->dir->fourier_dir += kPS;
 
 	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
 	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
 	fs::create_directories(this->dir->greens_dir);
-	//this->dir->greens_dir += kPS + this->dir->info;
+	this->dir->greens_dir += kPS + this->dir->info;
 	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
 	//fs::create_directories(this->dir->params_dir);
 	fs::create_directories(this->dir->params_dir + kPS + "times");
@@ -467,7 +467,7 @@ void hubbard::HubbardModel::cal_hopping_exp()
 		//jordan = arma::expmat_sym(jordan);
 		//this->hopping_exp = eigvec * this->hopping_exp * eigvec.i();
 #pragma omp critical
-		this->hopping_exp = arma::expmat_sym(this->hopping_exp);												// take the exponential
+		this->hopping_exp = arma::expmat(this->hopping_exp);												// take the exponential
 		//this->hopping_exp.print("hopping after exponentiation");
 	}
 }
