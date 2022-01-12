@@ -318,29 +318,31 @@ void hubbard::HubbardQR::uneqG_t1gtt2(int t1, int t2, const mat& inv_up, const m
 	setUDTDecomp(inv_up, Q_up, R_up, P_up, T_up, D_up);												// decompose the premultiplied inversions to up temporaries
 
 	//! B(M-1)...B(t1 + 1)
-	setUDTDecomp(up, Q_down, R_down, P_down, T_down, D_down);									// decompose and use down matrices as temporaries + equal time Green at [0]
+	setUDTDecomp(up, Q_down, R_down, P_down, T_down, D_down);										// decompose and use down matrices as temporaries + equal time Green at [0]
 
 	//! SET MATRIX ELEMENT
 	setSubmatrixFromMatrix(this->g_up_time,
 						inv_left_plus_right_qr(
 							Q_up, R_up, P_up, T_up, D_up,
-							Q_down, R_down, P_down, T_down, D_down, D_tmp
+							Q_down, R_down, P_down, T_down, D_down,
+							D_tmp
 						),
 						row, col, this->Ns, this->Ns, false);
 
 	//! ------------------------------------ down ------------------------------------
 	//? USE UP MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
 	//! B(t2 + 1)^(-1)...B(t1)^(-1)
-	setUDTDecomp(inv_down, Q_down, R_down, P_down, T_down, D_down);									// decompose the premultiplied inversions to up temporaries
+	setUDTDecomp(inv_down, Q_up, R_up, P_up, T_up, D_up);											// decompose the premultiplied inversions to up temporaries
 	
 	//! B(M-1)...B(t1 + 1)
-	setUDTDecomp(down, Q_up, R_up, P_up, T_up, D_up);
+	setUDTDecomp(down, Q_down, R_down, P_down, T_down, D_down);
 
 	//! SET MATRIX ELEMENT
 	setSubmatrixFromMatrix(this->g_down_time,
 						inv_left_plus_right_qr(
+							Q_up, R_up, P_up, T_up, D_up,
 							Q_down, R_down, P_down, T_down, D_down,
-							Q_up, R_up, P_up, T_up, D_up, D_tmp
+							D_tmp
 						),
 						row, col, this->Ns, this->Ns, false);
 }
@@ -392,6 +394,7 @@ void hubbard::HubbardQR::uneqG_t1ltt2(int t1, int t2)
 	setSubmatrixFromMatrix(this->g_down_time, Q_down * Q_up * DIAG(R_down) * T_down * T_up, row, col, this->Ns, this->Ns, false);
 }
 
+// TODO 
 /**
  * @brief Calculate time displaced Greens. NOW ONLY t1>t2
  * \n TODO make t2>t1
@@ -404,15 +407,15 @@ void hubbard::HubbardQR::cal_green_mat_times()
 		// it usually is but keep it tho'
 		this->b_up_inv_cond[this->M-2] = this->b_mat_up_inv[this->M-1];
 		this->b_down_inv_cond[this->M-2] = this->b_mat_down_inv[this->M-1];
+		setUDTDecomp(this->b_up_inv_cond[this->M - 2], Q_up, R_up, P_up, T_up, D_up);
+		setUDTDecomp(this->b_down_inv_cond[this->M - 2], Q_down, R_down, P_down, T_down, D_down);
 	}
-	auto counter = 1;
+	int counter = 1;
 	for(int t2 = this->M-3; t2 >= 0; t2--){
-		// normal multiplication
-		auto stable = counter % this->M_0 == 0;
-		this->b_up_inv_cond[t2] = this->multiplyMatrices(this->b_mat_up_inv[t2+1], this->b_up_inv_cond[t2+1], stable);
-		this->b_down_inv_cond[t2] = this->multiplyMatrices(this->b_mat_down_inv[t2+1], this->b_down_inv_cond[t2+1], stable);
-		if(stable) counter = 0;
-		counter++;
+		multiplyMatricesQrFromRight(b_mat_up_inv[t2+1], Q_up, R_up, P_up, T_up, D_up);
+		this->b_up_inv_cond[t2] = Q_up * DIAG(R_up) * T_up;
+		multiplyMatricesQrFromRight(b_mat_down_inv[t2+1], Q_down, R_down, P_down, T_down, D_down);
+		this->b_down_inv_cond[t2] = Q_down * DIAG(R_down) * T_down;
 	}
 	//! non-inverses -> do the same, use g_eq as it is unused
 	//TODO change the name of g_eq probably
@@ -420,15 +423,14 @@ void hubbard::HubbardQR::cal_green_mat_times()
 	// we will cover the stuff for the l2's
 	this->g_up_eq[0] = this->b_mat_up[0];
 	this->g_down_eq[0] = this->b_mat_down[0];
-	counter = 1;
-	for(int t2 = 1; t2 < this->M-2; t2++){
-		auto stable = counter % this->M_0 == 0;
-		this->g_up_eq[t2] = this->multiplyMatrices(this->b_mat_up[t2],this->g_up_eq[t2-1],stable);
-		this->g_down_eq[t2] = this->multiplyMatrices(this->b_mat_down[t2],this->g_down_eq[t2-1],stable);
-		if(stable) counter = 0;
-		counter++;
+	setUDTDecomp(this->g_up_eq[0], Q_up, R_up, P_up, T_up, D_up);
+	setUDTDecomp(this->g_down_eq[0], Q_down, R_down, P_down, T_down, D_down);
+	for (int t2 = 1; t2 < this->M - 2; t2++) {
+		multiplyMatricesQrFromRight(this->b_mat_up[t2], Q_up, R_up, P_up, T_up, D_up);
+		this->g_up_eq[t2] = Q_up * DIAG(R_up) * T_up;
+		multiplyMatricesQrFromRight(this->b_mat_down[t2], Q_down, R_down, P_down, T_down, D_down);
+		this->g_down_eq[t2] = Q_down * DIAG(R_down) * T_down;
 	}
-
 	//! calculate all Greens but only for t1 > t2
 	// inverses start from highest on right
 	// non-inverses start from 0 basically
@@ -440,10 +442,30 @@ void hubbard::HubbardQR::cal_green_mat_times()
 			mat& up = this->g_up_eq[tau2];
 			mat& down = this->g_down_eq[tau2];
 			uneqG_t1gtt2(tau1,tau2,inv_up,inv_down,up,down);
-			inv_up = this->multiplyMatrices(inv_up, this->b_mat_up[tau1], true);
-			inv_down = this->multiplyMatrices(inv_down, this->b_mat_down[tau1], true);
-			up = this->multiplyMatrices(up, this->b_mat_up[tau1], true);
-			down = this->multiplyMatrices(down, this->b_mat_down[tau1], true);
+			// cause this one won't be used again
+			if (tau2 != tau1 - 1) {
+				/// up
+				setUDTDecomp(this->b_mat_up[tau1], Q_up, R_up, P_up, T_up, D_up);				// use ups for inverses
+				Q_down = Q_up; R_down = R_up; P_down = P_up; T_down = T_up; D_down = D_up;		// use downs for noninverses
+				multiplyMatricesQrFromRight(inv_up, Q_up, R_up, P_up, T_up, D_up);
+				inv_up = Q_up * DIAG(R_up) * T_up;												// use ups for inverses
+				multiplyMatricesQrFromRight(up, Q_down, R_down, P_down, T_down, D_down);
+				up = Q_down * DIAG(R_down) * T_down;											// use downs for noninverses
+
+				/// down 
+				setUDTDecomp(this->b_mat_down[tau1], Q_up, R_up, P_up, T_up, D_up);
+				Q_down = Q_up; R_down = R_up; P_down = P_up; T_down = T_up; D_down = D_up;		// use downs for noninverses
+				multiplyMatricesQrFromRight(inv_down, Q_up, R_up, P_up, T_up, D_up);
+				inv_down = Q_up * DIAG(R_up) * T_up;											// use ups for inverses
+				multiplyMatricesQrFromRight(down, Q_down, R_down, P_down, T_down, D_down);
+				down = Q_down * DIAG(R_down) * T_down;											// use downs for noninverses
+
+
+				//inv_up = this->multiplyMatrices(inv_up, this->b_mat_up[tau1], true);
+				//inv_down = this->multiplyMatrices(inv_down, this->b_mat_down[tau1], true);
+				//up = this->multiplyMatrices(up, this->b_mat_up[tau1], true);
+				//down = this->multiplyMatrices(down, this->b_mat_down[tau1], true);
+			}
 		}
 	}
 }
@@ -453,13 +475,94 @@ void hubbard::HubbardQR::cal_green_mat_times()
 */
 void hubbard::HubbardQR::cal_green_mat_times_cycle()
 {
-	//! inverses precalculated
-
-	//? use the temp Greens for the setup of B matrices inverses
-	this->tempGreen_down = this->b_mat_down_inv[this->M - 1];
-	this->tempGreen_up = this->b_mat_up_inv[this->M - 1];
+	//! inverses precalculated according to the second time
+	//? B(t2 + 1)^(-1)...B(t1)^(-1)
+	if (this->M > 2) {
+		// it usually is but keep it tho'
+		this->b_up_inv_cond[this->M - 2] = this->b_mat_up_inv[this->M - 1];
+		this->b_down_inv_cond[this->M - 2] = this->b_mat_down_inv[this->M - 1];
+		//svd(Q_up, D_up, R_up, this->b_up_inv_cond[this->M - 2]);
+		//svd(Q_down, D_down, R_down, this->b_down_inv_cond[this->M - 2]);
+	}
+	int counter = 1;
+	for (int t2 = this->M - 3; t2 >= 0; t2--) {
+		counter++;
+		if (counter < this->M_0) {
+			this->b_up_inv_cond[t2] = b_mat_up_inv[t2 + 1] * this->b_up_inv_cond[t2 + 1];
+			this->b_down_inv_cond[t2] = b_mat_down_inv[t2 + 1] * this->b_down_inv_cond[t2 + 1];
+		}
+		else if (counter == this->M_0) {
+			svd(Q_up, D_up, R_up, this->b_up_inv_cond[t2+1]);
+			svd(Q_down, D_down, R_down, this->b_down_inv_cond[t2+1]);
+		}
+		if (counter >= this->M_0) {
+			multiplyMatricesSVDFromRight(b_mat_up_inv[t2 + 1], Q_up, D_up, R_up, T_up);
+			this->b_up_inv_cond[t2] = Q_up * DIAG(D_up) * R_up.t();
+			multiplyMatricesSVDFromRight(b_mat_down_inv[t2 + 1], Q_down, D_down, R_down, T_down);
+			this->b_down_inv_cond[t2] = Q_down * DIAG(D_down) * R_down.t();
+		}
+	}
+	//! non-inverses -> do the same, use g_eq as it is unused
+	//TODO change the name of g_eq probably
+	//? B(t2)...B(0)B(M-1)...B(t1+1)
+	// we will cover the stuff for the l2's
+	this->g_up_eq[0] = this->b_mat_up[0];
+	this->g_down_eq[0] = this->b_mat_down[0];
+	//svd(Q_up, D_up, R_up, this->g_up_eq[0]);
+	//svd(Q_down, D_down, R_down, this->g_down_eq[0]);
+	counter = 1;
+	for (int t2 = 1; t2 < this->M - 2; t2++) {
+		counter++;
+		if (counter < this->M_0) {
+			this->g_up_eq[t2] = this->b_mat_up[t2] * this->g_up_eq[t2 - 1];
+			this->g_down_eq[t2] = this->b_mat_down[t2] * this->g_down_eq[t2 - 1];
+		}
+		else if (counter == this->M_0) {
+			svd(Q_up, D_up, R_up, this->g_up_eq[t2-1]);
+			svd(Q_down, D_down, R_down, this->g_down_eq[t2-1]);
+		}
+		multiplyMatricesSVDFromRight(this->b_mat_up[t2], Q_up, D_up, R_up, T_up);
+		this->g_up_eq[t2] = Q_up * DIAG(D_up) * R_up.t();
+		multiplyMatricesSVDFromRight(this->b_mat_down[t2], Q_down, D_down, R_down, T_down);
+		this->g_down_eq[t2] = Q_down * DIAG(D_down) * R_down.t();
+	}
 	//! calculate all Greens but only for t1 > t2
+	// inverses start from highest on right
+	// non-inverses start from 0 basically
+	// so we need to multiply by according B(t1) after first loop
+	for (int tau1 = this->M - 1; tau1 > 0; tau1--) {
+		for (int tau2 = tau1 - 1; tau2 >= 0; tau2--) {
+			mat& inv_up = this->b_up_inv_cond[tau2];
+			mat& inv_down = this->b_down_inv_cond[tau2];
+			mat& up = this->g_up_eq[tau2];
+			mat& down = this->g_down_eq[tau2];
+			uneqG_t1gtt2(tau1, tau2, inv_up, inv_down, up, down);
+			// cause this one won't be used again
+			if (tau2 != tau1 - 1) {
+				/// up
+				svd(Q_up, D_up, R_up, this->b_mat_up[tau1]);									// use ups for inverses
+				Q_down = Q_up; R_down = R_up; D_down = D_up;									// use downs for noninverses
+				multiplyMatricesSVDFromRight(inv_up, Q_up, D_up, R_up, T_up);
+				inv_up = Q_up * DIAG(R_up) * T_up;												// use ups for inverses
+				multiplyMatricesSVDFromRight(up, Q_down, D_down, R_down, T_down);
+				up = Q_down * DIAG(R_down) * T_down;											// use downs for noninverses
 
+				/// down 
+				svd(Q_up, D_up, R_up, this->b_mat_down[tau1]);
+				Q_down = Q_up; R_down = R_up; D_down = D_up;									// use downs for noninverses
+				multiplyMatricesSVDFromRight(inv_down, Q_up, D_up, R_up, T_up);
+				inv_down = Q_up * DIAG(R_up) * T_up;											// use ups for inverses
+				multiplyMatricesSVDFromRight(down, Q_down, D_down, R_down, T_down);
+				down = Q_down * DIAG(R_down) * T_down;											// use downs for noninverses
+
+
+				//inv_up = this->multiplyMatrices(inv_up, this->b_mat_up[tau1], true);
+				//inv_down = this->multiplyMatrices(inv_down, this->b_mat_down[tau1], true);
+				//up = this->multiplyMatrices(up, this->b_mat_up[tau1], true);
+				//down = this->multiplyMatrices(down, this->b_mat_down[tau1], true);
+			}
+		}
+	}
 }
 
 /**
@@ -536,9 +639,9 @@ int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
  * @param stable should use stable one?
  * @return left*right
  */
-mat hubbard::HubbardQR::multiplyMatrices(arma::mat left, arma::mat right, bool stable){
+mat hubbard::HubbardQR::multiplyMatrices(const mat& left, const mat& right, bool stable){
 	if(stable)
-		return stableMultiplication(right, left,
+		return stableMultiplication(left, right,
 							Q_up, R_up, P_up, T_up,
 							Q_down, R_down, P_down, T_down);
 	else
@@ -670,6 +773,7 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign, bool times
 					int xi = 1;
 					// handle antiperiodicity
 					if (tim < 0) {
+						if (!this->all_times) continue;
 						xi = -1;
 						tim += this->M;
 					}
@@ -804,32 +908,33 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 	openFile(fileUp, this->dir->time_greens_dir + "test.dat");
 	std::function<int(int)> fptr = std::bind(&HubbardQR::heat_bath_single_step, this, std::placeholders::_1);
 
-	const uint bucket_num = 1;
+	const uint bucket_num = 5;
 	// Progress bar
 	auto progress = pBar();
 	const double percentage = 34;
 	const auto percentage_steps = static_cast<int>(percentage * avNum / 100.0);
 
-	const bool useHirsh = false;
+	const bool useHirsh = true;
+	if (useHirsh) this->all_times = true;
 	// check if this saved already
 	for (int step = 0; step < avNum; step++) {
 		// Monte Carlo steps
-		if (times) 
-			useHirsh ? this->cal_green_mat_times_hirsh() : this->cal_green_mat_times(); 			// calculate time-displaced Green's functions
+		if (times)
+			useHirsh ? this->cal_green_mat_times_hirsh() : this->cal_green_mat_times_cycle(); 			// calculate time-displaced Green's functions
 		//g_up_time.print(fileUp, "\n\t\t\tup\n");
 		//g_down_time.print(fileUp, "\n\t\t\tdown\n");
 		for (this->current_time = 0; this->current_time < this->M; this->current_time++) {
 			// imaginary Trotter times
-			if (!times || (!useHirsh)) this->upd_Green_step(this->current_time);
+			if (!times || (times && !useHirsh)) this->upd_Green_step(this->current_time);
 			if (times) {
 				// because we save the 0'th on the fly :3
 				const auto elem = this->current_time * this->Ns;
-				//if (useHirsh) {
-				//	//? using Hirsh we know that we can set the whole matrix so we can set the eq times Green's function too
-				//	setMatrixFromSubmatrix(green_up, g_up_time, elem, elem, Ns, Ns, false);
-				//	setMatrixFromSubmatrix(green_down, g_down_time, elem, elem, Ns, Ns, false);
-				//}
-				if(!useHirsh) {
+				if (useHirsh) {
+					//? using Hirsh we know that we can set the whole matrix so we can set the eq times Green's function too
+					setMatrixFromSubmatrix(green_up, g_up_time, elem, elem, Ns, Ns, false);
+					setMatrixFromSubmatrix(green_down, g_down_time, elem, elem, Ns, Ns, false);
+				}
+				else {
 					//? otherwise we do differently, we set it from the standardly calculated one
 					setSubmatrixFromMatrix(g_up_time, green_up, elem, elem, Ns, Ns, false);
 					setSubmatrixFromMatrix(g_down_time, green_down, elem, elem, Ns, Ns, false);
@@ -842,7 +947,8 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;											
 		//? Average the Green's over the buckets
 		if (times && step % bucket_num == 0) {
-			this->save_unequal_greens(step / bucket_num, bucket_num);
+			if(step != 0)
+				this->save_unequal_greens(step / bucket_num, bucket_num);
 			this->avs->resetGreens();
 		}
 		//! kill correlations

@@ -72,30 +72,30 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	std::initializer_list<std::string> enter_params = { "n =\t",
 		STR(this->lattice->get_Lx()),"\n",
 		"l =\t",STR(this->M),"\n",
-		"tausk =\t",STR(this->M),"\n",
+		VEQP(M,3),"\n",
 		"doall =\t",std::string("don't know what is that"),"\n",
 		"densw =\t",std::string("don't know what is that"),"\n",
 		"histn =\t",std::string("don't know what is that"),"\n",
 		"iran =\t",std::string("don't know what is that"),"\n",
 		"t  =\t",str_p(this->t[0],5),"\n",
-		"mu  =\t",STR(this->mu),"\n",
+		VEQP(mu,3),"\n",
 		"delmu =\t",std::string("don't know what is that"),"\n",
 		"bpar  =\t",std::string("don't know what is that"),"\n",
-		"dtau  =\t",STR(this->dtau),"\n",
-		"warms  =\t",STR(2000),		"\n",
+		VEQP(dtau,4),"\n",
+		"warms  =\t",STR(1000),		"\n",
 		"sweeps =\t",STR(2000),"\n",
-		"u =\t", STR(this->U),"\n",
+		VEQP(U,2),"\n",
 		"nwrap =\t",STR(this->M_0),"\n",
 		"difflim =\t",std::string("don't know what is that"),"\n",
 		"errrat =\t",std::string("don't know what is that"),	"\n",
-		"doauto =\t",STR(this->M_0),"\n",
+		VEQ(M_0),"\n",
 		"orthlen =\t",std::string("don't know what is that"),"\n",
 		"eorth =\t",std::string("don't know what is that"),"\n",
 		"dopair =\t",std::string("don't know what is that"),"\n",
 		"numpair =\t",std::string("don't know what is that"),"\n",
-		"lambda =\t", str_p(this->lambda, 4),"\n",
-		"start = \t",STR(0), "\n",
-		"sign = \t",str_p(this->config_sign,5), "\n\n\n" };
+		VEQP(lambda,4),"\n",
+		"start = \t0", "\n",
+		VEQP(config_sign,3), "\n\n\n"};
 	printSeparated(fileUp, ' ', enter_params, 30);
 	printSeparated(fileDown, ' ', enter_params, 30);
 
@@ -104,21 +104,21 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	const u16 width = 8;
 	printSeparated(fileUp, '\t', { std::string(" G(nx,ny,ti):") });
 	printSeparated(fileDown, '\t', { std::string(" G(nx,ny,ti):") });
-	for (int x = 0; x <= Lx / 2; x++) {
-		for (int y = x; y <= Ly / 2; y++) {
-			printSeparated(fileUp, '\t', {std::string(" nx ="), STR(x), std::string("ny ="), STR(y)}, 6);
-			printSeparated(fileDown, '\t', { std::string(" nx ="), STR(x), std::string("ny ="), STR(y) }, 6);
+	for (int nx = 0; nx <= Lx / 2; nx++) {
+		for (int ny = nx; ny <= Ly / 2; ny++) {
+			printSeparated(fileUp, '\t', 6,true, VEQ(nx), VEQ(ny));
+			printSeparated(fileDown, '\t', 6, true, VEQ(nx), VEQ(ny));
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
-				printSeparated(fileUp, '\t', { STR(tau1) }, 4, 0);
-				printSeparated(fileUp, '\t', { str_p(this->avs->g_up_diffs[tau1](x,y),width) }, width + 5, false);
-				printSeparated(fileUp, '\t', { std::string("+-") }, 5, false);
-				printSeparated(fileUp, '\t', { str_p(this->avs->sd_g_up_diffs[tau1](x,y),width) }, width + 5, true);
+				printSeparated(fileUp, '\t', 4, false, tau1);
+				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](nx,ny),width));
+				printSeparated(fileUp, '\t', 5, false, "+-");
+				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](nx,ny),width));
 
-				printSeparated(fileDown, '\t', { STR(tau1) }, 4, 0);
-				printSeparated(fileDown, '\t', { str_p(this->avs->g_down_diffs[tau1](x,y),width) }, width + 5, 0);
-				printSeparated(fileDown, '\t', { std::string("+-") }, 5, false);
-				printSeparated(fileDown, '\t', { str_p(this->avs->sd_g_down_diffs[tau1](x,y),width) }, width + 5, true);
+				printSeparated(fileDown, '\t', 4, false, tau1);
+				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](nx, ny), width));
+				printSeparated(fileDown, '\t', 5, false, "+-");
+				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
 			}
 		}
 	}
@@ -336,8 +336,11 @@ void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delt
 	for (int i = 0; i < this->Ns; i++) {
 		this->b_mat_up[this->current_time](i, lat_site) *= delta_up;
 		this->b_mat_down[this->current_time](i, lat_site) *= delta_down;
+		// only needed for non-equal time properties
+		//if (this->equalibrate) {
 		this->b_mat_up_inv[this->current_time](lat_site, i) *= delta_down;
 		this->b_mat_down_inv[this->current_time](lat_site, i) *= delta_up;
+		//}
 	}
 }
 
@@ -507,11 +510,13 @@ void hubbard::HubbardModel::cal_B_mat() {
 	//#pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times
-		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-
+		this->b_mat_down[l] = DIAG(this->int_exp_down.col(l)) * this->hopping_exp;
+		this->b_mat_up[l] = DIAG(this->int_exp_up.col(l)) * this->hopping_exp;
+		// only needed for non-equal properties
+		//if (this->equalibrate) {
 		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
 		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
+		//}
 	}
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }
@@ -521,10 +526,10 @@ void hubbard::HubbardModel::cal_B_mat() {
 */
 void hubbard::HubbardModel::cal_B_mat(int which_time)
 {
-	//this->b_mat_down[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(which_time));
-	//this->b_mat_up[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(which_time));
-	this->b_mat_down[which_time] = arma::diagmat(this->int_exp_down.col(which_time)) * this->hopping_exp;
-	this->b_mat_up[which_time] = arma::diagmat(this->int_exp_up.col(which_time)) * this->hopping_exp;
+	//this->b_mat_down[which_time] = this->hopping_exp * DIAG(this->int_exp_down.col(which_time));
+	//this->b_mat_up[which_time] = this->hopping_exp * DIAG(this->int_exp_up.col(which_time));
+	this->b_mat_down[which_time] = DIAG(this->int_exp_down.col(which_time)) * this->hopping_exp;
+	this->b_mat_up[which_time] = DIAG(this->int_exp_up.col(which_time)) * this->hopping_exp;
 
 	this->b_mat_up_inv[which_time] = this->b_mat_up[which_time].i();
 	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
@@ -690,7 +695,7 @@ double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, i
 void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet)
 {
 	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
-
+	this->equalibrate = false;
 	switch (algorithm)
 	{
 	case impDef::algMC::heat_bath:
@@ -720,6 +725,8 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 void hubbard::HubbardModel::average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet, int times)
 {
 	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
+	this->equalibrate = false;
+	//this->cal_B_mat();
 	switch (algorithm)
 	{
 	case impDef::algMC::heat_bath:

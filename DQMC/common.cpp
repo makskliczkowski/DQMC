@@ -79,23 +79,33 @@ void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, u
  */
 arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl, arma::vec& Dl, arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr, arma::vec& Dr, arma::vec& Dtmp)
 {
-	// using loh
+	const auto loh = false;
+	if (loh) {
+		// using loh
 
-	makeTwoScalesFromUDT(Rl, Dl);																								// remember D already inversed!
-	makeTwoScalesFromUDT(Rr, Dr);																								// remember D already inversed!
-	//! D_lm*D_rp^{-1} * X_l * X_r^{-1} + U_l^{-1} * U_r * D_rm * D_lp^{-1}
-	setUDTDecomp(
-		diagmat(Rl) * diagmat(Dr) * Tl * arma::inv(Tr)  +
-		Ql.t() * Qr * diagmat(Rr) * diagmat(Dl),
-		Qr, Rl, Pl, Tl, Dtmp);
-	//! D_rp^{-1}
-	//setUDTDecomp(diagmat(Dr) * arma::inv(Tl) * diagmat(Dtmp) * Qr.t() * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
-	//? direct inversion
-	setUDTDecomp(diagmat(Dr) * arma::inv(Qr * diagmat(Rl) * Tl) * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
-	return (arma::inv(Tr) * Qr) * arma::diagmat(Rl) * (Tl * Ql.t());
+		makeTwoScalesFromUDT(Rl, Dl);																								// remember D already inversed!
+		makeTwoScalesFromUDT(Rr, Dr);																								// remember D already inversed!
+		//! D_lm*D_rp^{-1} * X_l * X_r^{-1} + U_l^{-1} * U_r * D_rm * D_lp^{-1}
+		setUDTDecomp(
+			(DIAG(Rl) * DIAG(Dr)) * Tl * arma::inv(Tr) +
+			Ql.t() * Qr * (DIAG(Dl) * DIAG(Rr)),
+			Qr, Rl, Pl, Tl, Dtmp);
+		//! D_rp^{-1}
+		setUDTDecomp(diagmat(Dr) * arma::inv(Tl) * diagmat(Dtmp) * Qr.t() * diagmat(Dl), Qr, Rl, Pl, Tl, Dtmp);
+		//? direct inversion
+		//setUDTDecomp(DIAG(Dr) * arma::inv(Qr * DIAG(Rl) * Tl) * DIAG(Dl), Qr, Rl, Pl, Tl);
+		return (arma::inv(Tr) * Qr) * DIAG(Rl) * (Tl * Ql.t());
+	}
+	else {
+		setUDTDecomp(
+			DIAG(Rl) * Tl * arma::inv(Tr) +
+			Ql.t() * Qr * DIAG(Rr),
+			Qr, Rl, Pl, Tl, Dtmp);
+		return arma::inv(Tl * Tr) * DIAG(Dtmp) * arma::inv(Ql * Qr);
+	}
 }
 
-// -------------------------------------------------------- STRING RELATED HELPERS --------------------------------------------------------
+//! -------------------------------------------------------- STRING RELATED HELPERS --------------------------------------------------------
 
 v_1d<std::string> split_str(const std::string& s, std::string delimiter) {
 	size_t pos_start = 0, pos_end, delim_len = delimiter.length();

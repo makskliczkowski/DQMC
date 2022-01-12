@@ -34,7 +34,7 @@ namespace hubbard {
 		// -------------------------- DIRECTORIES AND SAVERS
 
 		// -------------------------- HELPING FUNCTIONS
-		arma::mat multiplyMatrices(arma::mat, arma::mat, bool);															// choose between stable and normal multiplication
+		arma::mat multiplyMatrices(const mat&, const mat&, bool);															// choose between stable and normal multiplication
 		void sweep_0_M(std::function<int(int)> ptfptr) override;														// sweep forward in time
 		void sweep_M_0(std::function<int(int)> ptfptr) override;														// sweep backwards in time
 		int sweep_lat_sites(std::function<int(int)> ptfptr);															// sweep the lattice sites for auxliary Ising spins

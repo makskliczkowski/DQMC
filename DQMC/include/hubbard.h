@@ -54,6 +54,8 @@ namespace hubbard {
 		bool all_times;																			// if we calculate only the positive part of the Green's or all of them
 		long int pos_num;																		// helps with number of positive signs
 		long int neg_num;																		// helps with number of negative signs
+		bool equalibrate;																		// if we shall equalibrate stuff now
+		//bool useHirsh;																			// works only when this->cal_times -> if we shall use hirsh for non-equal Greens
 
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
 		std::vector<double> t;																	// hopping integral vector

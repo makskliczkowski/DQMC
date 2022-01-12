@@ -106,9 +106,24 @@ namespace hubbard {
 		int U_num, mu_num, dtau_num, beta_num;
 		int M_0, p, M, mcSteps, avsNum, corrTime;															// time properties
 
+		struct HubbardParams {
+			int dim;
+			double beta;
+			double mu;
+			double U;
+			int Lx, Ly, Lz;
+			int M, M0;
+			int p;
+			double dtau;
+			// constructor
+			HubbardParams(int dim, double beta, double mu, double U, int Lx, int Ly, int Lz, double dtau, int M, int M0, int p) : dim(dim), beta(beta), mu(mu), U(U),
+				Lx(Lx), Ly(Ly), Lz(Lz), dtau(dtau), M(M), M0(M0), p(p) {};
+		};
+
 		// -------------------------------------------------------- HELPER FUNCTIONS
-		void collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz);
-		void collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, double beta, std::shared_ptr<averages_par> avs);
+		void collectAvs(const HubbardParams& params);
+		void collectRealSpace(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs);
+		void collectFouriers(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs);
 	public:
 		// ----------------------- CONSTRUCTORS
 		ui() = default;

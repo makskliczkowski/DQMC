@@ -56,8 +56,9 @@ R"(\)";
 #define EL std::endl
 #define STR std::to_string
 #define DIAG arma::diagmat
-#define PRNT(name) valueEquals(#name,(name))
-#define PRT(name,prec) valueEquals(#name,(name),prec)
+#define VEQ(name) valueEquals(#name,(name))
+#define VEQP(name,prec) valueEquals(#name,(name),prec)
+	
 
 
 /// using types
@@ -180,7 +181,7 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 	// inverse during setting
 	for (int i = 0; i < R.n_rows; i++)
 		D(i) = 1.0 / R(i, i);
-	T = ((arma::diagmat(D) * R) * P.t());
+	T = ((DIAG(D) * R) * P.t());
 }
 
 /*
@@ -197,7 +198,7 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T) {
 	if (!arma::qr(Q, R, P, mat)) throw "decomposition failed\n";
 	// inverse during setting
-	T = ((arma::inv(arma::diagmat(R)) * R) * P.t());
+	T = ((arma::inv(DIAG(R)) * R) * P.t());
 }
 
 
@@ -215,15 +216,23 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
  * @param Tr 
  * @return matrix after multiplication
  */
-arma::mat inline stableMultiplication(const arma::mat& right, const arma::mat& left,
+arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& right,
 									arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl,
 									arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr
 									)
 {
-	setUDTDecomp(left,Ql,Rl,Pl,Tl);
-	setUDTDecomp(right,Qr,Rr,Pr,Tr);
-	setUDTDecomp(DIAG(Rl) * ( (Tl * Ql) * DIAG(Rr) ), Qr, Rr, Pr, Tl);
-	return (Ql * Qr) * DIAG(Rr) * (Tl * Tr);
+	const auto type = 'SVD';
+	//const auto type = 'QR';
+	if (type == 'QR') {
+		setUDTDecomp(left, Ql, Rl, Pl, Tl);
+		setUDTDecomp(right, Qr, Rr, Pr, Tr);
+		setUDTDecomp(DIAG(Rl) * ((Tl * Qr) * DIAG(Rr)), Qr, Rr, Pr, Tl);
+		return (Ql * Qr) * DIAG(Rr) * (Tl * Tr);
+	}
+	//else if(type == 'SVD'){
+	//	svd(Ql, DIAG(Rl), mat V, mat X)
+	//}
+	else return left * right;
 }
 
 
@@ -246,18 +255,23 @@ void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::
 	T = ((DIAG(D) * R) * P.t()) * T;
 }
 
+
+void inline multiplyMatricesSVDFromRight(const arma::mat& mat_to_multiply, arma::mat& U, arma::vec& s, arma::mat& V, arma::mat& tmpV) {
+	svd(U, s, tmpV, mat_to_multiply * U * DIAG(s));
+	V = tmpV * V;
+}
 /*
 * Loh's decomposition to two scales in UDT QR decomposition. One is lower than 0 and second higher. Uses R again to save memory
 * @param R the R matrix from QR decompositon. As it's diagonal is mostly not used anymore it will be used to store (<= 1) elements of previous R
-* @param D vector to store (> 1) elements of previous R
+* @param D vector to store (> 1) elements of previous R -> IT IS ALREADY INVERSE OF R DIAGONAL
 */
 void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 	for (int i = 0; i < R.n_rows; i++)
 	{
 		if (abs(R(i, i)) > 1)
-			R(i, i) = 1;
+			R(i, i) = 1;				// min(1,R(i,i))
 		else
-			D(i) = 1;
+			D(i) = 1;					// inv of max(1,R(i,i))
 	}
 }
 
@@ -293,14 +307,18 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 	if (!file.is_open()) throw "couldn't open a file: " + filename + "\n";
 }
 
+
+//? ------------------------------------------------------------------------------ VALUE EQUALS
+
+/*
+* given the char* name it prints its value in a format "name=val"
+*@param name name of the variable
+*@param value of the variable
+*@returns "name=val" string
+*/
 template <typename T>
 inline std::string valueEquals(char* name, T value, int prec = 2) {
 	return std::string(name)+ "=" + str_p(value, prec);
-}
-
-template <typename T>
-inline std::string  printSeparated(T x, char separtator, uint prec) {
-	return PRT(x, prec) + std::string(1, separtator);
 }
 
 /*
@@ -319,8 +337,65 @@ inline void printSeparated(std::ostream& output, char separtator = '\t', std::in
 	if (endline) output << std::endl;
 }
 
+
+/*
+* printing the separated number of variables using the variadic functions initializer -> ONE TYPE FUNCTION FOR RECURSION
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename Type>
+inline void printSep(std::ostream& output, char separator, arma::u16 width, Type arg) {
+	output.width(width); output << arg << std::string(1, separator);
+}
+/*
+* printing the separated number of variables using the variadic functions initializer -> ONE TYPE FUNCTION FOR RECURSION - PRECISION!
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
+*@param prec precision for the output
+*/
+template <typename Type>
+inline void printSepP(std::ostream& output, char separator, arma::u16 width, u16 prec, Type arg) {
+	output.width(width); output << str_p(arg,prec) << std::string(1, separator);
+}
+
 /*
 * printing the separated number of variables using the variadic functions initializer
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param arg first element of the argument list
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename Type, typename... Types>
+inline void printSep(std::ostream& output, char separator, arma::u16 width, Type arg, Types... elements) {
+	printSep(output, separator, width, arg);
+	printSep(output, separator, width, elements...);
+}
+
+/*
+* printing the separated number of variables using the variadic functions initializer PRECISION
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param arg first element of the argument list
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename Type, typename... Types>
+inline void printSepP(std::ostream& output, char separator, arma::u16 width, u16 prec, Type arg, Types... elements) {
+	printSepP(output, separator, width, prec, arg);
+	printSepP(output, separator, width, prec, elements...);
+}
+
+/*
+* printing the separated number of variables using the variadic functions initializer - LAST CALL
 *@param output output stream
 *@param separator to be used
 *@param width of one element column for printing
@@ -328,43 +403,23 @@ inline void printSeparated(std::ostream& output, char separtator = '\t', std::in
 *@param elements at the very end we give any type of variable to the function
 */
 template <typename... Types>
-inline void printSeparated(std::ostream& output, char separtator, arma::u16 width, bool endline, Types... elements) {
-	for (auto elem : elements) {
-		output.width(width); output << elem << std::string(1,separtator);
-	}
+inline void printSeparated(std::ostream& output, char separator, arma::u16 width, bool endline, Types... elements) {
+	printSep(output, separator, width, elements...);
 	if (endline) output << std::endl;
 }
 
 /*
-* printing the initializer list to a string of format "{"name=value"separator"...""}"
+* printing the separated number of variables using the variadic functions initializer - LAST CALL PRECISION
+*@param output output stream
 *@param separator to be used
-*@param elements initializer list of the elements to be printed
-*@param prec precision of a string formatting
-*@refitem PRT compiler definition
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
 */
-template <typename T>
-inline std::string printSeparated(char separtator = '\t', std::initializer_list<T> elements = {}, uint prec = 2) {
-	std::string tmp = "";
-	for (auto elem : elements) {
-		tmp += PRT(elem,prec) + std::string(1,separtator);
-	}
-	tmp += "\b";
-	return tmp;
-}
-
-/*
-* printing the variadic list to a string of format "{"name=value"separator"...""}"
-*@param separator to be used
-*@param elements initializer list of the elements to be printed
-*@param prec precision of a string formatting
-*@refitem PRT compiler definition
-*/
-template <typename T, typename... Types>
-inline std::string printSeparated(T t, char separtator, uint prec, Types... elements) {
-	std::string tmp = "";
-	tmp += printSeparated(elements..., separtator, prec);
-	tmp += "\b";
-	return tmp;
+template <typename... Types>
+inline void printSeparatedP(std::ostream& output, char separator, arma::u16 width, bool endline, u16 prec, Types... elements) {
+	printSepP(output, separator, width, prec, elements...);
+	if (endline) output << std::endl;
 }
 
 /*
@@ -431,18 +486,10 @@ inline int myModuloEuclidean(int a, int b)
 	return m;
 }
 
-/*
-* given the char* name it prints its value in a format "name=val"
-*@param name name of the variable
-*@param value of the variable
-*@returns "name=val" string
-*/
-template <typename T>
-inline std::string ValEquals(char* name, T value, int prec = 2){
-	return string(name)+"="+str_p(value,prec);
-}
 
 //! -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
+
+
 
 /*
 *Changes a value to a string with a given precision

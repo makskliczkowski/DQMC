@@ -394,17 +394,8 @@ void hubbard::ui::make_simulation()
 		fileLog.close();
 	}
 
-	struct params {
-		double beta;
-		double mu;
-		double U;
-		int Lx, Ly, Lz;
-		double dtau;
-		params(double beta, double mu, double U, int Lx, int Ly, int Lz, double dtau) {
-			this->beta = beta; this->mu = mu; this->U = U; this->Lx = Lx; this->Ly = Ly; this->Lz = Lz; this->dtau = dtau;
-		}
-	};
-	v_1d<params> param_list;
+
+	v_1d<HubbardParams> paramList;
 
 	for (int bi = 0; bi < this->beta_num; bi++) {
 		// over different betas
@@ -425,7 +416,7 @@ void hubbard::ui::make_simulation()
 						auto mu_i = this->mu + mui * mu_step;
 						auto dtau_i = this->dtau + dtaui * this->dtau_step;
 						//double dtaui = dtau;//sqrt(0.125 / Ui);
-						param_list.push_back(params(beta_i, mu_i, U_i, Lx_i, Ly_i, Lz_i, dtau_i));
+						paramList.push_back(HubbardParams(dim, beta_i, mu_i, U_i, Lx_i, Ly_i, Lz_i, dtau_i, 1, this->M_0, 1));
 						//collectAvs(U_i, M0_i, dtau_i, p_i, beta_i, mu_i, Lx_i, Ly_i, Lz_i);
 					}
 				}
@@ -434,12 +425,12 @@ void hubbard::ui::make_simulation()
 	}
 
 #pragma omp parallel for num_threads(this->outer_threads)
-	for (int i = 0; i < param_list.size(); i++) {
-		auto M_i = static_cast<int>(1.0 * param_list[i].beta / param_list[i].dtau);
-		const auto p_i = std::ceil(1.0 * M_i / this->M_0);
-		M_i = p_i * this->M_0;
-		param_list[i].dtau = 1.0 * param_list[i].beta / (M_i);
-		collectAvs(param_list[i].U, this->M_0, param_list[i].dtau, p_i, param_list[i].beta, param_list[i].mu, param_list[i].Lx, param_list[i].Ly, param_list[i].Lz);
+	for (int i = 0; i < paramList.size(); i++) {
+		paramList[i].M = static_cast<int>(1.0 * paramList[i].beta / paramList[i].dtau);
+		paramList[i].p = std::ceil(1.0 * paramList[i].M / paramList[i].M0);
+		paramList[i].M = paramList[i].p * this->M_0;
+		paramList[i].dtau = 1.0 * paramList[i].beta / paramList[i].M0;
+		collectAvs(paramList[i]);
 	}
 
 	/*
@@ -454,31 +445,30 @@ void hubbard::ui::make_simulation()
 
 // -------------------------------------------------------- HELPERS
 
-void hubbard::ui::collectAvs(double u, int M_0, double Dtau, int p, double Beta, double Mu, int Lx, int Ly, int Lz)
+void hubbard::ui::collectAvs(const HubbardParams& params)
 {
 	using namespace std;
 	auto start = chrono::high_resolution_clock::now();
-	const int prec = 10;
-	//plog::init(plog::debug, "logger.txt");																			// initialize plogger
+	const auto prec = 10;
+	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
 	// parameters and constants
-	const auto M = static_cast<int>(Beta / Dtau);
 	std::shared_ptr<averages_par> avs;
 	// model
 	std::shared_ptr<Lattice> lat;
 	// ------------------------------- set lattice --------------------------------
 	switch (this->lattice_type) {
 	case 0:
-		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, dim, this->boundary_conditions);
+		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
 		break;
 	default:
 		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, dim, this->boundary_conditions);
 		break;
 	}
 	// ------------------------------- set model --------------------------------
-	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, Dtau, M_0, u, Mu, Beta, lat, this->inner_threads, this->cal_times);
-	std::ofstream fileLog, fileP, fileP_time, fileGup, fileGdown, fileSignLog;
-	// take all the directories needed
-	model->setDirs(this->saving_dir);
+	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, dtau, M_0, U, mu, beta, lat, this->inner_threads, this->cal_times);
+	std::ofstream fileLog, fileGup, fileGdown, fileSignLog;
+
+	model->setDirs(this->saving_dir);																									// take all the directories needed
 	auto dirs = model->get_directories();
 	// RELAX
 	if (sf == 0)																														// without using machine learning to self learn
@@ -487,63 +477,72 @@ void hubbard::ui::collectAvs(double u, int M_0, double Dtau, int p, double Beta,
 		if (!this->save_conf) {
 			// FILES
 			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app);
-			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz + ",U=" + str_p(u, 2) +\
-				",beta=" + str_p(Beta, 2) + ",dtau=" + str_p(Dtau, 4) +\
+			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz + ",U=" + str_p(U, 2) +\
+				",beta=" + str_p(beta, 2) + ",dtau=" + str_p(dtau, 4) +\
 				".dat", std::ios::in | std::ios::app);
-			openFile(fileP, dirs->nameNormal);
-			printSeparated(fileP, ',', { "x","y","z" }, 8, 0);
-			printSeparated(fileP, ',', { "avM2z_corr","avCharge_corr" }, prec + 3);
+
 			// REST
 			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet, this->cal_times);
 			avs = model->get_avs();
 
 			// SAVING TO STRING
-			printSeparated(fileLog, ',', { lat->get_type(), STR(this->mcSteps), STR(this->avsNum),\
-				STR(this->corrTime), STR(M), STR(M_0), str_p(Dtau, prec),\
-				STR(Lx), STR(Ly), STR(Lz), STR(Beta), STR(u),\
-				STR(Mu), str_p(avs->av_occupation, prec), str_p(avs->sd_occupation, prec),\
-				str_p(avs->av_sign, prec), str_p(avs->sd_sign, prec),\
-				str_p(avs->av_Ek, prec),str_p(avs->sd_Ek, prec),\
-				str_p(avs->av_M2z, prec),str_p(avs->sd_M2z, prec),\
-				str_p(avs->av_M2x, prec),str_p(tim_s(start)) }, 14);
-			printSeparated(fileSignLog, '\t', { str_p(avs->av_occupation, prec),\
-				str_p(avs->av_sign, prec), str_p(Mu, 3) }, 12);
+			printSeparatedP(fileLog, ',', 12, true, prec, lat->get_type(), this->mcSteps, this->avsNum,
+				this->corrTime, M, M_0, dtau,
+				Lx, Ly, Lz, beta, U,
+				mu, avs->av_occupation, avs->sd_occupation,
+				avs->av_sign, avs->sd_sign,
+				avs->av_Ek, avs->sd_Ek,
+				avs->av_M2z, avs->sd_M2z,
+				avs->av_M2x, tim_s(start));
+			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
 #pragma omp critical
-			std::cout << "\t--- Average occupation is n = " << avs->av_occupation << "\t---Average sign is sign= " << avs->av_sign << "\t---Average local moment is m_z^2= " << avs->av_M2z << "---" << endl << endl;
-
-			// FILES CORRELATIONS
-			for (int x = -Lx + 1; x < Lx; x++) {
-				for (int y = -Ly + 1; y < Ly; y++) {
-					for (int z = -Lz + 1; z < Lz; z++) {
-						int x_pos = x + Lx - 1;
-						int y_pos = y + Ly - 1;
-						int z_pos = z + Lz - 1;
-						printSeparated(fileP, ',', { x , y, z }, 8, 0);
-						printSeparated(fileP, ',', { avs->av_M2z_corr[x_pos][y_pos][z_pos], (avs->av_ch2_corr[x_pos][y_pos][z_pos]) }, prec + 6);
-						//if (times) {
-						//	for (int i = 0; i < M; i++) {
-								//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << (avs.av_M2z_corr_uneqTime[x_pos][y_pos][z_pos][i]) << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
-								//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << this->gree << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
-						//	}
-					}
-				}
-			}
-#pragma omp critical
-			fileP.close();
+			printSeparatedP(stout, '\t---', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
 #pragma omp critical
 			fileLog.close();
 #pragma omp critical
 			fileSignLog.close();
-			this->collectFouriers(dirs->nameFouriersTime, dirs->nameFouriers, Lx, Ly, Lz, M, beta, avs);
+			this->collectRealSpace(dirs->nameNormalTime, dirs->nameNormal, params, avs);
+			this->collectFouriers(dirs->nameFouriersTime, dirs->nameFouriers, params, avs);
 		}
 	}
 	std::cout << "FINISHED EVERYTHING - Time taken: " << (chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count() << " seconds" << endl;
 }
 
-void hubbard::ui::collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, double beta, std::shared_ptr<averages_par> avs)
+void hubbard::ui::collectRealSpace(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs)
+{
+	using namespace std;
+	std::ofstream fileP, fileP_time;
+	const auto prec = 8;
+	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
+
+	openFile(fileP, name);// dirs->nameNormal);
+	printSeparated(fileP, ',', 8, 0, "x", "y", "z");
+	printSeparated(fileP, ',', prec + 3, 0, "avM2z_corr", "avCharge_corr");
+
+	// FILES CORRELATIONS
+	for (int x = -Lx + 1; x < Lx; x++)
+		for (int y = -Ly + 1; y < Ly; y++)
+			for (int z = -Lz + 1; z < Lz; z++) {
+				auto x_pos = x + Lx - 1;
+				auto y_pos = y + Ly - 1;
+				auto z_pos = z + Lz - 1;
+				printSeparated(fileP, ',', prec, false, x , y, z);
+				printSeparatedP(fileP, ',', prec + 6, true, prec, avs->av_M2z_corr[x_pos][y_pos][z_pos], avs->av_ch2_corr[x_pos][y_pos][z_pos]);
+				//if (times) {
+				//	for (int i = 0; i < M; i++) {
+						//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << (avs.av_M2z_corr_uneqTime[x_pos][y_pos][z_pos][i]) << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
+						//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << this->gree << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
+				//	}
+			}
+	fileP.close();
+}
+
+void hubbard::ui::collectFouriers(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs)
 {
 	using namespace std;
 	std::ofstream file_fouriers, file_fouriers_time, file_response;
+	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
+
 	openFile(file_fouriers, name);
 	/*if (times) {
 		file_fouriers_time.open(filenameTimes + "_time.dat");
@@ -554,8 +553,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 		//file_fouriers_time << "kx\tky\tkz\tdtau\toccupation_fourier\tgreen_up\tgreen_down\tmagnetic_susc\tcharge_susc" << endl;
 		file_fouriers_time << "kx\tky\tkz\ttau\tgreen_up\tgreen_down" << endl;
 	}*/
-	printSeparated(file_fouriers, ',', { "kx","ky","kz" }, 12, 0);
-	printSeparated(file_fouriers, ',', { "occ(k)","spin_str_fac","ch_str_fac" }, 16);
+	printSeparated(file_fouriers, ',', 12, false, "kx","ky","kz");
+	printSeparated(file_fouriers, ',', 16, true, "occ(k)","spin_str_fac","ch_str_fac");
 
 	int kx_num = Lx; int ky_num = Ly; int kz_num = Lz;
 	int N = kx_num * ky_num * kz_num;
@@ -601,8 +600,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, int 
 						}
 					}
 				}
-				printSeparated(file_fouriers, ',', { kx,ky,kz }, 12, 0);
-				printSeparated(file_fouriers, ',', { 1 - occupation_fourier.real() / (2.0 * N) , spin_structure_factor.real() ,charge_structure_factor.real() }, 16);
+				printSeparatedP(file_fouriers, ',', 12, 4, false, kx, ky, kz);
+				printSeparatedP(file_fouriers, ',', 16, true, 8, 1 - occupation_fourier.real() / (2.0 * N), spin_structure_factor.real(), charge_structure_factor.real());
 				//if (qx == 0 && qy == 0) {
 				//	file_response.open(this->saving_dir + "response_U=" + STR(this->U, 2) +",occ=" + STR(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
 				//	file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
