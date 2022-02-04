@@ -152,8 +152,8 @@ void hubbard::ui::exit_with_help()
 		"-q : 0 or 1 -> quiet mode (no outputs) (default false)\n"
 		"\n"
 		"-cg save-config : for machine learning -> we will save all Trotter times at the same time(default false)\n"
-		"-qr qr decomposition \n"
 		"-ct collect time averages - slower \n"
+		"-hs use hirsh for collecting time averages \n"
 		"\n"
 		"-sf use self-learning : 0(default) - do not use, 1 (just train parameters and exit), 2 (just make simulation from the existing network)\n"
 		"-sfn - the number of configurations saved to train(default 50)\n"
@@ -176,7 +176,7 @@ void hubbard::ui::set_default()
 	this->quiet = 0;
 
 	this->save_conf = false;
-	this->qr_dec = true;
+	this->useHirsh = false;
 	this->cal_times = false;
 
 	this->dim = 2;
@@ -332,8 +332,8 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 		this->set_default_msg(this->inner_threads, choosen_option.substr(1), \
 			"Wrong number of threads\n", hubbard::default_params);
 	// qr
-	choosen_option = "-qr";
-	this->set_option(this->qr_dec, argv, choosen_option, false);
+	choosen_option = "-hs";
+	this->set_option(this->useHirsh, argv, choosen_option, false);
 	// calculate different times
 	choosen_option = "-ct";
 	this->set_option(this->cal_times, argv, choosen_option, false);
@@ -362,7 +362,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	if (!argv[argc - 1].empty() && argc % 2 != 0) {
 		// only if the last command is non-even
 		folder = argv[argc - 1];
-		if (fs::create_directories(folder))											// creating the directory for saving the files with results
+		if (!fs::create_directories(folder))											// creating the directory for saving the files with results
 			this->saving_dir = folder;																// if can create dir this is is
 	}
 	else {
@@ -387,9 +387,9 @@ void hubbard::ui::make_simulation()
 		if (fileLog.tellg() == 0) {
 			fileLog.clear();
 			fileLog.seekg(0, std::ios::beg);
-			printSeparated(fileLog, ',', { "lattice_type","mcsteps","avsNum","corrTime", "M", "M0", "dtau", "Lx",\
+			printSeparated(fileLog, ',', 20, true ,"lattice_type","mcsteps","avsNum","corrTime", "M", "M0", "dtau", "Lx",\
 				"Ly", "Lz", "beta", "U", "mu", "occ", "sd(occ)", "av_sgn", "sd(sgn)", "Ekin",\
-				"sd(Ekin)", "m^2_z", "sd(m^2_z)", "m^2_x", "time taken" }, 14);
+				"sd(Ekin)", "m^2_z", "sd(m^2_z)", "m^2_x", "time taken");
 		}
 		fileLog.close();
 	}
@@ -428,18 +428,11 @@ void hubbard::ui::make_simulation()
 	for (int i = 0; i < paramList.size(); i++) {
 		paramList[i].M = static_cast<int>(1.0 * paramList[i].beta / paramList[i].dtau);
 		paramList[i].p = std::ceil(1.0 * paramList[i].M / paramList[i].M0);
-		paramList[i].M = paramList[i].p * this->M_0;
-		paramList[i].dtau = 1.0 * paramList[i].beta / paramList[i].M0;
+		paramList[i].M = paramList[i].p * paramList[i].M0;
+		paramList[i].dtau = 1.0 * paramList[i].beta / paramList[i].M;
 		collectAvs(paramList[i]);
 	}
 
-	/*
-	this->M = static_cast<int>(1.0 * this->beta / this->dtau);
-	this->p = std::ceil(1.0 * M / M_0);
-	M = p * M_0;
-	dtau = beta / double(M);
-	collectAvs(this->U, this->M_0, dtau, p, beta, mu, this->lx, this->ly, this->lz);
-	*/
 	std::cout << "FINISHED EVERY THREAD" << std::endl;
 }
 
@@ -465,11 +458,12 @@ void hubbard::ui::collectAvs(const HubbardParams& params)
 		break;
 	}
 	// ------------------------------- set model --------------------------------
-	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, dtau, M_0, U, mu, beta, lat, this->inner_threads, this->cal_times);
+	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, params, lat, this->inner_threads, this->cal_times, this->useHirsh);
+
 	std::ofstream fileLog, fileGup, fileGdown, fileSignLog;
 
-	model->setDirs(this->saving_dir);																									// take all the directories needed
-	auto dirs = model->get_directories();
+	auto dirs = model->get_directories(this->saving_dir);																				// take all the directories needed
+	
 	// RELAX
 	if (sf == 0)																														// without using machine learning to self learn
 	{
@@ -486,7 +480,7 @@ void hubbard::ui::collectAvs(const HubbardParams& params)
 			avs = model->get_avs();
 
 			// SAVING TO STRING
-			printSeparatedP(fileLog, ',', 12, true, prec, lat->get_type(), this->mcSteps, this->avsNum,
+			printSeparatedP(fileLog, ',', 20, true, 4, lat->get_type(), this->mcSteps, this->avsNum,
 				this->corrTime, M, M_0, dtau,
 				Lx, Ly, Lz, beta, U,
 				mu, avs->av_occupation, avs->sd_occupation,
@@ -496,7 +490,7 @@ void hubbard::ui::collectAvs(const HubbardParams& params)
 				avs->av_M2x, tim_s(start));
 			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
 #pragma omp critical
-			printSeparatedP(stout, '\t---', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
+			printSeparatedP(stout, '\t', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
 #pragma omp critical
 			fileLog.close();
 #pragma omp critical
@@ -517,7 +511,7 @@ void hubbard::ui::collectRealSpace(std::string name_times, std::string name, con
 
 	openFile(fileP, name);// dirs->nameNormal);
 	printSeparated(fileP, ',', 8, 0, "x", "y", "z");
-	printSeparated(fileP, ',', prec + 3, 0, "avM2z_corr", "avCharge_corr");
+	printSeparated(fileP, ',', prec + 3, true, "avM2z_corr", "avCharge_corr");
 
 	// FILES CORRELATIONS
 	for (int x = -Lx + 1; x < Lx; x++)
@@ -600,7 +594,7 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, cons
 						}
 					}
 				}
-				printSeparatedP(file_fouriers, ',', 12, 4, false, kx, ky, kz);
+				printSeparatedP(file_fouriers, ',', 12, false, 4, kx, ky, kz);
 				printSeparatedP(file_fouriers, ',', 16, true, 8, 1 - occupation_fourier.real() / (2.0 * N), spin_structure_factor.real(), charge_structure_factor.real());
 				//if (qx == 0 && qy == 0) {
 				//	file_response.open(this->saving_dir + "response_U=" + STR(this->U, 2) +",occ=" + STR(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);

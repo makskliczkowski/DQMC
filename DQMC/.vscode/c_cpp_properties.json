@@ -4,9 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "D:\\LIBRARIESCPP\\Armadillo\\armadillo-10.7-RC2\\include\\",
-                "D:\\LIBRARIESCPP\\OneApi\\mkl\\latest\\include\\",
-                "D:\\LIBRARIESCPP\\OneApi\\mkl\\latest\\include\\intel64\\"
+                "C:\\LibrariesCpp\\armadillo-10.8-RC2\\include",
+                "C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\latest\\include",
+                "C:\\Program Files (x86)\\Intel\\oneAPI\\mkl\\latest\\include\\intel64"
             ],
             "defines": [
                 "_DEBUG",

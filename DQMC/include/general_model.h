@@ -75,7 +75,6 @@ public:
 */
 struct averages_par {
 	averages_par(int Lx, int Ly, int Lz, int M = 1, bool times = false) {
-		const int Ns = Lx * Ly * Lz;
 		// Correlations - depend on the dimension - equal time
 		this->av_occupation_corr = v_3d<double>(2 * Lx - 1, v_2d<double>(2 * Ly - 1, v_1d<double>(2 * Lz - 1, 0.0)));
 		this->av_M2z_corr = v_3d<double>(2 * Lx - 1, v_2d<double>(2 * Ly - 1, v_1d<double>(2 * Lz - 1, 0.0)));
@@ -116,14 +115,10 @@ struct averages_par {
 	 */
 	void normaliseGreens(std::shared_ptr<Lattice>& lat, int bucketNum, bool all = true) {
 		const auto M = this->g_up_diffs.size();
-		const auto Lx = lat->get_Lx();
-		const auto Ly = lat->get_Ly();
-		const auto Lz = lat->get_Lz();
-		const double timeNorma = bucketNum * 1.0 * M;
 		for (int tau = 0; tau < M; tau++) {
 			for (int x = 0; x < this->g_up_diffs[tau].n_rows; x++) {
 				for (int y = 0; y < this->g_up_diffs[tau].n_cols; y++) {
-					const auto norm = (all ? -timeNorma : -(M-tau)) * lat->get_norm(x, y, 0);
+					const auto norm = bucketNum * (all ? -double(M) : -1.0*(M-tau)) * lat->get_norm(x, y, 0);
 					this->g_up_diffs[tau](x, y) /= norm;
 					this->g_down_diffs[tau](x, y) /= norm;
 					this->sd_g_up_diffs[tau](x, y) = variance(this->sd_g_up_diffs[tau](x, y), this->g_up_diffs[tau](x, y), norm);
@@ -192,6 +187,7 @@ protected:
 	randomGen ran;												// consistent quick random number generator
 	std::shared_ptr<Lattice> lattice;							// contains all the information about the lattice
 	std::shared_ptr<averages_par> avs;							// structure containing all the averages
+	std::unique_ptr<pBar> pbar;									// for printing progress
 
 public:
 	virtual ~LatticeModel() = default;							// pure virtual destructor

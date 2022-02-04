@@ -26,7 +26,7 @@ public:
 		stout << std::flush;
 		currUpdateVal += 1;
 	}
-	void printWithTime(const std::string& message, double percentage) {
+	void printWithTime(std::string message) {
 #pragma omp critical
 		{
 			stout << "\t\t\t\t-> time: " << tim_s(timer) << message << " : \n";
@@ -36,6 +36,11 @@ public:
 		this->update(percentage);
 	}
 	pBar() : timer(std::chrono::high_resolution_clock::now()), amountOfFiller(0) {};	    // constructor
+	pBar(double percentage, int discreteSteps) : pBar()
+	{
+		this->percentage = percentage;
+		this->percentageSteps = static_cast<int>(percentage * discreteSteps / 100.0);
+	};
 private:
 	// --------------------------- STRING ENDS
 	std::string firstPartOfpBar = "\t\t\t\t[";
@@ -49,6 +54,9 @@ private:
 	int currUpdateVal = 0;														            //
 	double currentProgress = 0;													            // current progress
 	double neededProgress = 100;												            // final progress
+public:
+	double percentage = 34;																	// print percentage
+	int percentageSteps = 1;
 };
 
 

@@ -56,9 +56,10 @@ R"(\)";
 #define EL std::endl
 #define STR std::to_string
 #define DIAG arma::diagmat
-#define VEQ(name) valueEquals(#name,(name))
+#define VEQ(name) valueEquals(#name,(name),2)
 #define VEQP(name,prec) valueEquals(#name,(name),prec)
-	
+#define EYE(X) arma::eye(X,X)
+#define ZEROM(X) arma::zeros(X,X)
 
 
 /// using types
@@ -101,6 +102,7 @@ namespace impDef {
 // -------------------------------------------------------- COMMON UTILITIES --------------------------------------------------------
 #ifndef COMMON_UTILS_H
 #define COMMON_UTILS_H
+using namespace arma;
 
 template<class T>
 using v_3d = std::vector<std::vector<std::vector<T>>>;				// 3d double vector
@@ -109,6 +111,7 @@ using v_2d = std::vector<std::vector<T>>;							// 2d double vector
 template<class T>
 using v_1d = std::vector<T>;										// 1d double vector
 
+using vecMat = v_1d<arma::mat>;
 // ----------------------------------------------------------------------------- TIME FUNCTIONS -----------------------------------------------------------------------------
 /*
 * return the duration in seconds from a given time point
@@ -221,9 +224,9 @@ arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& ri
 									arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr
 									)
 {
-	const auto type = 'SVD';
+	const auto type = 0; // SVD
 	//const auto type = 'QR';
-	if (type == 'QR') {
+	if (type == 1) {
 		setUDTDecomp(left, Ql, Rl, Pl, Tl);
 		setUDTDecomp(right, Qr, Rr, Pr, Tr);
 		setUDTDecomp(DIAG(Rl) * ((Tl * Qr) * DIAG(Rr)), Qr, Rr, Pr, Tl);
@@ -258,7 +261,7 @@ void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::
 
 void inline multiplyMatricesSVDFromRight(const arma::mat& mat_to_multiply, arma::mat& U, arma::vec& s, arma::mat& V, arma::mat& tmpV) {
 	svd(U, s, tmpV, mat_to_multiply * U * DIAG(s));
-	V = tmpV * V;
+	V = V * tmpV;
 }
 /*
 * Loh's decomposition to two scales in UDT QR decomposition. One is lower than 0 and second higher. Uses R again to save memory
@@ -310,6 +313,23 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 
 //? ------------------------------------------------------------------------------ VALUE EQUALS
 
+
+
+/*
+*Changes a value to a string with a given precision
+*@param a_value Value to be transformed
+*@param n Precision @n default 2
+*@returns String of a value
+*/
+template <typename T>
+inline std::string str_p(const T a_value, const int n = 2) {
+	std::ostringstream out;
+	out.precision(n);
+	out << std::fixed << a_value;
+	return out.str();
+}
+
+
 /*
 * given the char* name it prints its value in a format "name=val"
 *@param name name of the variable
@@ -317,7 +337,7 @@ inline void openFile(T& file, std::string filename, std::ios_base::openmode mode
 *@returns "name=val" string
 */
 template <typename T>
-inline std::string valueEquals(char* name, T value, int prec = 2) {
+inline std::string valueEquals(char name[], T value, int prec = 2) {
 	return std::string(name)+ "=" + str_p(value, prec);
 }
 
@@ -489,21 +509,6 @@ inline int myModuloEuclidean(int a, int b)
 
 //! -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
 
-
-
-/*
-*Changes a value to a string with a given precision
-*@param a_value Value to be transformed
-*@param n Precision @n default 2
-*@returns String of a value
-*/
-template <typename T>
-inline std::string str_p(const T a_value, const int n = 2) {
-	std::ostringstream out;
-	out.precision(n);
-	out << std::fixed << a_value;
-	return out.str();
-}
 
 /*
 * Splits string according to the delimiter

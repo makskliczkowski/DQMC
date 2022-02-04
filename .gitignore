@@ -18,6 +18,7 @@
 *.h5
 *.png
 *c_cpp_properties.json
+*.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -358,5 +359,6 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 *.rar
+DQMC/.vscode/c_cpp_properties.json
 DQMC/.vscode/c_cpp_properties.json
 DQMC/.vscode/c_cpp_properties.json

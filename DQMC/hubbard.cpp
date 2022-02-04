@@ -253,9 +253,7 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 	fs::create_directories(this->dir->greens_dir);
 	this->dir->greens_dir += kPS + this->dir->info;
 	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
-	//fs::create_directories(this->dir->params_dir);
 	fs::create_directories(this->dir->params_dir + kPS + "times");
-	//fs::create_directories(this->dir->greens_dir);
 	fs::create_directories(this->dir->time_greens_dir);
 	this->dir->greens_dir += kPS;
 	this->dir->time_greens_dir += kPS;
@@ -608,7 +606,7 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::m
 
 // -------------------------------------------------------- EQUAL TIME AVERAGES
 
-double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	const int nei_num = this->lattice->get_nn_number(current_elem_i);
 	double Ek = 0;
@@ -623,17 +621,17 @@ double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const
 	return sign * this->t[current_elem_i] * Ek;
 }
 
-double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return (sign * (1.0 - g_down(current_elem_i, current_elem_i)) + sign * (1.0 - g_up(current_elem_i, current_elem_i)));
 }
 
-double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 {
 	return sign * ((g_down(current_elem_j, current_elem_i) + g_up(current_elem_j, current_elem_i)));
 }
 
-double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return sign * (((1.0 - g_up(current_elem_i, current_elem_i)) * (1.0 - g_up(current_elem_i, current_elem_i)))
 		+ ((1.0 - g_up(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i)))
@@ -643,7 +641,7 @@ double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g
 		+ ((1.0 - g_down(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))));
 }
 
-double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 {
 	double delta_ij = 0.0L;
 	if (current_elem_i == current_elem_j) {
@@ -658,18 +656,18 @@ double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int cur
 		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * (g_down(current_elem_i, current_elem_j))));
 }
 
-double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return 0;
 }
 
-double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return sign * (1.0 - g_up(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))
 		+ sign * (1.0 - g_down(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i));
 }
 
-double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 {
 	double delta_ij = 0.0L;
 	if (current_elem_i == current_elem_j) {

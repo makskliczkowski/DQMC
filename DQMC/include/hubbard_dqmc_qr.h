@@ -90,7 +90,7 @@ namespace hubbard {
 		* @param threads Number of the inner threads
 		* @param ct Shall calculate time-displaced as well?
 		*/
-		HubbardQR(const v_1d<double>& t, double dtau, int M_0, double U, double mu, double beta, std::shared_ptr<Lattice> lattice, int threads = 1, bool ct = false);
+		HubbardQR(const v_1d<double>& t, const hubbard::HubbardParams params, std::shared_ptr<Lattice> lattice, int threads = 1, bool ct = false, bool hirsh = false);
 	};
 }
 
