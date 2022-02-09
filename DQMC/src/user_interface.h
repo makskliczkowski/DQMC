@@ -6,7 +6,6 @@
 //#include "../include/plog/Log.h"
 //#include "../include/plog/Initializers/RollingFileInitializer.h"
 #include "../include/hubbard_dqmc_qr.h"
-#include "../include/hubbard_dqmc_st.h"
 #include "../include/lattices.h"
 
 #include <stdlib.h>
@@ -52,6 +51,7 @@ public:
 
 namespace hubbard {
 	// -------------------------------------------------------- MAP OF DEFAULTS FOR HUBBARD
+
 
 	std::unordered_map <std::string, std::string> const default_params = {
 		{"m","300"},
@@ -100,15 +100,16 @@ namespace hubbard {
 		double t_fill;
 		int inner_threads, outer_threads;																	// thread parameters
 		int sf, sfn;																						// self learning parameters
-		bool quiet, save_conf, qr_dec, cal_times;															// bool flags
+		bool quiet, save_conf, cal_times, useHirsh;															// bool flags
 		int dim, lx, ly, lz, lx_step, ly_step, lz_step, lx_num, ly_num, lz_num;								// real space proprties
 		double beta, beta_step, U, U_step, mu, mu_step, dtau, dtau_step;									// physical params
 		int U_num, mu_num, dtau_num, beta_num;
 		int M_0, p, M, mcSteps, avsNum, corrTime;															// time properties
 
 		// -------------------------------------------------------- HELPER FUNCTIONS
-		void collectAvs(double U, int M_0, double dtau, int p, double beta, double mu, int Lx, int Ly, int Lz);
-		void collectFouriers(std::string name_times, std::string name, int Lx, int Ly, int Lz, int M, double beta, std::shared_ptr<averages_par> avs);
+		void collectAvs(const HubbardParams& params);
+		void collectRealSpace(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs);
+		void collectFouriers(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs);
 	public:
 		// ----------------------- CONSTRUCTORS
 		ui() = default;

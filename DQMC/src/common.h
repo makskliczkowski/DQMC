@@ -1,60 +1,97 @@
 #pragma once
+/// user includes
 #include "../include/random.h"
+
 #include <string>
 #include <vector>
-#include <algorithm> // for std::ranges::copy depending on lib support
+#include <algorithm> 													// for std::ranges::copy depending on lib support
 #include <iostream>
 #include <ios>
 #include <iomanip>
 #include <thread>
 #include <sstream>
 #include <cmath>
-#include <filesystem>
 #include <complex>
-#include <armadillo>
-
-// -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
-
-#define stout std::cout << std::setprecision(8) << std::fixed						// standard out
-//#define im cpx(0.0,1.0)
+#include <cassert>
+/// filesystem for directory creation
+#ifdef __has_include
+#  if __has_include(<filesystem>)
+#    include <filesystem>
+#    define have_filesystem 1
+namespace fs = std::filesystem;
+using clk = std::chrono::steady_clock;
+#  elif __has_include(<experimental/filesystem>)
+#    include <experimental/filesystem>
+#    define have_filesystem 1
+#    define experimental_filesystem
+namespace fs = std::experimental::filesystem;
+using clk = std::chrono::system_clock;
+#  else
+#    define have_filesystem 0
+#  endif
+#endif
 
 static const char* kPSep =
 #ifdef _WIN32
-"\\";
+R"(\)";
 #else
 "/";
 #endif
 
-namespace fs = std::filesystem;
-using clk = std::chrono::steady_clock;
+// -------------------------------------------------------- armadillo definitions --------------------------------------------------------
+//#define ARMA_BLAS_CAPITALS
+//#define ARMA_BLAS_UNDERSCORE
+//#define ARMA_BLAS_LONG
+//#define ARMA_BLAS_LONG_LONG
+//#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
+#define ARMA_USE_MKL_ALLOC
+#define ARMA_USE_MKL_TYPES
+#define ARMA_DONT_USE_OPENMP
+
+#include <armadillo>
+
+// -------------------------------------------------------- DEFINITIONS --------------------------------------------------------
+
+#define stout std::cout << std::setprecision(8) << std::fixed				// standard out
+#define EL std::endl
+#define STR std::to_string
+#define DIAG arma::diagmat
+#define VEQ(name) valueEquals(#name,(name),2)
+#define VEQP(name,prec) valueEquals(#name,(name),prec)
+#define EYE(X) arma::eye(X,X)
+#define ZEROM(X) arma::zeros(X,X)
+
+
+/// using types
 using cpx = std::complex<double>;
 using uint = unsigned int;
-using ulong = unsigned long;
+using ul = unsigned long;
 using ull = unsigned long long;
+using ld = long double;
 
+/// constexpressions
 constexpr long double PI = 3.141592653589793238462643383279502884L;			// it is me, pi
 constexpr long double TWOPI = 2 * PI;										// it is me, 2pi
 constexpr long double PI_half = PI / 2.0;
-constexpr cpx im_num = cpx(0, 1);
-const std::string kPSepS = std::string(kPSep);
-
+constexpr cpx imn = cpx(0, 1);
+const std::string kPS = std::string(kPSep);
 // -------------------------------------------------------- ALGORITHMS FOR MC --------------------------------------------------------
 
-/// <summary>
+/*
 /// Here we will state all the already implemented definitions that will help us building the user interfrace
-/// </summary>
+*/
 namespace impDef {
-	/// <summary>
+	/*
 	/// Different Monte Carlo algorithms that can be provided inside the classes (for simplicity in enum form)
-	/// </summary>
+	*/
 	enum class algMC {
 		metropolis,
 		heat_bath,
 		self_learning
 	};
-	/// <summary>
+	/*
 	/// Types of implemented lattice types
-	/// </summary>
+	*/
 	enum class lattice_types {
 		square
 		//triangle,
@@ -65,6 +102,7 @@ namespace impDef {
 // -------------------------------------------------------- COMMON UTILITIES --------------------------------------------------------
 #ifndef COMMON_UTILS_H
 #define COMMON_UTILS_H
+using namespace arma;
 
 template<class T>
 using v_3d = std::vector<std::vector<std::vector<T>>>;				// 3d double vector
@@ -73,7 +111,12 @@ using v_2d = std::vector<std::vector<T>>;							// 2d double vector
 template<class T>
 using v_1d = std::vector<T>;										// 1d double vector
 
+using vecMat = v_1d<arma::mat>;
 // ----------------------------------------------------------------------------- TIME FUNCTIONS -----------------------------------------------------------------------------
+/*
+* return the duration in seconds from a given time point
+* @param point in time from which we calculate the interval
+*/
 inline double tim_s(clk::time_point start) {
 	return double(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration(\
 		std::chrono::high_resolution_clock::now() - start)).count()) / 1000.0;
@@ -85,141 +128,325 @@ inline double tim_s(clk::time_point start) {
 
 // ----------------------------------------------------------------------------- MATRIX MULTIPLICATION
 
-void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update = true, bool minus = false);
+/*
+* Puts the given matrix MSet(smaller) to a specific place in the M2Set (bigger) matrix
+* @param M2Set (bigger) matrix to find the submatrix in and set it's elements
+* @param MSet (smaller) matrix to be put in the M2Set
+* @param row row of the left upper element (row,col) of M2Set
+* @param col col of the left upper element (row,col) of M2Set
+* @param update if we shall add or substract MSet elements from M2Set depending on minus parameter
+* @param minus substract?
+*/
 void setSubmatrixFromMatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update = true, bool minus = false);
 
+/*
+* Uses the given matrix MSet (bigger) to set the M2Set (smaller) matrix
+* @param M2Set (smaller) matrix to find the submatrix in and set it's elements
+* @param MSet (bigger) matrix to be put in the M2Set
+* @param row row of the left upper element (row,col) of MSet
+* @param col col of the left upper element (row,col) of MSet
+* @param update if we shall add or substract MSet elements from M2Set depending on minus parameter
+* @param minus substract?
+*/
+void setMatrixFromSubmatrix(arma::mat& M2Set, const arma::mat& MSet, uint row, uint col, uint Nrows, uint Ncols, bool update = true, bool minus = false);
+
+/*
+* Is used to calculate the equation of the form (U_l * D_l * T_l + U_r * D_r * T_r).
+* @details UDT we get from QR decomposition with column pivoting
+* @param Ql
+* @param Rl
+* @param Pl
+* @param Tl
+* @param Dl
+* @param Qr
+* @param Rr
+* @param Pr
+* @param Tr
+* @param Dr
+* @param Dtmp
+* @warning Uses the UDT decomposition from QR with column pivoting
+*/
 arma::mat inv_left_plus_right_qr(arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl, arma::vec& Dl, arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr, arma::vec& Dr, arma::vec& Dtmp);
 
-/// <summary>
-///
-/// </summary>
-/// <param name="mat_to_multiply"></param>
-/// <param name="Q"></param>
-/// <param name="R"></param>
-/// <param name="P"></param>
-/// <param name="T"></param>
-/// <param name="D"></param>
-void inline setUDTDecomp(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
-	if (!arma::qr(Q, R, P, mat_to_multiply)) throw "decomposition failed\n";
-	for (int i = 0; i < R.n_rows; i++) {
+/*
+* Creates the UDT decomposition using QR decomposition. WITH INVERSION OF R DIAGONAL ALREADY
+* @cite doi:10.1016/j.laa.2010.06.023
+* </summary>
+* @param mat 
+* @param Q unitary Q matrix
+* @param R right triangular matrix
+* @param P permutation matrix
+* @param T upper triangular matrix
+* @param D diagonal vector -> saves the inverse already
+*/
+void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
+	if (!arma::qr(Q, R, P, mat)) throw "decomposition failed\n";
+	// inverse during setting
+	for (int i = 0; i < R.n_rows; i++)
 		D(i) = 1.0 / R(i, i);
-	}
-	T = ((diagmat(D) * R) * P.t());
+	T = ((DIAG(D) * R) * P.t());
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="mat_to_multiply"></param>
-/// <param name="Q"></param>
-/// <param name="R"></param>
-/// <param name="P"></param>
-/// <param name="T"></param>
+/*
+* Creates the UDT decomposition using QR decomposition. WITHOUT D VECTOR
+* @cite doi:10.1016/j.laa.2010.06.023
+* </summary>
+* @param mat 
+* @param Q unitary Q matrix
+* @param R right triangular matrix
+* @param P permutation matrix
+* @param T upper triangular matrix
+* @param D diagonal vector -> saves the inverse already
+*/
+void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T) {
+	if (!arma::qr(Q, R, P, mat)) throw "decomposition failed\n";
+	// inverse during setting
+	T = ((arma::inv(DIAG(R)) * R) * P.t());
+}
+
+
+/**
+ * @brief Calculate the multiplication of two matrices with numerical stability.
+ * @param right right matrix of multiplication
+ * @param left left matrix of multiplication
+ * @param Ql 
+ * @param Rl 
+ * @param Pl 
+ * @param Tl 
+ * @param Qr 
+ * @param Rr 
+ * @param Pr 
+ * @param Tr 
+ * @return matrix after multiplication
+ */
+arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& right,
+									arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl,
+									arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr
+									)
+{
+	const auto type = 0; // SVD
+	//const auto type = 'QR';
+	if (type == 1) {
+		setUDTDecomp(left, Ql, Rl, Pl, Tl);
+		setUDTDecomp(right, Qr, Rr, Pr, Tr);
+		setUDTDecomp(DIAG(Rl) * ((Tl * Qr) * DIAG(Rr)), Qr, Rr, Pr, Tl);
+		return (Ql * Qr) * DIAG(Rr) * (Tl * Tr);
+	}
+	//else if(type == 'SVD'){
+	//	svd(Ql, DIAG(Rl), mat V, mat X)
+	//}
+	else return left * right;
+}
+
+
+/*
+* Using ASvQRD - Accurate Solution via QRD with column pivoting to multiply the QR on the right and multiply new matrix mat_to_multiply on the left side.
+* @cite doi:10.1016/j.laa.2010.06.023
+* @param mat_to_multiply (left) matrix to multiply by the QR decomposed stuff (on the right)
+* @param Q unitary Q matrix
+* @param R right triangular matrix
+* @param P permutation matrix
+* @param T upper triangular matrix
+* @param D inverse of the new R diagonal
+*/
 void inline multiplyMatricesQrFromRight(const arma::mat& mat_to_multiply, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T, arma::vec& D) {
-	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * diagmat(R))) throw "decomposition failed\n";
-	for (int i = 0; i < R.n_rows; i++) {
+	if (!arma::qr(Q, R, P, (mat_to_multiply * Q) * arma::diagmat(R))) throw "decomposition failed\n";
+	// inverse during setting
+	for (int i = 0; i < R.n_rows; i++)
 		D(i) = 1.0 / R(i, i);
-	}
-	T = ((diagmat(D) * R) * P.t()) * T;
+	// premultiply old T by new T from left
+	T = ((DIAG(D) * R) * P.t()) * T;
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="R"></param>
-/// <param name="D"></param>
+
+void inline multiplyMatricesSVDFromRight(const arma::mat& mat_to_multiply, arma::mat& U, arma::vec& s, arma::mat& V, arma::mat& tmpV) {
+	svd(U, s, tmpV, mat_to_multiply * U * DIAG(s));
+	V = V * tmpV;
+}
+/*
+* Loh's decomposition to two scales in UDT QR decomposition. One is lower than 0 and second higher. Uses R again to save memory
+* @param R the R matrix from QR decompositon. As it's diagonal is mostly not used anymore it will be used to store (<= 1) elements of previous R
+* @param D vector to store (> 1) elements of previous R -> IT IS ALREADY INVERSE OF R DIAGONAL
+*/
 void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 	for (int i = 0; i < R.n_rows; i++)
 	{
-		if (abs(R(i, i)) > 1) {
-			R(i, i) = 1;
-		}
-		else {
-			D(i) = 1;
-		}
+		if (abs(R(i, i)) > 1)
+			R(i, i) = 1;				// min(1,R(i,i))
+		else
+			D(i) = 1;					// inv of max(1,R(i,i))
 	}
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="R"></param>
-/// <param name="D"></param>
-void inline makeTwoScalesFromUDT_full(arma::mat& R, arma::vec& D) {
+/*
+* Loh's decomposition to two scales in UDT QR decomposition. One is lower than 0 and second higher. Uses two new vectors
+* @param R the R matrix from QR decompositon. As it's diagonal is mostly not used anymore it will be used to store (<= 1) elements of previous R
+* @param D vector to store (> 1) elements of previous R
+*/
+void inline makeTwoScalesFromUDT(const arma::mat& R, arma::vec& Db, arma::vec& Ds) {
+	Db.ones();
+	Ds.ones();
 	for (int i = 0; i < R.n_rows; i++)
 	{
-		if (abs(R(i, i)) > 1.0) {
-			D(i) = R(i, i);
-			R(i, i) = 1;
-		}
-		else {
-			D(i) = 1;
-		}
+		if (abs(R(i, i)) > 1)
+			Db(i) = R(i,i);
+		else
+			Ds(i) = R(i,i);
 	}
 }
 
-// ----------------------------------------------------------------------------- FILE AND STREAMS
+//! ----------------------------------------------------------------------------- FILE AND STREAMS
 
-/// <summary>
-///
-/// </summary>
-/// <param name="filename"></param>
-/// <param name="mode"></param>
-/// <returns></returns>
+
+
+/*
+* Opens a file
+* @param filename filename
+* @param mode std::ios_base::openmode
+*/
 template <typename T>
 inline void openFile(T& file, std::string filename, std::ios_base::openmode mode = std::ios::out) {
 	file.open(filename, mode);
 	if (!file.is_open()) throw "couldn't open a file: " + filename + "\n";
 }
 
-/// <summary>
-/// check the sign of a value
-/// </summary>
-/// <param name="val">value to be checked</param>
-/// <returns>sign of a variable</returns>
+
+//? ------------------------------------------------------------------------------ VALUE EQUALS
+
+
+
+/*
+*Changes a value to a string with a given precision
+*@param a_value Value to be transformed
+*@param n Precision @n default 2
+*@returns String of a value
+*/
 template <typename T>
-inline int sgn(T val) {
-	return (T(0) < val) - (val < T(0));
+inline std::string str_p(const T a_value, const int n = 2) {
+	std::ostringstream out;
+	out.precision(n);
+	out << std::fixed << a_value;
+	return out.str();
 }
 
+
+/*
+* given the char* name it prints its value in a format "name=val"
+*@param name name of the variable
+*@param value of the variable
+*@returns "name=val" string
+*/
 template <typename T>
-inline T variance(T value, T average, int norm) {
-	return std::sqrt((value / norm - average * average) / norm);
+inline std::string valueEquals(char name[], T value, int prec = 2) {
+	return std::string(name)+ "=" + str_p(value, prec);
 }
 
-/// <summary>
-/// Defines an euclidean modulo denoting also the negative sign
-/// </summary>
-/// <param name="a">left side of modulo</param>
-/// <param name="b">right side of modulo</param>
-/// <returns>euclidean a%b</returns>
-inline int myModuloEuclidean(int a, int b)
-{
-	int m = a % b;
-	if (m < 0) {
-		m = (b < 0) ? m - b : m + b;
-	}
-	return m;
-}
-
-/// <summary>
-///
-/// </summary>
-/// <typeparam name="T"></typeparam>
-/// <param name="output"></param>
-/// <param name="elements"></param>
-/// <param name="separtator"></param>
+/*
+* printing the separated number of variables using the variadic functions initializer
+*@param output output stream
+*@param elements initializer list of the elements to be printed
+*@param separator to be used @n default "\\t"
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+ */
 template <typename T>
-inline void printSeparated(std::ostream& output, std::string separtator = "\t", std::initializer_list<T> elements = {}, arma::u16 width = 8, bool endline = true) {
+inline void printSeparated(std::ostream& output, char separtator = '\t', std::initializer_list<T> elements = {}, arma::u16 width = 8, bool endline = true) {
 	for (auto elem : elements) {
-		output.width(width); output << elem << separtator;
+		output.width(width); output << elem << std::string(1,separtator);
 	}
 	if (endline) output << std::endl;
 }
 
-/// <summary>
-/// Print vector separated by commas
-/// </summary>
+
+/*
+* printing the separated number of variables using the variadic functions initializer -> ONE TYPE FUNCTION FOR RECURSION
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename Type>
+inline void printSep(std::ostream& output, char separator, arma::u16 width, Type arg) {
+	output.width(width); output << arg << std::string(1, separator);
+}
+/*
+* printing the separated number of variables using the variadic functions initializer -> ONE TYPE FUNCTION FOR RECURSION - PRECISION!
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
+*@param prec precision for the output
+*/
+template <typename Type>
+inline void printSepP(std::ostream& output, char separator, arma::u16 width, u16 prec, Type arg) {
+	output.width(width); output << str_p(arg,prec) << std::string(1, separator);
+}
+
+/*
+* printing the separated number of variables using the variadic functions initializer
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param arg first element of the argument list
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename Type, typename... Types>
+inline void printSep(std::ostream& output, char separator, arma::u16 width, Type arg, Types... elements) {
+	printSep(output, separator, width, arg);
+	printSep(output, separator, width, elements...);
+}
+
+/*
+* printing the separated number of variables using the variadic functions initializer PRECISION
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param arg first element of the argument list
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename Type, typename... Types>
+inline void printSepP(std::ostream& output, char separator, arma::u16 width, u16 prec, Type arg, Types... elements) {
+	printSepP(output, separator, width, prec, arg);
+	printSepP(output, separator, width, prec, elements...);
+}
+
+/*
+* printing the separated number of variables using the variadic functions initializer - LAST CALL
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename... Types>
+inline void printSeparated(std::ostream& output, char separator, arma::u16 width, bool endline, Types... elements) {
+	printSep(output, separator, width, elements...);
+	if (endline) output << std::endl;
+}
+
+/*
+* printing the separated number of variables using the variadic functions initializer - LAST CALL PRECISION
+*@param output output stream
+*@param separator to be used
+*@param width of one element column for printing
+*@param endline shall we add endline at the end?
+*@param elements at the very end we give any type of variable to the function
+*/
+template <typename... Types>
+inline void printSeparatedP(std::ostream& output, char separator, arma::u16 width, bool endline, u16 prec, Types... elements) {
+	printSepP(output, separator, width, prec, elements...);
+	if (endline) output << std::endl;
+}
+
+/*
+*Overwritten standard stream redirection operator for 2D vectors separated by commas
+*@param out outstream to be used
+*@param v 1D vector
+*/
 template <typename T>
 std::ostream& operator<< (std::ostream& out, const v_1d<T>& v) {
 	if (!v.empty()) {
@@ -231,87 +458,77 @@ std::ostream& operator<< (std::ostream& out, const v_1d<T>& v) {
 	return out;
 }
 
+/*
+* Overwritten standard stream redirection operator for 2D vectors
+* @param out outstream to be used
+* @param v 2D vector
+*/
 template <typename T>
-std::ostream& operator<< (std::ostream& out, const v_1d<v_1d<T>>& v) {
+std::ostream& operator << (std::ostream& out, const v_2d<T>& v ) {
 	if (!v.empty()) {
 		for (auto it : v) {
 			out << "\t\t\t\t";
 			for (int i = 0; i < it.size(); i++)
-				out << it[i] << "\t";
+				out << it[i] << '\t';
 			out << "\n";
 		}
 	}
 	return out;
 }
-// -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
+//! ----------------------------------------------------------------------------- HELPERS
 
-/// <summary>
-/// Changes a value to a string with a given precision
-/// </summary>
-/// <param name="a_value">Value to be transformed</param>
-/// <param name="n">Precision</param>
-/// <returns>String of a value</returns>
 template <typename T>
-inline std::string to_string_prec(const T a_value, const int n = 2) {
-	std::ostringstream out;
-	out.precision(n);
-	out << std::fixed << a_value;
-	return out.str();
+inline T variance(T value, T average, int norm) {
+	return std::sqrt((value / norm - average * average) / norm);
 }
 
+/*
+* check the sign of a value
+* @param val value to be checked
+* @returns sign of a variable
+*/
+template <typename T>
+inline int sgn(T val) {
+	return (T(0) < val) - (val < T(0));
+}
+
+/*
+* Defines an euclidean modulo denoting also the negative sign
+* @param a left side of modulo
+* @param b right side of modulo
+* @returns euclidean a%b
+* @link https://en.wikipedia.org/wiki/Modulo_operation
+*/
+inline int myModuloEuclidean(int a, int b)
+{
+	int m = a % b;
+	if (m < 0) m = (b < 0) ? m - b : m + b;
+	return m;
+}
+
+
+//! -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
+
+
+/*
+* Splits string according to the delimiter
+* @param s a string to be split
+* @param delimiter a delimiter. Default = '\t'
+* <returns></returns>
+*/
 v_1d<std::string> split_str(const std::string& s, std::string delimiter = "\t");
 
-v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv);
-
-class pBar {
-public:
-	void update(double newProgress) {
-		currentProgress += newProgress;
-		amountOfFiller = (int)((currentProgress / neededProgress) * (double)pBarLength);
-	}
-	void print() {
-		currUpdateVal %= pBarUpdater.length();
-		stout << "\r";															// Bring cursor to start of line
-		stout << firstPartOfpBar;												// Print out first part of pBar
-		for (int a = 0; a < amountOfFiller; a++) {								// Print out current progress
-			stout << pBarFiller;
-		}
-		stout << pBarUpdater[currUpdateVal];
-		for (int b = 0; b < pBarLength - amountOfFiller; b++) {					// Print out spaces
-			stout << " ";
-		}
-		stout << lastPartOfpBar;												// Print out last part of progress bar
-		stout << " (" << (int)(100 * (currentProgress / neededProgress)) << "%)";	// This just prints out the percent
-		stout << std::flush;
-		currUpdateVal += 1;
-	}
-	void printWithTime(const std::string& message, double percentage) {
-#pragma omp critical
-		{
-			stout << "\t\t\t\t-> time: " << tim_s(timer) << message << " : \n";
-			this->print();
-			stout << std::endl;
-		}
-		this->update(percentage);
-	}
-	// constructor
-	pBar() {
-		timer = std::chrono::high_resolution_clock::now();
-		amountOfFiller = 0;
-	}
-private:
-	// --------------------------- STRING ENDS
-	std::string firstPartOfpBar = "\t\t\t\t[";
-	std::string lastPartOfpBar = "]";
-	std::string pBarFiller = "|";
-	std::string pBarUpdater = "/-\\|";
-	// --------------------------- PROGRESS
-	clk::time_point timer;														// inner clock
-	int amountOfFiller;															// length of filled elements
-	int pBarLength = 50;														// length of a progress bar
-	int currUpdateVal = 0;														//
-	double currentProgress = 0;													// current progress
-	double neededProgress = 100;												// final progress
+/*
+* We want to handle files so let's make the c-way input a string. This way we will parse the command line arguments
+* @param argc number of main input arguments 
+* @param argv main input arguments 
+* @returns vector of strings with the arguments from command line
+*/
+inline v_1d<std::string> change_input_to_vec_of_str(int argc, char** argv){
+	// -1 because first is the name of the file
+	std::vector<std::string> tmp(argc - 1, "");										
+	for (int i = 0; i < argc - 1; i++)
+		tmp[i] = argv[i + 1];
+	return tmp;
 };
-
 #endif // COMMON_UTILS_H

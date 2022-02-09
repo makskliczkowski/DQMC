@@ -7,6 +7,26 @@
 namespace hubbard {
 	using namespace arma;
 
+	struct HubbardParams {
+		int dim;
+		double beta;
+		double mu;
+		double U;
+		int Lx;
+		int Ly;
+		int Lz;
+		int M;
+		int M0;
+		int p;
+		double dtau;
+		// constructor
+		HubbardParams(int dim, double beta, double mu, double U, int Lx, int Ly, int Lz, double dtau, int M, int M0, int p) : dim(dim), beta(beta), mu(mu), U(U),
+			Lx(Lx), Ly(Ly), Lz(Lz), dtau(dtau), M(M), M0(M0), p(p) {};
+	};
+
+
+
+
 	struct directories : public general_directories {
 		std::string fourier_dir = "";
 		std::string params_dir = "";
@@ -32,25 +52,36 @@ namespace hubbard {
 
 		void setFileNames() {
 			this->nameFouriers = fourier_dir + "fouriers_" + info + ".dat";
-			this->nameFouriersTime = fourier_dir + "times" + kPSepS + "fouriersTime_" + info + ".dat";
+			this->nameFouriersTime = fourier_dir + "times" + kPS + "fouriersTime_" + info + ".dat";
 			this->nameNormal = params_dir + "parameters_" + info + ".dat";
-			this->nameNormalTime = params_dir + "times" + kPSepS + "parametersTime_" + info + ".dat";
+			this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + info + ".dat";
 			this->nameGreens = "greens" + info + ".dat";
 			this->nameGreensTime = "greensTime_" + info + ".dat";
 		};
 	};
 
+
+	/**
+	 * @brief 
+	 * 
+	 */
 	class HubbardModel : public LatticeModel {
 	protected:
 		// -------------------------- ALGORITHM CONVERGENCE PARAMETERS
+		using sinOpType = double (*)(int, int, const mat&, const mat&);
 		int from_scratch;																		// number of Trotter times for Green to be calculated from scratch
 		int config_sign;																		// keep track of the configuration sign
 		double probability;
 		bool cal_times;
+		bool useHirsh;																			// use Hirsh for non-equal Greens
+		bool all_times;																			// if we calculate only the positive part of the Green's or all of them
 		long int pos_num;																		// helps with number of positive signs
 		long int neg_num;																		// helps with number of negative signs
+		bool equalibrate;																		// if we shall equalibrate stuff now
+		//bool useHirsh;																			// works only when this->cal_times -> if we shall use hirsh for non-equal Greens
 
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
+		int dim;																				// dimension
 		std::vector<double> t;																	// hopping integral vector
 		double U;																				// Coulomb force strength
 		double mu;																				// chemical potential
@@ -122,22 +153,56 @@ namespace hubbard {
 		virtual void upd_Green_step(int im_time_step, bool forward) = 0;
 
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
-		double cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;									// calculate the kinetic energy part for averaging
+		void calOneSiteParam(int sign, int current_elem_i, sinOpType op, long double & av, long double & std){
+			double tmp = (*op)(sign, current_elem_i, this->green_up, this->green_down);
+			av += tmp;
+			std += tmp * tmp;
+		};
+	public:
+		/// nonstatic operators (use fields)
+		double cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the kinetic energy part for averaging
+		 
+		double cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down);					// calculate the z-th magnetization squared correlation at i and j
+		double cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down);			// calculate the average occupation correlation at i and j
+		double cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down);			// calculate the charge correlation at i and j
 
-		double cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;									// calculate the average occupation
-		double cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const;			// calculate the average occupation correlation at i and j
+		/// static operators
+		static double cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down);								// calculate the average occupation
 
-		double cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;											// calculate the z-th magnetization squared
-		double cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const;					// calculate the z-th magnetization squared correlation at i and j
-		double cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;											// calculate the y-th magnetization squared
-		double cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const;											// calculate the x-th magnetization squared
+		static double cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the z-th magnetization squared
 
-		double cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const;			// calculate the charge correlation at i and j
+		static double cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the y-th magnetization squared
+		static double cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the x-th magnetization squared
+		
+
 
 		// -------------------------- EQUAL TIME FOURIER TRANSFORMS
 
 	public:
 		// -------------------------- PRINTERS
+		void say_hi(){
+			stout << "->M = " << this->M << EL \
+			<< "->M0 = " << this->M_0 << EL \
+			<< "->p = " << this->p << EL \
+			// physical
+			<< "->beta = " << this->beta << EL \
+			<< "->U = " << this->U << EL \
+			<< "->dtau = " << this->dtau << EL \
+			<< "->mu = " << this->mu << EL \
+			<< "->t = " << this->t << EL \
+			// lattice
+			<< "->dimension = " << this->getDim() << EL \
+			<< "->Lx = " << this->lattice->get_Lx() << EL \
+			<< "->Ly = " << this->lattice->get_Ly() << EL \
+			<< "->Lz = " << this->lattice->get_Lz() << EL \
+			<< "->lambda = " << this->lambda << EL << EL;
+		/// Setting info about the model for files
+		this->info = "M=" + STR(this->M) + ",M0=" + STR(this->M_0) + \
+			",dtau=" + str_p(this->dtau) + ",Lx=" + STR(this->lattice->get_Lx()) + \
+			",Ly=" + STR(this->lattice->get_Ly()) + ",Lz=" + STR(this->lattice->get_Lz()) + \
+			",beta=" + str_p(this->beta) + ",U=" + str_p(this->U) + \
+			",mu=" + str_p(this->mu);
+		};
 		void print_hs_fields(std::string separator = "\t") const;			// prints current HS fields configuration
 		void print_hs_fields(std::string separator, const arma::mat& toPrint) const;
 		void save_unequal_greens(int filenum, uint bucketnum = 1);
@@ -147,7 +212,7 @@ namespace hubbard {
 		int get_M_0() const { return this->M_0; };
 		std::string get_info() const { return this->info; };
 		std::shared_ptr<directories> get_directories() const { return this->dir; };
-
+		std::shared_ptr<directories> get_directories(std::string working_directory) { this->setDirs(working_directory); return this->dir; };
 		// -------------------------- SETTERS
 		void setDirs(directories* dirs) {this->dir.reset(dirs);};
 		void setDirs(std::string working_directory);

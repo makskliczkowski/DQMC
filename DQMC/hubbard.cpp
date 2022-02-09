@@ -2,18 +2,19 @@
 // -------------------------------------------------------- HUBBARD MODEL -------------------------------------------------------- */
 // -------------------------------------------------------- HELPERS
 
-/// <summary>
-/// Normalise all the averages taken during simulation
-/// </summary>
-/// <param name="avNum">Number of avs taken</param>
-/// <param name="times">If the non-equal time properties were calculated</param>
+/**
+ * @brief Normalise all the averages taken during simulation
+ * 
+ * @param avNum number of avs taken
+ * @param timesNum number of Trotter times used
+ * @param times if the non-equal time properties were calculated
+ */
 void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 {
-	const double normalization = static_cast<double>(avNum * timesNum * this->Ns);								// average points taken
-	//this->avs->av_sign /= double(avNum);																			// average sign is needed
+	const auto normalization = static_cast<double>(avNum * timesNum * this->Ns);						// average points taken
 	this->avs->av_sign = (this->pos_num - this->neg_num) / double(this->pos_num + this->neg_num);
-	this->avs->sd_sign = variance(static_cast<long double>(avNum), this->avs->av_sign, avNum);
-	const double normalisation_sign = normalization * this->avs->av_sign;										// we divide by average sign actually
+	this->avs->sd_sign = variance(static_cast<ld>(avNum), this->avs->av_sign, avNum);
+	const double normalisation_sign = normalization * this->avs->av_sign;								// we divide by average sign actually
 	// with minus
 	//this->avs->av_gr_down /= normalisation_sign / this->Ns;
 	//this->avs->av_gr_up /= normalisation_sign / this->Ns;
@@ -50,75 +51,78 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum, bool times)
 	}
 }
 
-/// <summary>
+/*
 ///
-/// </summary>
-/// <param name="filenum"></param>
-/// <param name="useWrapping"></param>
+/// @param filenum 
+/// @param useWrapping 
+*/
 void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 {
 	std::string information = " Some version\n\n This is the file that contains real space Green's functions for different times.\n";
 	information += " The structure of each is we average over time differences and first row\n";
 	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
 
-	std::ofstream fileUp; openFile(fileUp, this->dir->time_greens_dir + std::to_string(filenum) + "-up" + this->dir->nameGreensTime);
-	std::ofstream fileDown; openFile(fileDown, this->dir->time_greens_dir + std::to_string(filenum) + "-down" + this->dir->nameGreensTime);
+	std::ofstream fileUp; 
+	openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + this->dir->nameGreensTime);
+	std::ofstream fileDown; 
+	openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + this->dir->nameGreensTime);
 
 	fileUp << " Up different time, real-space Greens\n" << information;
 	fileDown << " Down different time, real-space Greens\n" << information;
 	std::initializer_list<std::string> enter_params = { "n =\t",
-		std::to_string(this->lattice->get_Lx()),"\n",
-		"l =\t",std::to_string(this->M),"\n",
-		"tausk =\t",std::to_string(this->M),"\n",
+		STR(this->lattice->get_Lx()),"\n",
+		"l =\t",STR(this->M),"\n",
+		VEQP(M,3),"\n",
 		"doall =\t",std::string("don't know what is that"),"\n",
 		"densw =\t",std::string("don't know what is that"),"\n",
 		"histn =\t",std::string("don't know what is that"),"\n",
 		"iran =\t",std::string("don't know what is that"),"\n",
-		"t  =\t",to_string_prec(this->t[0],5),"\n",
-		"mu  =\t",std::to_string(this->mu),"\n",
+		"t  =\t",str_p(this->t[0],5),"\n",
+		VEQP(mu,3),"\n",
 		"delmu =\t",std::string("don't know what is that"),"\n",
 		"bpar  =\t",std::string("don't know what is that"),"\n",
-		"dtau  =\t",std::to_string(this->dtau),"\n",
-		"warms  =\t",std::to_string(2000),		"\n",
-		"sweeps =\t",std::to_string(2000),"\n",
-		"u =\t", std::to_string(this->U),"\n",
-		"nwrap =\t",std::to_string(this->M_0),"\n",
+		VEQP(dtau,4),"\n",
+		"warms  =\t",STR(1000),		"\n",
+		"sweeps =\t",STR(2000),"\n",
+		VEQP(U,2),"\n",
+		"nwrap =\t",STR(this->M_0),"\n",
 		"difflim =\t",std::string("don't know what is that"),"\n",
 		"errrat =\t",std::string("don't know what is that"),	"\n",
-		"doauto =\t",std::to_string(this->M_0),"\n",
+		VEQ(M_0),"\n",
 		"orthlen =\t",std::string("don't know what is that"),"\n",
 		"eorth =\t",std::string("don't know what is that"),"\n",
 		"dopair =\t",std::string("don't know what is that"),"\n",
 		"numpair =\t",std::string("don't know what is that"),"\n",
-		"lambda =\t", to_string_prec(this->lambda, 4),"\n",
-		"start = \t",std::to_string(0), "\n",
-		"sign = \t",to_string_prec(this->config_sign,5), "\n\n\n" };
-	printSeparated(fileUp, " ", enter_params, 30);
-	printSeparated(fileDown, " ", enter_params, 30);
+		VEQP(lambda,4),"\n",
+		"start = \t0", "\n",
+		VEQP(config_sign,3), "\n\n\n"};
+	printSeparated(fileUp, ' ', enter_params, 30);
+	printSeparated(fileDown, ' ', enter_params, 30);
 
-	this->avs->normaliseGreens(bucketnum, Lx, Ly, this->lattice);
+	this->avs->normaliseGreens(this->lattice, bucketnum, this->all_times);
 
 	const u16 width = 8;
-	printSeparated(fileUp, "\t", { std::string(" G(nx,ny,ti):") });
-	printSeparated(fileDown, "\t", { std::string(" G(nx,ny,ti):") });
-	for (int x = 0; x <= Lx / 2; x++) {
-		for (int y = x; y <= Ly / 2; y++) {
-			printSeparated(fileUp, "\t", {std::string(" nx ="), std::to_string(x), std::string("ny ="), std::to_string(y)}, 6);
-			printSeparated(fileDown, "\t", { std::string(" nx ="), std::to_string(x), std::string("ny ="), std::to_string(y) }, 6);
+	printSeparated(fileUp, '\t', { std::string(" G(nx,ny,ti):") });
+	printSeparated(fileDown, '\t', { std::string(" G(nx,ny,ti):") });
+	for (int nx = 0; nx <= Lx / 2; nx++) {
+		for (int ny = nx; ny <= Ly / 2; ny++) {
+			printSeparated(fileUp, '\t', 6,true, VEQ(nx), VEQ(ny));
+			printSeparated(fileDown, '\t', 6, true, VEQ(nx), VEQ(ny));
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
-				printSeparated(fileUp, "\t", { std::to_string(tau1) }, 4, 0);
-				printSeparated(fileUp, "\t", { to_string_prec(this->avs->g_up_diffs[tau1](x,y),width) }, width + 5, false);
-				printSeparated(fileUp, "\t", { std::string("+-") }, 5, false);
-				printSeparated(fileUp, "\t", { to_string_prec(this->avs->sd_g_up_diffs[tau1](x,y),width) }, width + 5, true);
+				printSeparated(fileUp, '\t', 4, false, tau1);
+				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](nx,ny),width));
+				printSeparated(fileUp, '\t', 5, false, "+-");
+				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](nx,ny),width));
 
-				printSeparated(fileDown, "\t", { std::to_string(tau1) }, 4, 0);
-				printSeparated(fileDown, "\t", { to_string_prec(this->avs->g_down_diffs[tau1](x,y),width) }, width + 5, 0);
-				printSeparated(fileDown, "\t", { std::string("+-") }, 5, false);
-				printSeparated(fileDown, "\t", { to_string_prec(this->avs->sd_g_down_diffs[tau1](x,y),width) }, width + 5, true);
+				printSeparated(fileDown, '\t', 4, false, tau1);
+				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](nx, ny), width));
+				printSeparated(fileDown, '\t', 5, false, "+-");
+				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
 			}
 		}
 	}
+	
 	/*
 	fileUp.flush();
 	fileDown.flush();
@@ -129,8 +133,8 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 		double kx = i * kxStep;
 		for (int j = i; j <= Ly / 2; j++) {
 			double ky = j * kyStep;
-			printSeparated(fileUp, "\t", { std::string(" G(qx,qy,ti): (qx,\tkx) ="), std::to_string(i) + ",\t" + to_string_prec(kx,3), std::string("(qy,\tky) ="), std::to_string(j) + ",\t" + to_string_prec(ky,3) }, 10);
-			printSeparated(fileDown, "\t", { std::string(" G(qx,qy,ti): (qx,\tkx) ="), std::to_string(i) + ",\t" + to_string_prec(kx,3), std::string("(qy,\tky) ="), std::to_string(j) + ",\t" + to_string_prec(ky,3) }, 10);
+			printSeparated(fileUp, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), STR(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), STR(j) + ",\t" + str_p(ky,3) }, 10);
+			printSeparated(fileDown, '\t', { std::string(" G(qx,qy,ti): (qx,\tkx) ="), STR(i) + ",\t" + str_p(kx,3), std::string("(qy,\tky) ="), STR(j) + ",\t" + str_p(ky,3) }, 10);
 			for (int yy = -Ly + 1; yy < Ly; yy++) {
 				const auto yelem = myModuloEuclidean(abs(yy), Ly / 2 + 1);
 				for (int xx = -Lx + 1; xx < Lx; xx++) {
@@ -151,19 +155,19 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 			}
 			// print
 			for (int tau1 = 0; tau1 < this->M; tau1++) {
-				printSeparated(fileUp, "\t", { std::to_string(tau1) }, 4, false);
+				printSeparated(fileUp, '\t', { STR(tau1) }, 4, false);
 				auto elem_up = real(this->avs->g_up_diffs_k[tau1](i, j)) / TWOPI;
-				printSeparated(fileUp, "\t", { to_string_prec(elem_up, width) }, width + 5, false);
-				printSeparated(fileUp, "\t", { std::string("+-") }, 5, false);
+				printSeparated(fileUp, '\t', { str_p(elem_up, width) }, width + 5, false);
+				printSeparated(fileUp, '\t', { std::string("+-") }, 5, false);
 				elem_up = sqrt(abs(real(this->avs->sd_g_up_diffs_k[tau1](i, j)))) / TWOPI;
-				printSeparated(fileUp, "\t", { to_string_prec(elem_up,width) }, width + 5);
+				printSeparated(fileUp, '\t', { str_p(elem_up,width) }, width + 5);
 
-				printSeparated(fileDown, "\t", { std::to_string(tau1) }, 4, false);
+				printSeparated(fileDown, '\t', { STR(tau1) }, 4, false);
 				auto elem_down = real(this->avs->g_down_diffs_k[tau1](i, j)) / TWOPI;
-				printSeparated(fileDown, "\t", { to_string_prec(elem_down, width) }, width + 5, false);
-				printSeparated(fileDown, "\t", { std::string("+-") }, 5, false);
+				printSeparated(fileDown, '\t', { str_p(elem_down, width) }, width + 5, false);
+				printSeparated(fileDown, '\t', { std::string("+-") }, 5, false);
 				elem_down = sqrt(abs(real(this->avs->sd_g_down_diffs_k[tau1](i, j)))) / TWOPI;
-				printSeparated(fileDown, "\t", { to_string_prec(elem_down,width) }, width + 5);
+				printSeparated(fileDown, '\t', { str_p(elem_down,width) }, width + 5);
 			}
 		}
 	}
@@ -172,10 +176,11 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	fileDown.close();
 }
 
-// -------------------------------------------------------- SETTERS
-/// <summary>
-/// Setting the Hubbard - Stratonovich fields
-/// </summary>
+//! -------------------------------------------------------- SETTERS
+
+/*
+* Setting the Hubbard - Stratonovich fields
+*/
 void hubbard::HubbardModel::set_hs()
 {
 	for (int i = 0; i < this->Ns; i++) {
@@ -183,29 +188,29 @@ void hubbard::HubbardModel::set_hs()
 			//int elem = this->ran.bernoulli(0.5) ? -1 : 1;
 			int elem = this->ran.randomReal_uni(0, 1) > 0.5 ? 1 : -1;
 			this->hsFields(l, i) = elem;	// set the hs fields to uniform -1 or 1
-			//this->hsFields_img[l][i] = elem > 0 ? " " : "|";
+			//this->hsFields_img[l][i] = elem > 0 ? ' ' : "|";
 		}
 	}
 }
 
-/// <summary>
-/// Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
-/// </summary>
-/// <param name="dir">directory to be used for configurations</param>
+/*
+* Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
+/// @param dir directory to be used for configurations
+*/
 void hubbard::HubbardModel::setConfDir() {
-	this->dir->neg_dir = this->dir->conf_dir + kPSepS + this->info;
-	this->dir->pos_dir = this->dir->conf_dir + kPSepS + this->info;
+	this->dir->neg_dir = this->dir->conf_dir + kPS + this->info;
+	this->dir->pos_dir = this->dir->conf_dir + kPS + this->info;
 	// create directories
 
-	this->dir->neg_dir +=  kPSepS + "negative";
-	this->dir->pos_dir +=  kPSepS + "positive";
+	this->dir->neg_dir +=  kPS + "negative";
+	this->dir->pos_dir +=  kPS + "positive";
 
 	fs::create_directories(this->dir->neg_dir);
 	fs::create_directories(this->dir->pos_dir);
 
 	// add a separator
-	this->dir->neg_dir += kPSepS;
-	this->dir->pos_dir += kPSepS;
+	this->dir->neg_dir += kPS;
+	this->dir->pos_dir += kPS;
 	// for .log files
 	std::ofstream fileN, fileP;																	// files for saving the configurations
 	this->dir->neg_log = this->dir->neg_dir.substr(0, \
@@ -218,11 +223,10 @@ void hubbard::HubbardModel::setConfDir() {
 	fileP.close();																				// close just to create file pos
 }
 
-/// <summary>
-///
-/// </summary>
-/// <param name="working_directory"></param>
-/// <returns></returns>
+/**
+ * @brief setting the model directories
+ * @param working_directory current working directory
+ */
 void hubbard::HubbardModel::setDirs(std::string working_directory)
 {
 	using namespace std;
@@ -231,47 +235,45 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 	int Lz = this->lattice->get_Lz();
 	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
 	this->dir->info = this->info;
-	this->dir->LxLyLz = "Lx=" + std::to_string(Lx) + ",Ly=" + to_string(Ly) + ",Lz=" + to_string(Lz);
+	this->dir->LxLyLz = "Lx=" + STR(Lx) + ",Ly=" + STR(Ly) + ",Lz=" + STR(Lz);
 
-	this->dir->lat_type = this->lattice->get_type() + kPSepS;																// making folder for given lattice type
+	this->dir->lat_type = this->lattice->get_type() + kPS;																// making folder for given lattice type
 	this->dir->working_dir = working_directory + this->dir->lat_type + \
-		to_string(this->lattice->get_Dim()) + \
-		"D" + kPSepS + this->dir->LxLyLz + kPSepS;																		// name of the working directory
+		STR(this->lattice->get_Dim()) + \
+		"D" + kPS + this->dir->LxLyLz + kPS;																		// name of the working directory
 
 	// CREATE DIRECTORIES
 	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
 	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
-	fs::create_directories(this->dir->fourier_dir + kPSepS + "times");																	// and with different times
-	this->dir->fourier_dir += kPSepS;
+	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
+	this->dir->fourier_dir += kPS;
 
 	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
 	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
 	fs::create_directories(this->dir->greens_dir);
-	this->dir->greens_dir += kPSepS + this->dir->info;
-	this->dir->time_greens_dir = this->dir->greens_dir + kPSepS + "times";
-	fs::create_directories(this->dir->params_dir);
-	fs::create_directories(this->dir->params_dir + kPSepS + "times");
-	fs::create_directories(this->dir->greens_dir);
+	this->dir->greens_dir += kPS + this->dir->info;
+	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
+	fs::create_directories(this->dir->params_dir + kPS + "times");
 	fs::create_directories(this->dir->time_greens_dir);
-	this->dir->greens_dir += kPSepS;
-	this->dir->time_greens_dir += kPSepS;
-	this->dir->params_dir += kPSepS;
+	this->dir->greens_dir += kPS;
+	this->dir->time_greens_dir += kPS;
+	this->dir->params_dir += kPS;
 
-	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPSepS;
+	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPS;
 
 	// FILES
 	this->setConfDir();
 	this->dir->setFileNames();
 }
 
-// -------------------------------------------------------- HELPERS --------------------------------------------------------
+//! -------------------------------------------------------- HELPERS --------------------------------------------------------
 
-/// <summary>
-/// Function to calculate the change in the potential exponential
-/// Attractive case needs to be done
-/// </summary>
-/// <param name="lat_site">lattice site on which the change has been made</param>
-/// <returns>A tuple for gammas for two spin channels, 0 is spin up, 1 is spin down</returns>
+/*
+* Function to calculate the change in the potential exponential
+* Attractive case needs to be done
+* @param lattice site on which the change has been made
+* @return A tuple for gammas for two spin channels, 0 is spin up, 1 is spin down
+*/
 std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 {
 	std::tuple< double, double> tmp;								// here we will save the gammas
@@ -287,19 +289,15 @@ std::tuple<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
 	return tmp;
 }
 
-/// <summary>
-/// Return probabilities of spin flip for both spin channels
-/// </summary>
-/// <param name="lat_stie">flipping candidate site</param>
-/// <param name="gamma_up">the changing parameter for spin up</param>
-/// <param name="gamma_down">the changing parameter for spin down</param>
-/// <returns>A tuple for probabilities on both spin channels, remember, 0 is spin up, 1 is spin down</returns>
+/*
+* Return probabilities of spin flip for both spin channels
+* @param lat_stie flipping candidate site
+* @param gamma_up the changing parameter for spin up
+* @param gamma_down the changing parameter for spin down
+* @return tuple for probabilities on both spin channels, remember, 0 is spin up, 1 is spin down
+*/
 std::tuple<double, double> hubbard::HubbardModel::cal_proba(int lat_site, double gamma_up, double gamma_down) const
 {
-	//double tmp_up = exp(-2*this->lambda * this->hsFields[this->current_time][lat_site]) - 1.0;
-	//double tmp_down = exp(2*this->lambda * this->hsFields[this->current_time][lat_site]) - 1.0;
-	//stout << "up: " << tmp_up << "\tdown: " << tmp_down << std::endl;
-	//stout << "gammaUp: " << gamma_up << "\tgamma_down: " << gamma_down << std::endl << std::endl << std::endl;
 	// SPIN UP
 	long double p_up = 1.0 + (gamma_up) * (1.0 - this->green_up(lat_site, lat_site));;
 	long double p_down = 0;
@@ -313,51 +311,45 @@ std::tuple<double, double> hubbard::HubbardModel::cal_proba(int lat_site, double
 
 // -------------------------------------------------------- UPDATERS --------------------------------------------------------
 
-/// <summary>
-/// Update the interaction matrix for current spin whenever the given lattice site HS field is changed
-/// Only for testing purpose
-/// </summary>
-/// <param name="lat_site">the site of changed HS field</param>
-/// <param name="delta_sigma">difference between changed and not</param>
-/// <param name="sigma">spin channel</param>
+/*
+* Update the interaction matrix for current spin whenever the given lattice site HS field is changed
+* Only for testing purpose
+* @param lat_site the site of changed HS field
+* @param delta_sigma difference between changed and not
+* @param sigma spin channel
+*/
 void hubbard::HubbardModel::upd_int_exp(int lat_site, double delta_up, double delta_down)
 {
 	this->int_exp_up(lat_site, this->current_time) *= delta_up;
 	this->int_exp_down(lat_site, this->current_time) *= delta_down;
 }
 
-/// <summary>
-/// After accepting spin change update the B matrix by multiplying it by diagonal element ( the delta )
-/// </summary>
-/// <param name="lat_site"></param>
-/// <param name="delta_up"></param>
-/// <param name="delta_down"></param>
+/*
+* After accepting spin change update the B matrix by multiplying it by diagonal element ( the delta )
+* @param lat_site current lattice site for the update
+* @param delta_up based on parameter gamma + 1, this updates up spin B
+* @param delta_down based on parameter gamma + 1, this updates down spin B
+*/
 void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delta_down) {
 	for (int i = 0; i < this->Ns; i++) {
 		this->b_mat_up[this->current_time](i, lat_site) *= delta_up;
 		this->b_mat_down[this->current_time](i, lat_site) *= delta_down;
+		// only needed for non-equal time properties
+		//if (this->equalibrate) {
 		this->b_mat_up_inv[this->current_time](lat_site, i) *= delta_down;
 		this->b_mat_down_inv[this->current_time](lat_site, i) *= delta_up;
+		//}
 	}
-
-	//this->b_mat_up[this->current_time].col(lat_site) *= delta_up;				// spin up
-	//this->b_mat_down[this->current_time].col(lat_site) *= delta_down;			// spin down
-
-	// the names are opposite because we need to divide in principle, not multiply
-	//this->b_mat_up_inv[this->current_time].row(lat_site) *= delta_down;			// spin up
-	//this->b_mat_down_inv[this->current_time].row(lat_site) *= delta_up;		// spin down
-
-	//this->b_mat_up[this->current_time](j, lat_site) *= delta_up;						// spin up
-	//this->b_mat_down[this->current_time](j, lat_site) *= delta_down;					// spin down
 }
 
-// -------------------------------------------------------- GETTERS
+//! -------------------------------------------------------- GETTERS
 
-// -------------------------------------------------------- CALCULATORS
+//! -------------------------------------------------------- CALCULATORS
 
-/// <summary>
-/// Function to calculate the hopping matrix exponential (with nn for now)
-/// </summary>
+// TODO ------------------------>
+/*
+* Function to calculate the hopping matrix exponential (with nn for now)
+*/
 void hubbard::HubbardModel::cal_hopping_exp()
 {
 	bool checkerboard = false;
@@ -476,37 +468,32 @@ void hubbard::HubbardModel::cal_hopping_exp()
 		//jordan = arma::expmat_sym(jordan);
 		//this->hopping_exp = eigvec * this->hopping_exp * eigvec.i();
 #pragma omp critical
-		this->hopping_exp = arma::expmat_sym(this->hopping_exp);												// take the exponential
+		this->hopping_exp = arma::expmat(this->hopping_exp);												// take the exponential
 		//this->hopping_exp.print("hopping after exponentiation");
 	}
 }
 
-/// <summary>
-/// Function to calculate the interaction exponential at all times, each column represents the given Trotter time
-/// </summary>
+/*
+* Function to calculate the interaction exponential at all times, each column represents the given Trotter time
+*/
 void hubbard::HubbardModel::cal_int_exp() {
 	const arma::vec dtau_vec = arma::ones(this->Ns) * this->dtau * (this->mu);
-	if (this->U > 0) {
+	if (this->U > 0)
 		// Repulsive case
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times
 			this->int_exp_up.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (this->lambda));
 			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (-this->lambda));
 		}
-	}
-	else if (U < 0) {
-		//const double exp_plus = exp(this->lambda + this->dtau * this->mu);				// plus exponent for faster computation
-		//const double exp_minus = exp(-this->lambda + this->dtau * this->mu);			// minus exponent for faster computation
+	else if (U < 0)
 		// Attractive case
-		for (int l = 0; l < M; l++) {
+		for (int l = 0; l < M; l++)
 			// Trotter times
 			for (int i = 0; i < Ns; i++) {
 				// Lattice sites
 				this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * this->lambda);
 				this->int_exp_up.col(l) = this->int_exp_down.col(l);
 			}
-		}
-	}
 	else {
 		this->int_exp_down = arma::eye(this->Ns, this->Ns);
 		this->int_exp_up = arma::eye(this->Ns, this->Ns);
@@ -514,64 +501,66 @@ void hubbard::HubbardModel::cal_int_exp() {
 	//this->int_exp_up.print();
 }
 
-/// <summary>
-/// Function to calculate all B exponents for a given model. Those are used for the Gibbs weights
-/// </summary>
+/*
+* Function to calculate all B exponents for a given model. Those are used for the Gibbs weights
+*/
 void hubbard::HubbardModel::cal_B_mat() {
 	//#pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times
-		this->b_mat_down[l] = arma::diagmat(this->int_exp_down.col(l)) * this->hopping_exp;
-		this->b_mat_up[l] = arma::diagmat(this->int_exp_up.col(l)) * this->hopping_exp;
-
+		this->b_mat_down[l] = DIAG(this->int_exp_down.col(l)) * this->hopping_exp;
+		this->b_mat_up[l] = DIAG(this->int_exp_up.col(l)) * this->hopping_exp;
+		// only needed for non-equal properties
+		//if (this->equalibrate) {
 		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
 		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
+		//}
 	}
 	//b_mat_down[0].print("B_mat_down in t = 0");
 }
 
-/// <summary>
+/*
 /// Function to calculate all B exponents for a given model at a given time. Those are used for the Gibbs weights
-/// </summary>
+*/
 void hubbard::HubbardModel::cal_B_mat(int which_time)
 {
-	//this->b_mat_down[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_down.col(which_time));
-	//this->b_mat_up[which_time] = this->hopping_exp * arma::diagmat(this->int_exp_up.col(which_time));
-	this->b_mat_down[which_time] = arma::diagmat(this->int_exp_down.col(which_time)) * this->hopping_exp;
-	this->b_mat_up[which_time] = arma::diagmat(this->int_exp_up.col(which_time)) * this->hopping_exp;
+	//this->b_mat_down[which_time] = this->hopping_exp * DIAG(this->int_exp_down.col(which_time));
+	//this->b_mat_up[which_time] = this->hopping_exp * DIAG(this->int_exp_up.col(which_time));
+	this->b_mat_down[which_time] = DIAG(this->int_exp_down.col(which_time)) * this->hopping_exp;
+	this->b_mat_up[which_time] = DIAG(this->int_exp_up.col(which_time)) * this->hopping_exp;
 
 	this->b_mat_up_inv[which_time] = this->b_mat_up[which_time].i();
 	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
 }
 
-// -------------------------------------------------------- PRINTERS
-
-/// <summary>
-///
-/// </summary>
-/// <param name="output"></param>
-/// <param name="which_time_caused"></param>
-/// <param name="which_site_caused"></param>
-/// <param name="this_site_spin"></param>
-/// <param name="separator"></param>
+//! -------------------------------------------------------- PRINTERS
+// TODO ----------->
+/*
+* TODO
+* @param output 
+* @param which_time_caused 
+* @param which_site_caused 
+* @param this_site_spin 
+* @param separator 
+*/
 void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 {
 	std::ofstream file_conf, file_log;														// savefiles
 	std::string name_conf, name_log;														// filenames to save
 	if (this->config_sign < 0) {
 		name_conf = this->dir->neg_dir + "neg_" + this->info + \
-			",n=" + std::to_string(this->neg_num) + ".dat";
+			",n=" + STR(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
 	}
 	else {
 		name_conf = this->dir->pos_dir + "pos_" + this->info + \
-			",n=" + std::to_string(this->pos_num) + ".dat";
+			",n=" + STR(this->pos_num) + ".dat";
 		name_log = this->dir->pos_log;
 	}
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_conf);
-	printSeparated(file_log, ",", { name_conf, to_string_prec(this->probability, 4), std::to_string(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign)},26 );
 
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
@@ -583,27 +572,27 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 	file_log.close();
 }
 
-/// <summary>
+/*
 /// 
-/// </summary>
-/// <param name="separator"></param>
-/// <param name="toPrint"></param>
+/// @param separator 
+/// @param toPrint 
+*/
 void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
 {
 	std::ofstream file_conf, file_log;														// savefiles
 	std::string name_config ="", name_log ="";												// filenames to save
 	if (this->config_sign < 0) {
-		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + std::to_string(this->neg_num) + ".dat";
+		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + STR(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
 	}
 	else {
-		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + std::to_string(this->pos_num) + ".dat";
+		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + STR(this->pos_num) + ".dat";
 		name_log = this->dir->pos_log;
 	}
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_config);
-	printSeparated(file_log, ",", { name_config, to_string_prec(this->probability, 4), std::to_string(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign)},26 );
 	
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
@@ -617,7 +606,7 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::m
 
 // -------------------------------------------------------- EQUAL TIME AVERAGES
 
-double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	const int nei_num = this->lattice->get_nn_number(current_elem_i);
 	double Ek = 0;
@@ -632,17 +621,17 @@ double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const
 	return sign * this->t[current_elem_i] * Ek;
 }
 
-double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return (sign * (1.0 - g_down(current_elem_i, current_elem_i)) + sign * (1.0 - g_up(current_elem_i, current_elem_i)));
 }
 
-double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 {
 	return sign * ((g_down(current_elem_j, current_elem_i) + g_up(current_elem_j, current_elem_i)));
 }
 
-double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return sign * (((1.0 - g_up(current_elem_i, current_elem_i)) * (1.0 - g_up(current_elem_i, current_elem_i)))
 		+ ((1.0 - g_up(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i)))
@@ -652,7 +641,7 @@ double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g
 		+ ((1.0 - g_down(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))));
 }
 
-double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 {
 	double delta_ij = 0.0L;
 	if (current_elem_i == current_elem_j) {
@@ -667,18 +656,18 @@ double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int cur
 		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * (g_down(current_elem_i, current_elem_j))));
 }
 
-double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return 0;
 }
 
-double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
 {
 	return sign * (1.0 - g_up(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))
 		+ sign * (1.0 - g_down(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i));
 }
 
-double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down) const
+double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 {
 	double delta_ij = 0.0L;
 	if (current_elem_i == current_elem_j) {
@@ -694,17 +683,17 @@ double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, i
 
 // ---------------------------------------------------------------------------------------------------------------- PUBLIC CALCULATORS ----------------------------------------------------------------------------------------------------------------
 
-/// <summary>
+/*
 /// Equilivrate the simulation
-/// </summary>
-/// <param name="algorithm">type of equilibration algorithm</param>
-/// <param name="mcSteps">Number of Monte Carlo steps</param>
-/// <param name="conf">Shall print configurations?</param>
-/// <param name="quiet">Shall be quiet?</param>
+*/
+/// @param algorithm type of equilibration algorithm
+/// @param mcSteps Number of Monte Carlo steps
+/// @param conf Shall print configurations?
+/// @param quiet Shall be quiet?
 void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet)
 {
 	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
-
+	this->equalibrate = false;
 	switch (algorithm)
 	{
 	case impDef::algMC::heat_bath:
@@ -722,18 +711,20 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 	}
 }
 
-/// <summary>
-/// Collect the averages from the simulation
-/// </summary>
-/// <param name="algorithm">type of equilibration algorithm</param>
-/// <param name="corr_time">how many times to wait for correlations breakout</param>
-/// <param name="avNum">number of averages to take</param>
-/// <param name="bootStraps">Number of bootstraps - NOT IMPLEMENTED </param>
-/// <param name="quiet">Shall be quiet?</param>
-/// <param name="times"></param>
+/*
+* Collect the averages from the simulation
+* @param algorithm type of equilibration algorithm
+* @param corr_time how many times to wait for correlations breakout
+* @param avNum number of averages to take
+* @param bootStraps Number of bootstraps - NOT IMPLEMENTED 
+* @param quiet shall be quiet?
+* @param times shall calculate time properties?
+*/
 void hubbard::HubbardModel::average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet, int times)
 {
 	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
+	this->equalibrate = false;
+	//this->cal_B_mat();
 	switch (algorithm)
 	{
 	case impDef::algMC::heat_bath:
