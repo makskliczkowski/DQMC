@@ -16,6 +16,7 @@
 *.vcxproj.filters
 *.dat
 *.h5
+*.out
 *.png
 
 # User-specific files (MonoDevelop/Xamarin Studio)
