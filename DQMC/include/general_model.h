@@ -3,7 +3,16 @@
 #define GENERAL_H
 
 #include "../src/progress.h"
-#include "random.h"
+#include "../src/statistical.h"
+#include "../src/random.h"
+
+#ifndef SQUARE_H
+#include "../src/Lattices/square.h"
+#endif
+#ifndef HEXAGONAL_H
+#include "../src/Lattices/hexagonal.h"
+#endif
+
 #include <chrono>
 #include <stdlib.h>
 
@@ -23,52 +32,6 @@ struct general_directories {
 };
 
 // -------------------------------------------------------- GENERAL LATTICE --------------------------------------------------------
-
-/*
-* Pure virtual lattice class, it will allow to distinguish between different geometries in the models
-*/
-class Lattice {
-protected:
-	// ----------------------- LATTICE PARAMETERS
-	unsigned int dimension;											// the dimensionality of the lattice 1,2,3
-	unsigned int Ns;												// number of lattice sites
-	string type;													// type of the lattice
-	int boundary_conditions;										// boundary conditions 0 = PBC, 1 = OBC
-	v_2d<int> nearest_neighbors;									// vector of the nearest neighbors
-	v_2d<int> next_nearest_neighbors;								// vector of the next nearest neighbors
-	v_2d<int> coordinates;											// vector of real coordiates allowing to get the distance between lattice points
-	v_3d<int> spatialNorm;											// norm for averaging over all spatial sites
-
-public:
-	virtual ~Lattice() = default;
-	// ----------------------- VIRTUAL GETTERS
-	virtual int get_Lx() const = 0;
-	virtual int get_Ly() const = 0;
-	virtual int get_Lz() const = 0;
-	virtual std::tuple<int, int, int> getSiteDifference(uint i, uint j) const = 0;
-	// ----------------------- GETTERS
-	virtual int get_norm(int x, int y, int z) const = 0;
-	int get_Ns() const { return this->Ns; };
-	int get_Dim() const { return this->dimension; };
-	int get_nn(int lat_site, int nei_num) const 
-		{ return this->nearest_neighbors[lat_site][nei_num]; };		// returns given nearest nei at given lat site
-	int get_nnn(int lat_site, int nei_num) const 
-		{ return this->next_nearest_neighbors[lat_site][nei_num]; };// returns given next nearest nei at given lat site
-	int get_nn_number(int lat_site) const 
-		{ return this->nearest_neighbors[lat_site].size(); };		// returns the number of nn
-	int get_nnn_number(int lat_site) const 
-		{ return this->next_nearest_neighbors[lat_site].size(); };	// returns the number of nnn
-	int get_coordinates(int lat_site, int axis) const 
-		{ return this->coordinates[lat_site][axis]; };				// returns the given coordinate
-	string get_type() const 
-		{ return this->type; };										// returns the type of the lattice as a string
-
-	// ----------------------- CALCULATORS
-	virtual void calculate_nn_pbc() = 0;
-	virtual void calculate_nnn_pbc() = 0;
-	virtual void calculate_coordinates() = 0;
-};
-
 
 /* 
 * Structure for storing the averages from the Quantum Monte Carlo simulation
@@ -118,7 +81,7 @@ struct averages_par {
 		for (int tau = 0; tau < M; tau++) {
 			for (int x = 0; x < this->g_up_diffs[tau].n_rows; x++) {
 				for (int y = 0; y < this->g_up_diffs[tau].n_cols; y++) {
-					const auto norm = bucketNum * (all ? -double(M) : -1.0*(M-tau)) * lat->get_norm(x, y, 0);
+					const auto norm = bucketNum * (all ? -double(M) : -(1.0*(M-tau))) * lat->get_norm(x, y, 0);
 					this->g_up_diffs[tau](x, y) /= norm;
 					this->g_down_diffs[tau](x, y) /= norm;
 					this->sd_g_up_diffs[tau](x, y) = variance(this->sd_g_up_diffs[tau](x, y), this->g_up_diffs[tau](x, y), norm);

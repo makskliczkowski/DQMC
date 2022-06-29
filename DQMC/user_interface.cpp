@@ -1,4 +1,4 @@
-#include "src/user_interface.h"
+#include "include/user_interface.h"
 
 // -------------------------------------------------------- USER INTERFACE --------------------------------------------------------
 
@@ -19,6 +19,13 @@ void user_interface::set_option(T& value, const v_1d<std::string>& argv, std::st
 		this->set_default_msg(value, choosen_option.substr(1), \
 			choosen_option + " cannot be negative\n", hubbard::default_params);
 }
+
+template<>
+void user_interface::set_option<std::string>(std::string& value, const v_1d<std::string>& argv, std::string choosen_option, bool geq_0) {
+	if (std::string option = this->getCmdOption(argv, choosen_option); option != "")
+		value = option;
+}
+
 
 /// <summary>
 /// Set
@@ -82,7 +89,7 @@ std::vector<std::string> user_interface::parseInputFile(std::string filename) {
 /// <param name="argv">cmd parameters</param>
 hubbard::ui::ui(int argc, char** argv)
 {
-	auto input = change_input_to_vec_of_str(argc, argv);									// change standard input to vec of strings
+	auto input = changeInpToVec(argc, argv);									// change standard input to vec of strings
 	input = std::vector<std::string>(input.begin()++, input.end());							// skip the first element which is the name of file
 
 	//plog::init(plog::info, "log.txt");														// initialize logger
@@ -358,16 +365,26 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	if (std::string option = this->getCmdOption(argv, choosen_option); option != "")
 		exit_with_help();
 
-	std::string folder = "." + kPS + "results" + kPS;
-	if (!argv[argc - 1].empty() && argc % 2 != 0) {
-		// only if the last command is non-even
-		folder = argv[argc - 1];
-		if (!fs::create_directories(folder))											// creating the directory for saving the files with results
-			this->saving_dir = folder;																// if can create dir this is is
+	bool set_dir = false;
+	choosen_option = "-dir";
+	if (std::string option = this->getCmdOption(argv, choosen_option); option != "") {
+		this->set_option(this->saving_dir, argv, choosen_option, false);
+		set_dir = true;
 	}
-	else {
-		this->saving_dir = folder;																	// if can create dir this is is
-	}
+	if(!set_dir)
+		this->saving_dir = fs::current_path().string() + kPS + "results" + kPS;
+	
+	fs::create_directories(this->saving_dir);
+	//std::string folder = "." + kPS + "results" + kPS;
+	//if (!argv[argc - 1].empty() && argc % 2 != 0) {
+	//	// only if the last command is non-even
+	//	folder = argv[argc - 1];
+	//	if (!fs::create_directories(folder))											// creating the directory for saving the files with results
+	//		this->saving_dir = folder;																// if can create dir this is is
+	//}
+	//else {
+	//	this->saving_dir = folder;																	// if can create dir this is is
+	//}
 	//omp_set_num_threads(outer_threads);
 	omp_set_num_threads(outer_threads * inner_threads);
 }

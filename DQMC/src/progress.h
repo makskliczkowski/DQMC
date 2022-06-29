@@ -35,21 +35,21 @@ public:
 		}
 		this->update(percentage);
 	}
-	pBar() : timer(std::chrono::high_resolution_clock::now()), amountOfFiller(0) {};	    // constructor
-	pBar(double percentage, int discreteSteps) : pBar()
-	{
-		this->percentage = percentage;
-		this->percentageSteps = static_cast<int>(percentage * discreteSteps / 100.0);
-	};
+	pBar() : timer(std::chrono::high_resolution_clock::now()) { };							// constructor
+	pBar(double percentage, int discreteSteps)
+		: percentage(percentage)
+		, timer(std::chrono::high_resolution_clock::now())
+		, percentageSteps(static_cast<int>(percentage* discreteSteps / 100.0))
+	{};
 private:
 	// --------------------------- STRING ENDS
 	std::string firstPartOfpBar = "\t\t\t\t[";
 	std::string lastPartOfpBar = "]";
 	std::string pBarFiller = "|";
-	std::string pBarUpdater = "/-\\|";
+	std::string pBarUpdater = "|\\/";
 	// --------------------------- PROGRESS
 	clk::time_point timer;														            // inner clock
-	int amountOfFiller;															            // length of filled elements
+	int amountOfFiller = 0;															            // length of filled elements
 	int pBarLength = 50;														            // length of a progress bar
 	int currUpdateVal = 0;														            //
 	double currentProgress = 0;													            // current progress

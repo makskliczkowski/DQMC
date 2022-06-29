@@ -65,7 +65,7 @@ hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, const hubbard::HubbardParam
 	this->dir = std::shared_ptr<hubbard::directories>(new directories());
 	this->cal_times = ct;
 	this->useHirsh = hirsh;
-	useHirsh ? this->all_times = false : this->all_times = false;
+	useHirsh ? this->all_times = true : this->all_times = false;
 
 	this->dim = this->lattice->get_Dim();
 	this->Lx = this->lattice->get_Lx();
@@ -903,7 +903,7 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool
 
 	std::function<int(int)> fptr = std::bind(&HubbardQR::heat_bath_single_step, this, std::placeholders::_1);
 
-	const uint bucket_num = 2;
+	const uint bucket_num = 1;
 	// Progress bar
 	this->pbar.reset(new pBar(34, avNum));
 	//ofstream file;
