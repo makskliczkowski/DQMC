@@ -31,6 +31,19 @@ public:
 	void calculate_nn_obc() override;
 	void calculate_nnn_pbc() override;
 	void calculate_coordinates() override;
+
+	// SYMMETRIES
+	std::tuple<int, int, int> getNumElems() override {
+		return std::make_tuple(this->Lx, 2 * this->Ly, this->Lz);
+	}
+
+	std::tuple<int, int, int> getSymPos(int x, int y, int z) override {
+		return std::make_tuple(abs(x), abs(y), abs(z));
+	}
+
+	bool symmetry_checker(int xx, int yy, int zz) override {
+		return true;
+	};
 };
 
 

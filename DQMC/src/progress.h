@@ -26,6 +26,7 @@ public:
 		stout << std::flush;
 		currUpdateVal += 1;
 	}
+	
 	void printWithTime(std::string message) {
 #pragma omp critical
 		{
@@ -35,6 +36,7 @@ public:
 		}
 		this->update(percentage);
 	}
+	
 	pBar() : timer(std::chrono::high_resolution_clock::now()) { };							// constructor
 	pBar(double percentage, int discreteSteps)
 		: percentage(percentage)

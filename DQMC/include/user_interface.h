@@ -70,8 +70,8 @@ namespace hubbard {
 
 		// -------------------------------------------------------- HELPER FUNCTIONS
 		void collectAvs(const HubbardParams& params);
-		void collectRealSpace(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs);
-		void collectFouriers(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs);
+		void collectRealSpace(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
+		void collectFouriers(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
 	public:
 		// ----------------------- CONSTRUCTORS
 		ui() = default;
@@ -86,5 +86,74 @@ namespace hubbard {
 		void make_simulation() override;
 	};
 }
+
+inline void hubbard::ui::collectAvs(const hubbard::HubbardParams& params)
+{
+	using namespace std;
+	auto start = chrono::high_resolution_clock::now();
+	const auto prec = 10;
+	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
+	// parameters and constants
+	std::shared_ptr<averages_par> avs;
+	// model
+	std::shared_ptr<Lattice> lat;
+	// ------------------------------- set lattice --------------------------------
+	switch (this->lattice_type) {
+	case 0:
+		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
+		break;
+	case 1:
+		lat = std::make_shared<HexagonalLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
+		break;
+	default:
+		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
+		break;
+	}
+	// ------------------------------- set model --------------------------------
+	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, params, lat, this->inner_threads);
+
+	std::ofstream fileLog, fileGup, fileGdown, fileSignLog;
+
+	auto dirs = model->get_directories(this->saving_dir);																				// take all the directories needed
+
+	// RELAX
+	if (sf == 0)																														// without using machine learning to self learn
+	{
+		model->relaxation(impDef::algMC::heat_bath, this->mcSteps, this->save_conf, this->quiet);										// this can also handle saving configurations
+		if (!this->save_conf) {
+			// FILES
+			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app);
+			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz + ",U=" + str_p(U, 2) + \
+				",beta=" + str_p(beta, 2) + ",dtau=" + str_p(dtau, 4) + \
+				".dat", std::ios::in | std::ios::app);
+
+			// REST
+			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet);
+			avs = model->get_avs();
+
+			// SAVING TO STRING
+			printSeparatedP(fileLog, ',', 20, true, 4, lat->get_type(), this->mcSteps, this->avsNum,
+				this->corrTime, M, M_0, dtau,
+				Lx, Ly, Lz, beta, U,
+				mu, avs->av_occupation, avs->sd_occupation,
+				avs->av_sign, avs->sd_sign,
+				avs->av_Ek, avs->sd_Ek,
+				avs->av_M2z, avs->sd_M2z,
+				avs->av_M2x, tim_s(start));
+			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
+#pragma omp critical
+			printSeparatedP(stout, '\t', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
+#pragma omp critical
+			fileLog.close();
+#pragma omp critical
+			fileSignLog.close();
+			this->collectRealSpace(dirs->nameNormalTime, dirs->nameNormal, params, avs, lat);
+			this->collectFouriers(dirs->nameFouriersTime, dirs->nameFouriers, params, avs, lat);
+		}
+	}
+	std::cout << "FINISHED EVERYTHING - Time taken: " << tim_s(start) << " seconds" << endl;
+}
+
+
 
 #endif // !UI_H

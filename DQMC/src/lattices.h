@@ -34,7 +34,7 @@ public:
 	std::tuple<int, int, int> getSiteDifference(uint i, uint j) const;
 
 	// ----------------------- GETTERS
-	virtual int get_norm(int x, int y, int z) const = 0;
+	virtual int get_norm(int x, int y, int z)				const = 0;
 	auto get_Ns()											const RETURNS(this->Ns);												// returns the number of sites
 	auto get_Dim()											const RETURNS(this->dim);												// returns dimension of the lattice
 	auto get_nn(int lat_site, int nei_num)					const RETURNS(this->nearest_neighbors[lat_site][nei_num]);				// returns given nearest nei at given lat site
@@ -45,8 +45,8 @@ public:
 	auto get_spatial_norm()									const RETURNS(this->spatialNorm);										// returns the spatial norm
 	auto get_spatial_norm(int x, int y, int z)				const RETURNS(this->spatialNorm[x][y][z]);								// returns the spatial norm at x,y,z
 	auto get_type()											const RETURNS(this->type);												// returns the type of the lattice as a string
-	auto get_nei(int lat_site, int corr_len)				const;
 	auto get_info()											const RETURNS(VEQ(type) + "," + VEQ(_BC) + "," + VEQ(dim) + "," + VEQ(Ns) + "," + VEQ(get_Lx()) + "," + VEQ(get_Ly()) + "," + VEQ(get_Lz()));
+	auto get_nei(int lat_site, int corr_len)				const;
 
 	// ----------------------- CALCULATORS
 	void calculate_nn();
@@ -55,6 +55,12 @@ public:
 	virtual void calculate_nn_obc() = 0;
 	virtual void calculate_nnn_pbc() = 0;
 	virtual void calculate_coordinates() = 0;
+
+	// ----------------------- SYMMETRY
+	virtual std::tuple<int, int, int> getNumElems() = 0;																			// returns the number of elements if the symmetry is possible
+	virtual std::tuple<int, int, int> getSymPos(int x, int y, int z) = 0;															// from given coordinates return their symmetrised form
+
+	virtual bool symmetry_checker(int xx, int yy, int zz) = 0;
 };
 
 /*
@@ -65,10 +71,12 @@ inline void Lattice::calculate_nn() {
 	{
 	case 0:
 		this->calculate_nn_pbc();
+		stout << "->Using PBC" << EL;
 		//this->calculate_nnn_pbc();
 		break;
 	case 1:
 		this->calculate_nn_obc();
+		stout << "->Using OBC" << EL;
 		break;
 	default:
 		this->calculate_nn_pbc();
@@ -91,7 +99,9 @@ inline void Lattice::calculate_spatial_norm(int x, int y, int z)
 	}
 }
 
-
+/*
+* @brief gets the neighbor from a given lat_site lattice site at corr_len length
+*/
 inline auto Lattice::get_nei(int lat_site, int corr_len) const
 {
 	switch (this->_BC) {

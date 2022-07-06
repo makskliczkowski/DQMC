@@ -360,6 +360,11 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	choosen_option = "-t";
 	this->set_option(this->t_fill, argv, choosen_option, false);
 	this->t = std::vector<double>(Ns, t_fill);
+	// lattice type
+	choosen_option = "-l";
+	this->set_option(this->lattice_type, argv, choosen_option);
+
+
 	// get help
 	choosen_option = "-h";
 	if (std::string option = this->getCmdOption(argv, choosen_option); option != "")
@@ -434,7 +439,7 @@ void hubbard::ui::make_simulation()
 						auto dtau_i = this->dtau + dtaui * this->dtau_step;
 						//double dtaui = dtau;//sqrt(0.125 / Ui);
 						paramList.push_back(HubbardParams(dim, beta_i, mu_i, U_i, Lx_i, Ly_i, Lz_i, dtau_i, 1, this->M_0, 1));
-						//collectAvs(U_i, M0_i, dtau_i, p_i, beta_i, mu_i, Lx_i, Ly_i, Lz_i);
+
 					}
 				}
 			}
@@ -455,71 +460,8 @@ void hubbard::ui::make_simulation()
 
 // -------------------------------------------------------- HELPERS
 
-void hubbard::ui::collectAvs(const HubbardParams& params)
-{
-	using namespace std;
-	auto start = chrono::high_resolution_clock::now();
-	const auto prec = 10;
-	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
-	// parameters and constants
-	std::shared_ptr<averages_par> avs;
-	// model
-	std::shared_ptr<Lattice> lat;
-	// ------------------------------- set lattice --------------------------------
-	switch (this->lattice_type) {
-	case 0:
-		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-		break;
-	default:
-		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, dim, this->boundary_conditions);
-		break;
-	}
-	// ------------------------------- set model --------------------------------
-	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, params, lat, this->inner_threads, this->cal_times, this->useHirsh);
 
-	std::ofstream fileLog, fileGup, fileGdown, fileSignLog;
-
-	auto dirs = model->get_directories(this->saving_dir);																				// take all the directories needed
-	
-	// RELAX
-	if (sf == 0)																														// without using machine learning to self learn
-	{
-		model->relaxation(impDef::algMC::heat_bath, this->mcSteps,  this->save_conf, this->quiet);										// this can also handle saving configurations
-		if (!this->save_conf) {
-			// FILES
-			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app);
-			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz + ",U=" + str_p(U, 2) +\
-				",beta=" + str_p(beta, 2) + ",dtau=" + str_p(dtau, 4) +\
-				".dat", std::ios::in | std::ios::app);
-
-			// REST
-			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet, this->cal_times);
-			avs = model->get_avs();
-
-			// SAVING TO STRING
-			printSeparatedP(fileLog, ',', 20, true, 4, lat->get_type(), this->mcSteps, this->avsNum,
-				this->corrTime, M, M_0, dtau,
-				Lx, Ly, Lz, beta, U,
-				mu, avs->av_occupation, avs->sd_occupation,
-				avs->av_sign, avs->sd_sign,
-				avs->av_Ek, avs->sd_Ek,
-				avs->av_M2z, avs->sd_M2z,
-				avs->av_M2x, tim_s(start));
-			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
-#pragma omp critical
-			printSeparatedP(stout, '\t', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
-#pragma omp critical
-			fileLog.close();
-#pragma omp critical
-			fileSignLog.close();
-			this->collectRealSpace(dirs->nameNormalTime, dirs->nameNormal, params, avs);
-			this->collectFouriers(dirs->nameFouriersTime, dirs->nameFouriers, params, avs);
-		}
-	}
-	std::cout << "FINISHED EVERYTHING - Time taken: " << (chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - start)).count() << " seconds" << endl;
-}
-
-void hubbard::ui::collectRealSpace(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs)
+void hubbard::ui::collectRealSpace(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat)
 {
 	using namespace std;
 	std::ofstream fileP, fileP_time;
@@ -531,12 +473,10 @@ void hubbard::ui::collectRealSpace(std::string name_times, std::string name, con
 	printSeparated(fileP, ',', prec + 3, true, "avM2z_corr", "avCharge_corr");
 
 	// FILES CORRELATIONS
-	for (int x = -Lx + 1; x < Lx; x++)
-		for (int y = -Ly + 1; y < Ly; y++)
-			for (int z = -Lz + 1; z < Lz; z++) {
-				auto x_pos = x + Lx - 1;
-				auto y_pos = y + Ly - 1;
-				auto z_pos = z + Lz - 1;
+	for (int x = 0; x < Lx; x++)
+		for (int y = 0; y < Ly; y++)
+			for (int z = 0; z < Lz; z++) {
+				auto [x_pos, y_pos, z_pos] = lat->getSymPos(x, y, z);
 				printSeparated(fileP, ',', prec, false, x , y, z);
 				printSeparatedP(fileP, ',', prec + 6, true, prec, avs->av_M2z_corr[x_pos][y_pos][z_pos], avs->av_ch2_corr[x_pos][y_pos][z_pos]);
 				//if (times) {
@@ -548,7 +488,7 @@ void hubbard::ui::collectRealSpace(std::string name_times, std::string name, con
 	fileP.close();
 }
 
-void hubbard::ui::collectFouriers(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs)
+void hubbard::ui::collectFouriers(std::string name_times, std::string name, const HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat)
 {
 	using namespace std;
 	std::ofstream file_fouriers, file_fouriers_time, file_response;
@@ -591,9 +531,11 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, cons
 				for (int i = -kx_num + 1; i < kx_num; i++) {
 					for (int j = -ky_num + 1; j < ky_num; j++) {
 						for (int k = -kz_num + 1; k < kz_num; k++) {
-							int x = i + kx_num - 1;
-							int y = j + ky_num - 1;
-							int z = k + kz_num - 1;
+							//auto [x, y, z] = lat->getSymPos(i, j, k);
+							auto x = i + Lx - 1;
+							auto y = j + Ly - 1;
+							auto z = k + Lz - 1;
+
 							arma::cx_double expa = exp(imn * (kx * i + ky * j + kz * k));
 
 							occupation_fourier += expa * avs->av_occupation_corr[x][y][z];

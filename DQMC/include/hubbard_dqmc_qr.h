@@ -5,8 +5,8 @@
 #define HUBBARD_ST_H
 // ---------------------------------------------------------------------- SPACE TIME ----------------------------------------------------------------------------
 namespace hubbard {
-	/**
-	* Hubbard model with stable matrix multiplication
+	/*
+	* @brief Hubbard model with stable matrix multiplication
 	* @todo Add more complicated structure of the Hamiltonian
 	*/
 	class HubbardQR : public hubbard::HubbardModel {
@@ -19,7 +19,7 @@ namespace hubbard {
 		arma::mat R_down;																								// right triangular matrix down (for QR decomposition)
 		arma::mat R_up;																									// right triangular matrix up (for QR decomposition)
 		arma::vec D_down;																								// diagonal matrix vector for UDT decomposition for spin down
-		arma::vec D_up;																									// diagonal matrix vector for UDT decomposition	for spin up
+		arma::vec D_up;																									// diagonal matrix vector for UDT decomposition for spin up
 		arma::mat T_down;																								// UDT upper triangular matrix for spin down
 		arma::mat T_up;																									// UDT upper triangular matrix for spin up
 		arma::vec D_tmp;																								// tmp diagonal matrix vector - for time displaced Green's
@@ -34,10 +34,10 @@ namespace hubbard {
 		// -------------------------- DIRECTORIES AND SAVERS
 
 		// -------------------------- HELPING FUNCTIONS
-		arma::mat multiplyMatrices(const mat&, const mat&, bool);															// choose between stable and normal multiplication
-		void sweep_0_M(std::function<int(int)> ptfptr) override;														// sweep forward in time
-		void sweep_M_0(std::function<int(int)> ptfptr) override;														// sweep backwards in time
-		int sweep_lat_sites(std::function<int(int)> ptfptr);															// sweep the lattice sites for auxliary Ising spins
+		arma::mat multiplyMatrices(const mat&, const mat&, bool);														// choose between stable and normal multiplication
+		void sweep_0_M() override;																						// sweep forward in time
+		void sweep_M_0() override;																						// sweep backwards in time
+		int sweep_lat_sites();																							// sweep the lattice sites for auxliary Ising spins
 
 		// -------------------------- UPDATERS
 		void upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down) override;			// after auxliary Ising spin update - local
@@ -68,14 +68,14 @@ namespace hubbard {
 
 		// -------------------------- HEAT-BATH
 		void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) override;						// equalibrate the model
+		void heat_bath_av(int corr_time, int avNum, bool quiet) override;									// collect averages
+		void av_single_step(int current_elem_i, int sign) override;														// single step of averaging
 		int heat_bath_single_step(int lat_site) override;																// single step with lattice updating
-		void heat_bath_av(int corr_time, int avNum, bool quiet, bool times) override;									// collect averages
-		void av_single_step(int current_elem_i, int sign, bool times) override;											// single step of averaging
 	public:
 		// -------------------------- CONSTRUCTORS
-		/**
-		 * @brief initialize memory for all of the variables used later
-		 */	
+		/*
+		* @brief initialize memory for all of the variables used later
+		*/	
 		void initializeMemory();
 
 		/**
@@ -90,8 +90,87 @@ namespace hubbard {
 		* @param threads Number of the inner threads
 		* @param ct Shall calculate time-displaced as well?
 		*/
-		HubbardQR(const v_1d<double>& t, const hubbard::HubbardParams params, std::shared_ptr<Lattice> lattice, int threads = 1, bool ct = false, bool hirsh = false);
+		HubbardQR(const v_1d<double>& t, const hubbard::HubbardParams& params, std::shared_ptr<Lattice> lattice, int threads = 1);
 	};
+
+
+	//? -------------------------------------------------------- CONSTRUCTORS
+	inline hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, const hubbard::HubbardParams& params, std::shared_ptr<Lattice> lattice, int threads)
+	{
+		this->lattice = lattice;
+		this->inner_threads = threads;
+		this->dir = std::make_shared<hubbard::directories>();
+		// if we use hirsh calculation of the time displaced greens then all times are not necessary
+		// useHirsh ? this->all_times = true : this->all_times = false;
+
+		this->dim = this->lattice->get_Dim();
+		this->Lx = this->lattice->get_Lx();
+		this->Ly = this->lattice->get_Ly();
+		this->Lz = this->lattice->get_Lz();
+		this->t = t;
+		this->config_sign = 1;
+
+		// Params
+		this->U = params.U;
+		this->mu = params.mu;
+		this->beta = params.beta;
+		this->T = 1.0 / this->beta;
+		this->Ns = this->lattice->get_Ns();
+
+		// random number generator initialization
+		this->ran = randomGen(std::random_device{}());
+
+		// Trotter
+		this->dtau = params.dtau;
+		this->M = params.M;																				// number of Trotter times
+		this->M_0 = params.M0;																			// number of stable decompositions in Trotter times
+		this->p = params.p;																				// number of QR decompositions (sectors)
+
+		this->avs = std::make_shared<averages_par>(this->lattice, M, this->cal_times);
+		// Calculate alghorithm parameters
+		this->lambda = std::acosh(exp((abs(this->U) * this->dtau) * 0.5));								// lambda couples to the auxiliary spins
+
+		// Calculate changing exponents before, not to calculate exp all the time
+		// 0 -> sigma * hsfield = 1, 1 -> sigma * hsfield = -1
+		this->gammaExp0 = std::make_pair(
+			std::expm1(-2.0 * this->lambda),
+			std::expm1(2.0 * this->lambda)
+		);
+		// 0 -> sigma * hsfield = -1, 1 -> sigma * hsfield = 1
+		this->gammaExp1 = std::make_pair(
+			this->gammaExp0.second,
+			this->gammaExp0.first
+		);
+
+		// Helping params
+		this->from_scratch = this->M_0;																	// after what time shall we recalculate the equal time Greens
+		this->pos_num = 0;
+		this->neg_num = 0;
+
+		// Say hi to the world
+#pragma omp critical
+		stout << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << EL;
+#pragma omp critical
+		this->say_hi();
+
+		// Initialize memory
+		this->initializeMemory();
+
+		// Set HS fields												
+		this->set_hs();
+
+		// Calculate something
+		this->cal_hopping_exp();
+		this->cal_int_exp();
+		this->cal_B_mat();
+
+		// Precalculate the multipliers of B matrices for convinience
+		for (int i = 0; i < this->p; i++) this->cal_B_mat_cond(i);
+
+		// progress bar initialize
+		this->pbar = std::make_unique<pBar>(34, 1);
+	}
+
 }
 
 #endif

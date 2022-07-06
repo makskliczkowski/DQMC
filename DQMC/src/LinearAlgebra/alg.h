@@ -3,14 +3,16 @@
 #define ALG_H
 
 // armadillo flags:
-#define ARMA_64BIT_WORD                                                                     // enabling 64 integers in armadillo obbjects
-#define ARMA_BLAS_LONG_LONG                                                                 // using long long inside LAPACK call
-#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
-#define ARMA_DONT_USE_WRAPPER
+#define ARMA_USE_LAPACK                                                                     
+//#define ARMA_BLAS_LONG_LONG                                                                 // using long long inside LAPACK call
+//#define ARMA_DONT_USE_FORTRAN_HIDDEN_ARGS
+////#define ARMA_DONT_USE_WRAPPER
 #define ARMA_USE_MKL_ALLOC
 #define ARMA_USE_MKL_TYPES
-#define ARMA_USE_OPENMP
-#define ARMA_ALLOW_FAKE_GCC
+#define ARMA_WARN_LEVEL 1
+#define ARMA_DONT_USE_OPENMP
+////#define ARMA_USE_OPENMP
+//#define ARMA_ALLOW_FAKE_GCC
 #include <armadillo>
 
 #define DIAG arma::diagmat
@@ -219,7 +221,6 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 * @param R right triangular matrix
 * @param P permutation matrix
 * @param T upper triangular matrix
-* @param D diagonal vector -> saves the inverse already
 */
 void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma::umat& P, arma::mat& T) {
 	if (!arma::qr(Q, R, P, mat)) throw "decomposition failed\n";
@@ -228,8 +229,36 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 }
 
 
-/**
- * @brief Calculate the multiplication of two matrices with numerical stability.
+/*
+ * @brief Calculate the multiplication of two matrices with numerical stability. USING SVD.
+ * SciPost Phys. Core 2, 011 (2020)
+ * @param right right matrix of multiplication
+ * @param left left matrix of multiplication
+ * @param Ql
+ * @param Dl
+ * @param Tl
+ * @param Qr
+ * @param Dr
+ * @param Tr
+ * @return matrix after multiplication
+ */
+arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& right,
+	arma::mat& Ql, arma::vec& Dl, arma::mat& Tl,
+	arma::mat& Qr, arma::vec& Dr, arma::mat& Tr)
+{	
+
+	// use SVD decomposition for stable multiplication
+	arma::svd(Ql, Dl, Tl, left, "std");
+	arma::svd(Qr, Dr, Tr, right, "std");
+	// decompose the inner side
+	arma::svd(Qr, Dr, Tl, Dl * ((Tl * Qr) * Dr), "std");
+	return (Ql * Qr) * (Dr) * (Tl * Tr);
+
+}
+
+/*
+ * @brief Calculate the multiplication of two matrices with numerical stability. USING QR.
+ * SciPost Phys. Core 2, 011 (2020)
  * @param right right matrix of multiplication
  * @param left left matrix of multiplication
  * @param Ql
@@ -244,22 +273,20 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
  */
 arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& right,
 	arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl,
-	arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr
-)
+	arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr)
 {
-	const auto type = 0; // SVD
-	//const auto type = 'QR';
-	if (type == 1) {
-		setUDTDecomp(left, Ql, Rl, Pl, Tl);
-		setUDTDecomp(right, Qr, Rr, Pr, Tr);
-		setUDTDecomp(DIAG(Rl) * ((Tl * Qr) * DIAG(Rr)), Qr, Rr, Pr, Tl);
-		return (Ql * Qr) * DIAG(Rr) * (Tl * Tr);
-	}
-	//else if(type == 'SVD'){
-	//	svd(Ql, DIAG(Rl), mat V, mat X)
-	//}
-	else return left * right;
+
+	// use QR decomposition for stable multiplication
+	setUDTDecomp(left, Ql, Rl, Pl, Tl);
+	setUDTDecomp(right, Qr, Rr, Pr, Tr);
+
+	// decompose the inner side
+	setUDTDecomp(DIAG(Rl) * ((Tl * Qr) * DIAG(Rr)), Qr, Rr, Pr, Tl);
+
+	return (Ql * Qr) * (DIAG(Rr)) * (Tl * Tr);
 }
+
+
 
 
 /*
@@ -296,8 +323,12 @@ void inline makeTwoScalesFromUDT(arma::mat& R, arma::vec& D) {
 	{
 		if (abs(R(i, i)) > 1)
 			R(i, i) = 1;				// min(1,R(i,i))
+			// R(i,i) = 1
+			// D(i,i) = 1/R(i,i)
 		else
 			D(i) = 1;					// inv of max(1,R(i,i))
+			// R(i,i) = R(i,i)
+			// D(i,i) = 1
 	}
 }
 

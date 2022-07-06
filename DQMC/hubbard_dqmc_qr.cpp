@@ -45,93 +45,28 @@ void hubbard::HubbardQR::initializeMemory()
 	this->g_down_eq = v_1d<mat>(this->M, EYE(this->Ns));
 	this->g_up_eq = v_1d<mat>(this->M, EYE(this->Ns));
 
-	if(this->cal_times){
-		//! B matrices inverses
-		this->b_up_inv_cond = v_1d<mat>(this->M, ZEROM(this->Ns));
-		this->b_down_inv_cond = v_1d<mat>(this->M, ZEROM(this->Ns));
+#ifdef CAL_TIMES
+	//! B matrices inverses
+	this->b_up_inv_cond = v_1d<mat>(this->M, ZEROM(this->Ns));
+	this->b_down_inv_cond = v_1d<mat>(this->M, ZEROM(this->Ns));
 
-		//! Big Green's functions
-		this->g_up_time.eye(Ns * M, Ns * M);
-		this->g_down_time.eye(Ns * M, Ns * M);
-	}
+	//! Big Green's functions
+	this->g_up_time.eye(Ns * M, Ns * M);
+	this->g_down_time.eye(Ns * M, Ns * M);
+#endif // CAL_TIMES
+
 }
 
-//? -------------------------------------------------------- CONSTRUCTORS
-hubbard::HubbardQR::HubbardQR(const v_1d<double>& t, const hubbard::HubbardParams params, std::shared_ptr<Lattice> lattice, int threads, bool ct, bool hirsh)
-{	
-
-	this->lattice = lattice;
-	this->inner_threads = threads;
-	this->dir = std::shared_ptr<hubbard::directories>(new directories());
-	this->cal_times = ct;
-	this->useHirsh = hirsh;
-	useHirsh ? this->all_times = true : this->all_times = false;
-
-	this->dim = this->lattice->get_Dim();
-	this->Lx = this->lattice->get_Lx();
-	this->Ly = this->lattice->get_Ly();
-	this->Lz = this->lattice->get_Lz();
-	this->t = t;
-	this->config_sign = 1;
-
-	/// Params
-	this->U = params.U;
-	this->mu = params.mu;
-	this->beta = params.beta;
-	this->T = 1.0 / this->beta;
-	this->Ns = this->lattice->get_Ns();
-	this->ran = randomGen();																		// random number generator initialization
-
-	/// Trotter
-	this->dtau = params.dtau;
-	this->M = params.M;																				// number of Trotter times
-	this->M_0 = params.M0;
-	this->p = params.p;																				// number of QR decompositions (sectors)
-
-	this->avs = std::make_shared<averages_par>(Lx, Ly, Lz, M, this->cal_times);
-	/// Calculate alghorithm parameters
-	this->lambda = std::acosh(exp((abs(this->U) * this->dtau) * 0.5));
-
-	/// Calculate changing exponents before, not to calculate exp all the time
-	this->gammaExp = { std::expm1(-2.0 * this->lambda), std::expm1(2.0 * this->lambda) };			// 0 -> sigma * hsfield = 1, 1 -> sigma * hsfield = -1
-
-	/// Helping params
-	this->from_scratch = this->M_0;
-	this->pos_num = 0;
-	this->neg_num = 0;
-
-	/// Say hi to the world
-#pragma omp critical
-	stout << "CREATING THE HUBBARD MODEL WITH QR DECOMPOSITION WITH PARAMETERS:" << EL;
-#pragma omp critical
-	this->say_hi();
-
-	/// Initialize memory
-	this->initializeMemory();
-
-	/// Set HS fields												
-	this->set_hs();																					
-
-	/// Calculate something
-	this->cal_hopping_exp();
-	this->cal_int_exp();
-	this->cal_B_mat();
-
-	/// Precalculate the multipliers of B matrices for convinience
-	for (int i = 0; i < this->p; i++) this->cal_B_mat_cond(i);
-
-	this->pbar = std::make_unique<pBar>(34,1);														// progress bar initialize
-}
 
 //! -------------------------------------------------------- B MATS --------------------------------------------------------
 
-/**
-* Precalculate the multiplications of B matrices according to M0 stable ones
+/*
+* @brief Precalculate the multiplications of B matrices according to M0 stable ones
 * @param which_sector
 */
 void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 {
-	int tim = which_sector * this->M_0;
+	auto tim = which_sector * this->M_0;
 	this->b_down_condensed[which_sector] = this->b_mat_down[tim];
 	this->b_up_condensed[which_sector] = this->b_mat_up[tim];
 	//#pragma omp parallel for num_threads(this->inner_threads)
@@ -142,15 +77,15 @@ void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
 	}
 }
 
-/**
- * @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B matrices of connected spin from left.
- * @param l_start firts time for B matrix to multiply
- * @param l_end ending time for the B matrices chain multiplication
- * @param toMultUp spin up matrix to multiply from the left
- * @param toMultDown spin down matrix to multiply from the right
- * @param toSetUp where to set the up multiplication
- * @param toSetDown where to set the down multiplication
- */
+/*
+* @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B matrices of connected spin from left.
+* @param l_start firts time for B matrix to multiply
+* @param l_end ending time for the B matrices chain multiplication
+* @param toMultUp spin up matrix to multiply from the left
+* @param toMultDown spin down matrix to multiply from the right
+* @param toSetUp where to set the up multiplication
+* @param toSetDown where to set the down multiplication
+*/
 void hubbard::HubbardQR::b_mat_mult_left(int l_start, int l_end, const mat& toMultUp,const mat& toMultDown, mat& toSetUp, mat& toSetDown)
 {
 	assert("the hell? they should be different, those times" && l_start != l_end);
@@ -158,25 +93,42 @@ void hubbard::HubbardQR::b_mat_mult_left(int l_start, int l_end, const mat& toMu
 	int step = l_start > l_end ? -1 : 1;
 
 	const int how_many = abs(l_end - l_start);
+#ifdef USE_QR
 	toSetUp = stableMultiplication(toMultUp, this->b_mat_up[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
 	toSetDown = stableMultiplication(toMultDown, this->b_mat_down[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+#elif defined USE_SVD
+	toSetUp = stableMultiplication(toMultUp, this->b_mat_up[timer], Q_up, D_up, T_up, Q_down, D_down, T_down);
+	toSetDown = stableMultiplication(toMultDown, this->b_mat_down[timer], Q_up, D_up, T_up, Q_down, D_down, T_down);
+#else
+	toSetUp = toMultUp * this->b_mat_up[timer];
+	toSetDown = toMultDown * this->b_mat_down[timer];
+#endif // USE_QR
 	for(int i = 1; i < how_many; i++){
 		const auto prev = timer;
 		timer = l_start + step * i;
+#ifdef USE_QR
 		toSetUp = stableMultiplication(this->b_mat_up[prev], this->b_mat_up[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
-		toSetUp = stableMultiplication(this->b_mat_down[prev], this->b_mat_down[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+		toSetDown = stableMultiplication(this->b_mat_down[prev], this->b_mat_down[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
+#elif defined USE_SVD
+		toSetUp = stableMultiplication(this->b_mat_up[prev], this->b_mat_up[timer], Q_up, D_up, T_up, Q_down, D_down, T_down);
+		toSetDown = stableMultiplication(this->b_mat_down[prev], this->b_mat_down[timer], Q_up, D_up, T_up, Q_down, D_down, T_down);
+#else
+		toSetUp = this->b_mat_up[prev] * this->b_mat_up[timer];
+		toSetDown = this->b_mat_down[prev] * this->b_mat_down[timer];
+#endif
+	
 	}
 }
 
-/**
- * @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B_INV matrices of connected spin from left.
- * @param l_start firts time for B_INV matrix to multiply
- * @param l_end ending time for the B_INV matrices chain multiplication
- * @param toMultUp spin up matrix to multiply from the left
- * @param toMultDown spin down matrix to multiply from the right
- * @param toSetUp where to set the up multiplication
- * @param toSetDown where to set the down multiplication
- */
+/*
+* @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B_INV matrices of connected spin from left.
+* @param l_start firts time for B_INV matrix to multiply
+* @param l_end ending time for the B_INV matrices chain multiplication
+* @param toMultUp spin up matrix to multiply from the left
+* @param toMultDown spin down matrix to multiply from the right
+* @param toSetUp where to set the up multiplication
+* @param toSetDown where to set the down multiplication
+*/
 void hubbard::HubbardQR::b_mat_mult_left_inv(int l_start, int l_end, const mat& toMultUp,const mat& toMultDown, mat& toSetUp, mat& toSetDown)
 {
 	assert("the hell? they should be different, those times" && l_start != l_end);
@@ -193,16 +145,20 @@ void hubbard::HubbardQR::b_mat_mult_left_inv(int l_start, int l_end, const mat& 
 		toSetUp = stableMultiplication(this->b_mat_down_inv[prev], this->b_mat_down_inv[timer], Q_up, R_up, P_up, T_up, Q_down, R_down, P_down, T_down);
 	}
 }
+
 //! -------------------------------------------------------- GREENS --------------------------------------------------------
 
-/**
-* Compare decomposition created Green's functions with directly calculated
+/*
+* @brief Compare decomposition created Green's functions with directly calculated
 * @param tim at which time shall I compare them?
 * @param toll tollerance for them being equal
 * @param print_greens shall I print both explicitly?
 */
 void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_greens)
 {
+	this->tempGreen_up.eye();
+	this->tempGreen_down.eye();
+	// calculate the Green's function directly
 	for (int i = 0; i < this->M; i++) {
 		this->tempGreen_up = this->b_mat_up[tim] * this->tempGreen_up;
 		this->tempGreen_down = this->b_mat_down[tim] * this->tempGreen_down;
@@ -210,33 +166,37 @@ void hubbard::HubbardQR::compare_green_direct(int tim, double toll, bool print_g
 	}
 	this->tempGreen_up = (EYE(this->Ns) + this->tempGreen_up).i();
 	this->tempGreen_down = (EYE(this->Ns) + this->tempGreen_down).i();
+	if (print_greens)
+		this->tempGreen_up.print("temp_green_up\n\n");
 	// check equality
 	bool up = approx_equal(this->green_up, this->tempGreen_up, "absdiff", toll);
 	bool down = approx_equal(this->green_down, this->tempGreen_down, "absdiff", toll);
 	stout << " -------------------------------- FOR TIME : " << tim << EL;
 	stout << "up Green:\n" << (up ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << EL;
 	if (print_greens)
-		stout << this->green_up - this->tempGreen_up << EL;
+		stout << this->green_up << EL;
 	stout << "down Green:\n" << (down ? "THE SAME!" : "BAAAAAAAAAAAAAAAAAAAAAAD!") << EL;
 	if (print_greens)
-		stout << this->green_down - this->tempGreen_down << "\n\n\n";
+		stout << this->green_down << "\n\n\n";
 }
 
 //? -------------------------------------------------------- EQUAL
 
-/**
+/*
 * Calculate Green with QR decomposition using LOH. Here we calculate the Green matrix at a given time, so we need to take care of the times away from precalculated sectors
 * @cite doi:10.1016/j.laa.2010.06.023
 * @param which_time The time at which the Green's function is calculated
 */
 void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	auto tim = which_time;
-	auto sec = static_cast<int>(which_time / this->M_0);							// which sector is used for M_0 multiplication
-	auto sector_end = (sec + 1) * this->M_0 - 1;
+	int sec = (which_time / this->M_0);							// which sector is used for M_0 multiplication
+	int sector_end = (sec + 1) * this->M_0 - 1;
 	// multiply those B matrices that are not yet multiplied
-	b_mat_mult_left(tim + 1, sector_end,
+	b_mat_mult_left(
+		tim + 1, sector_end,
 		this->b_mat_up[tim], this->b_mat_down[tim],
-		tempGreen_up, tempGreen_down);					
+		tempGreen_up, tempGreen_down
+	);					
 	// using tempGreens to store the starting multiplication
 
 	// decomposition
@@ -274,7 +234,7 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	this->green_down = arma::solve(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down, DIAG(D_down) * Q_down.t());
 }
 
-/**
+/*
 * Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices. 
 * For more look into :
 * @copydetails "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems". 
@@ -300,8 +260,8 @@ void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 
 //? -------------------------------------------------------- UNEQUAL
 
-/**
-* Calculating unequal time Green's functions given by Bl_1*...*B_{l2+1}*G_{l2+1} \\rightarrow [B_{l2+1}^{-1}...B_l1^{-1} + B_l2...B_1B_{M-1}...B_{l1+1}]^{-1}. 
+/*
+* @brief Calculating unequal time Green's functions given by Bl_1*...*B_{l2+1}*G_{l2+1} \\rightarrow [B_{l2+1}^{-1}...B_l1^{-1} + B_l2...B_1B_{M-1}...B_{l1+1}]^{-1}. 
 * Make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using:
 * @cite SciPost Phys. Core 2, 011 (2020) 
 * @param t1 left time t1>t2
@@ -398,10 +358,10 @@ void hubbard::HubbardQR::uneqG_t1ltt2(int t1, int t2)
 }
 
 // TODO 
-/**
- * @brief Calculate time displaced Greens. NOW ONLY t1>t2
- * \n TODO make t2>t1
- */
+/*
+* @brief Calculate time displaced Greens. NOW ONLY t1>t2
+* @TODO make t2>t1
+*/
 void hubbard::HubbardQR::cal_green_mat_times()
 {
 	//! inverses precalculated according to the second time
@@ -473,7 +433,7 @@ void hubbard::HubbardQR::cal_green_mat_times()
 	}
 }
 
-/**
+/*
 * Calculates the unequal times Green's functions using precalculated B matrices
 */
 void hubbard::HubbardQR::cal_green_mat_times_cycle()
@@ -568,7 +528,7 @@ void hubbard::HubbardQR::cal_green_mat_times_cycle()
 	}
 }
 
-/**
+/*
 * Use the space-time formulation for Green's function calculation. 
 * * Inversion can be unstable
 * @cite Stable Monte Carlo algorit&sn for fermion lattice systems at low temperatures
@@ -618,30 +578,29 @@ void hubbard::HubbardQR::cal_green_mat_times_hirsh_cycle()
 
 //! -------------------------------------------------------- HELPERS
 
-/**
- * @brief A function to sweep all the auxliary Ising fields for a given time configuration in the model
- * @param fptr pointer to single update try
- * @return sign of the configuration 
- */
-int hubbard::HubbardQR::sweep_lat_sites(std::function<int(int)> fptr)
+/*
+* @brief A function to sweep all the auxliary Ising fields for a given time configuration in the model
+* @param fptr pointer to single update try
+* @return sign of the configuration 
+*/
+int hubbard::HubbardQR::sweep_lat_sites()
 {
 	int sign = 1;
 	for (int j = 0; j < this->Ns; j++){
-		//const auto lat_site = ran.random{Int_uni(0, this->Ns - 1);
-		//const int l_site = j;
-		sign = (fptr)(j);
+		sign = heat_bath_single_step(j);
+		//if (sign < 0) stout << VEQ(sign) << EL;
 	}
 	// return sign from the last possible flip
 	return sign;
 }
 
-/**
- * @brief Choose between stable multiplication of matrices according to condition
- * @param left left matrix to multiply
- * @param right right matrix to multiply
- * @param stable should use stable one?
- * @return left*right
- */
+/*
+* @brief Choose between stable multiplication of matrices according to condition
+* @param left left matrix to multiply
+* @param right right matrix to multiply
+* @param stable should use stable one?
+* @return left*right
+*/
 mat hubbard::HubbardQR::multiplyMatrices(const mat& left, const mat& right, bool stable){
 	if(stable)
 		return stableMultiplication(left, right,
@@ -654,8 +613,8 @@ mat hubbard::HubbardQR::multiplyMatrices(const mat& left, const mat& right, bool
 
 //! -------------------------------------------------------- GREEN UPDATERS --------------------------------------------------------
 
-/**
-* After changing one spin we need to update the Green matrices via the Dyson equation
+/*
+* @brief After changing one spin we need to update the Green matrices via the Dyson equation
 * @param lat_site the site on which HS field has been changed
 * @param gamma_over_prob_up changing parameter gamma for up channel over the changing probability for up channel
 * @param gamma_over_prob_down changing parameter gamma for down channel over the changing probability for down channel 
@@ -678,17 +637,19 @@ void hubbard::HubbardQR::upd_equal_green(int lat_site, double gamma_over_prob_up
 	}
 }
 
-/**
-* Update the Green's matrices after going to next Trotter time, remember, the time is taken to be the previous one
+/*
+* @brief Update the Green's matrices after going to next Trotter time, remember, the time is taken to be the previous one
 * @param which_time updating to which_time + 1
 */
 void hubbard::HubbardQR::upd_next_green(int which_time_green) {
+	//this->green_up = (this->b_mat_up[which_time_green] * this->green_up) * this->b_mat_up[which_time_green].i();						// LEFT INCREASE
+	//this->green_down = (this->b_mat_down[which_time_green] * this->green_down) * this->b_mat_down[which_time_green].i();
 	this->green_up = (this->b_mat_up[which_time_green] * this->green_up) * this->b_mat_up_inv[which_time_green];						// LEFT INCREASE
 	this->green_down = (this->b_mat_down[which_time_green] * this->green_down) * this->b_mat_down_inv[which_time_green];				// LEFT INCREASE;
 }
 
-/**
-* Update the Green's matrices after going to previous Trotter time, remember, the time is taken to be the previous one
+/*
+* @brief Update the Green's matrices after going to previous Trotter time, remember, the time is taken to be the previous one
 * @param which_time updating to which_time - 1
 */
 void hubbard::HubbardQR::upd_prev_green(int which_time_green) {
@@ -696,41 +657,35 @@ void hubbard::HubbardQR::upd_prev_green(int which_time_green) {
 	this->green_down = (this->b_mat_down_inv[which_time_green - 1] * this->green_down) * this->b_mat_down[which_time_green - 1];				// LEFT INCREASE;
 }
 
-//! ----------------------------------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------------------------------------------
 
-/**
- * @brief How to update the Green's function to the next time. 
- * If the time step % from_scratch == 0 -> we recalculate from scratch.
- * @param im_time_step Current time step that needs to be propagated
- * @param forward @todo this
- */
+/*
+* @brief How to update the Green's function to the next time. 
+* If the time step % from_scratch == 0 -> we recalculate from scratch.
+* @param im_time_step Current time step that needs to be propagated
+* @param forward @todo this
+*/
 void hubbard::HubbardQR::upd_Green_step(int im_time_step, bool forward) {
 	if (im_time_step % this->from_scratch == 0) {
-		const auto sector_to_upd = myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)) - 1, this->p);
-		this->cal_B_mat_cond(sector_to_upd);
-		this->cal_green_mat_cycle(myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)), this->p));
+		const auto sector_to_upd = myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)) - 1, this->p);		// choose the sector to update
+		this->cal_B_mat_cond(sector_to_upd);																				// recalculate the condensed matrices
+		this->cal_green_mat_cycle(myModuloEuclidean(static_cast<int>(im_time_step / double(this->M_0)), this->p));			// calculate the greens in cycle
 	}
 	else
 		this->upd_next_green(im_time_step - 1);
 }
 // -------------------------------------------------------- CALCULATORS
 
-/**
- * @brief A single step for calculating averages inside a loop
- * @param current_elem_i current Ising spin
- * @param sign current sign to multiply the averages
- * @param times if we calculate times as well
- */
-void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign, bool times)
+/*
+* @brief A single step for calculating averages inside a loop
+* @param current_elem_i current Ising spin
+* @param sign current sign to multiply the averages
+* @param times if we calculate times as well
+*/
+void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 {
-	auto symmetry_checker = [&](int xx, int yy, int zz)
-	{
-		return
-		(xx <= this->Lx / 2 && xx >= 0) && 
-		(yy <= this->Ly / 2 && yy >= 0) && 
-		(zz <= this->Lz / 2 && zz >= 0);
-	};
-	//this->avs->av_sign += sign;
+	// -------------------------------- ONE SITE PARAMS ----------------------------------------
+
 	// m_z
 	this->calOneSiteParam(sign, current_elem_i, cal_mz2, this->avs->av_M2z, this->avs->sd_M2z);
 	// m_x
@@ -742,100 +697,110 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign, bool times
 	this->avs->av_Ek = Ek;
 	this->avs->sd_Ek = Ek * Ek;
 
-	// Correlations
+	// -------------------------------- CORRELATIONS ----------------------------------------
 	for (int current_elem_j = 0; current_elem_j < this->Ns; current_elem_j++) {
 		// real space coordinates differences
 		auto [x, y, z] = this->lattice->getSiteDifference(current_elem_i, current_elem_j);
-		const int xx = x - (Lx - 1); const int yy = y - (Ly - 1); const int zz = z - (Lz - 1);
+		auto [xx, yy, zz] = this->lattice->getSymPos(x, y, z);
+
+		auto xi = x + Lx - 1;
+		auto yi = y + Ly - 1;
+		auto zi = z + Lz - 1;
 
 		//? normal equal - time correlations
-		this->avs->av_M2z_corr[x][y][z] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
-		this->avs->av_occupation_corr[x][y][z] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
-		this->avs->av_ch2_corr[x][y][z] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, this->green_up, this->green_down) / (this->Ns * 2.0);
+		this->avs->av_M2z_corr[xi][yi][zi] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
+		this->avs->av_occupation_corr[xi][yi][zi] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
+		this->avs->av_ch2_corr[xi][yi][zi] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, this->green_up, this->green_down) / (this->Ns * 2.0);
 
-		//? handle zero time difference here in greens
-		if (symmetry_checker(xx,yy,zz) && times) {
-			/// time difference 0
-			//! we handle it with the calculated current Green's functions
-			this->avs->g_up_diffs[0](xx, yy) += this->green_up(current_elem_i, current_elem_j);
-			this->avs->g_down_diffs[0](xx, yy) += this->green_down(current_elem_i, current_elem_j);
-			this->avs->sd_g_up_diffs[0](xx, yy) += this->green_up(current_elem_i, current_elem_j) * this->green_up(current_elem_i, current_elem_j);
-			this->avs->sd_g_down_diffs[0](xx, yy) += this->green_down(current_elem_i, current_elem_j) * this->green_down(current_elem_i, current_elem_j);
 			
-			/// time difference different than 0
-			//! we handle it wit 
-			if (times) {
-				for (int time2 = 0; time2 < this->M; time2++) {
-					auto tim = (this->current_time - time2);
-					if(tim == 0 || (tim < 0 && !this->all_times)) continue;
-					int xi = 1;
-					// handle antiperiodicity
-					if (tim < 0) {
-						xi = -1;
-						tim += this->M;
-					}
-					const auto col = time2 * this->Ns;
-					const auto row = this->current_time * this->Ns;
-					const auto up_elem = xi * this->g_up_time(row + current_elem_i, col + current_elem_j);
-					const auto down_elem = xi * this->g_down_time(row + current_elem_i, col + current_elem_j);
-					// save only the positive first half
-					this->avs->g_up_diffs[tim](xx, yy) += up_elem;
-					this->avs->g_down_diffs[tim](xx, yy) += down_elem;
-					this->avs->sd_g_up_diffs[tim](xx, yy) += up_elem * up_elem;
-					this->avs->sd_g_down_diffs[tim](xx, yy) += down_elem * down_elem;
-				}
+		/// time difference different than 0
+		//! we handle it
+#ifdef CAL_TIMES
+		//? handle zero time difference here in greens
+		//! we handle it with the calculated current Green's functions
+		this->avs->g_up_diffs[0](xx, yy) += this->green_up(current_elem_i, current_elem_j);
+		this->avs->g_down_diffs[0](xx, yy) += this->green_down(current_elem_i, current_elem_j);
+		this->avs->sd_g_up_diffs[0](xx, yy) += this->green_up(current_elem_i, current_elem_j) * this->green_up(current_elem_i, current_elem_j);
+		this->avs->sd_g_down_diffs[0](xx, yy) += this->green_down(current_elem_i, current_elem_j) * this->green_down(current_elem_i, current_elem_j);
+		
+		for (int time2 = 0; time2 < this->M; time2++) {
+			auto tim = (this->current_time - time2);
+
+			// check if we include time symmetry
+			if(tim == 0 || (tim < 0 && !this->all_times)) continue;
+			int xi = 1;
+			// handle antiperiodicity
+			if (tim < 0) {
+				xi = -1;
+				tim += this->M;
 			}
+			const auto col = time2 * this->Ns;
+			const auto row = this->current_time * this->Ns;
+			const auto up_elem = xi * this->g_up_time(row + current_elem_i, col + current_elem_j);
+			const auto down_elem = xi * this->g_down_time(row + current_elem_i, col + current_elem_j);
+			// save only the positive first half
+			this->avs->g_up_diffs[tim](xx, yy) += up_elem;
+			this->avs->g_down_diffs[tim](xx, yy) += down_elem;
+			this->avs->sd_g_up_diffs[tim](xx, yy) += up_elem * up_elem;
+			this->avs->sd_g_down_diffs[tim](xx, yy) += down_elem * down_elem;
 		}
+#endif
 	}
 }
 // ---------------------------------------------------------------------------------------------------------------- HEAT BATH ----------------------------------------------------------------------------------------------------------------
 
-/**
- * @brief sweep space-time from time 0 to time M
- * @param ptfptr function for lattice sweep - can be heat-bath based etc
- */
-void hubbard::HubbardQR::sweep_0_M(std::function<int(int)> ptfptr)
+/*
+* @brief sweep space-time from time 0 to time M
+* @param ptfptr function for lattice sweep - can be heat-bath based etc
+*/
+void hubbard::HubbardQR::sweep_0_M()
 {
 	// update configuration sign to check the changes
 	this->config_sign = 1;
 	for (int time_im = 0; time_im < this->M; time_im++) {
 		this->current_time = time_im;
 		this->upd_Green_step(this->current_time, true);
-		this->config_sign = (this->sweep_lat_sites(ptfptr) > 0) ? +this->config_sign : -this->config_sign;
+
+		//this->compare_green_direct(this->current_time, 1e-4, true);
+		this->config_sign = (this->sweep_lat_sites() > 0) ? +this->config_sign : -this->config_sign;
 	}
 }
 
-/**
- * @brief sweep space-time from time M to time 0
- * @param ptfptr function for lattice sweep - can be heat-bath based etc
- */
-void hubbard::HubbardQR::sweep_M_0(std::function<int(int)> ptfptr)
+/*
+* @brief sweep space-time from time M to time 0
+* @param ptfptr function for lattice sweep - can be heat-bath based etc
+*/
+void hubbard::HubbardQR::sweep_M_0()
 {
 	int sign = this->config_sign;
 	for (int time_im = this->M - 1; time_im >= 0; time_im--) {
 		// imaginary Trotter times
 		this->current_time = time_im;//tim[time_im];
-		sign = sweep_lat_sites(ptfptr) > 0 ? +sign : -sign;
+		sign = sweep_lat_sites() > 0 ? +sign : -sign;
 		this->upd_Green_step(time_im, false);
 	}
 	this->config_sign = sign;// (sign == 1) ? +this->config_sign : -this->config_sign;
 }
 
-/**
- * @brief heat - bath based algorithm for the propositon of HS field spin flip
- * @param lat_site site at which we try
- * @return sign of the probility
- */
+/*
+* @brief heat - bath based algorithm for the propositon of HS field spin flip
+* @param lat_site site at which we try
+* @return sign of the probility
+*/
 int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 {
 	auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);										// first up then down
 	auto [proba_up, proba_down] = this->cal_proba(lat_site, gamma_up, gamma_down);					// take the probabilities
 
 	this->probability = (proba_up * proba_down);													// Metropolis probability
-	if (this->U < 0) this->probability *= (this->gammaExp[1] + 1);									// add phase factor for U<0
+	if (this->U < 0) {
+		this->probability *= (this->gammaExp0.second + 1.0);										// add phase factor for U<0
+	}
+	
 	this->probability = this->probability / (1.0 + this->probability);								// heat-bath probability
-	//proba = std::min(proba, 1.0);																		// metropolis
+
 	const int sign = (this->probability >= 0) ? 1 : -1;												// check sign
+	//if (sign < 0) stout << VEQ(proba_up) << "," << VEQ(proba_down) << EL;
 	if (this->ran.randomReal_uni() <= sign * this->probability) {
 		const auto delta_up = gamma_up + 1;
 		const auto delta_down = gamma_down + 1;
@@ -847,8 +812,8 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	return sign;
 }
 
-/**
-* Drive the system to equilibrium with heat bath
+/*
+* @brief Drive the system to equilibrium with heat bath
 * @param mcSteps number of Monte Carlo steps
 * @param conf save configurations?
 * @param quiet quiet?
@@ -858,99 +823,113 @@ void hubbard::HubbardQR::heat_bath_eq(int mcSteps, bool conf, bool quiet, bool s
 	if (!quiet && mcSteps != 1) {
 #pragma omp critical
 		stout << "\t\t----> STARTING RELAXING FOR : " + this->info << EL;
-		this->neg_num = 0;																				// counter of negative signs
-		this->pos_num = 0;																				// counter of positive signs
+		this->neg_num = 0;																		// counter of negative signs
+		this->pos_num = 0;																		// counter of positive signs
 	}
-	if (conf) stout << "\t\t\t----> Saving configurations of Hubbard Stratonovich fields" << EL;
-	/// Progress bar
-	this->pbar.reset(new pBar(20, mcSteps));
-
-	// function
-	auto fptr = std::bind(&HubbardQR::heat_bath_single_step, this, std::placeholders::_1);	// pointer to non-saving configs;
-	
+#ifdef SAVE_CONF
+	stout << "\t\t\t----> Saving configurations of Hubbard Stratonovich fields" << EL;
 	mat confMine;
 	if(conf) confMine.zeros(this->Ns,this->Ns);
+#endif
+	
+	// progress bar
+	this->pbar.reset(new pBar(20, mcSteps));
 	
 	// sweep all
 	for (int step = 0; step < mcSteps; step++) {
 		// Monte Carlo steps
-		if (conf) confMine = this->hsFields;											// save how it was before
-		this->sweep_0_M(fptr);
+#ifdef SAVE_CONF
+		confMine = this->hsFields;											// save how it was before
+#endif
+		this->sweep_0_M();													// sweep forward
+#ifdef SAVE_CONF								
+		this->print_hs_fields("\t", confMine);								// print HS fields
+#endif
 		if (!quiet) {
-			this->config_sign > 0 ? this->pos_num++ : this->neg_num++;					// increase sign
-			if(conf) this->print_hs_fields("\t", confMine);								// print HS fields
+			this->config_sign > 0 ? this->pos_num++ : this->neg_num++;		// increase sign
+
 			if (step % pbar->percentageSteps == 0) 
 				pbar->printWithTime(" -> RELAXATION PROGRESS for " + this->info);
 		}
 	}
 }
 
-/**
- * @brief Average the system in equilibrium with heat bath
- * @param corr_time time after which the new measurement is uncorrelated
- * @param avNum number of averagings
- * @param quiet quiet?
- * @param times calculate time properties?
- */
-void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet, bool times)
+/*
+* @brief Average the system in equilibrium with heat bath
+* @param corr_time time after which the new measurement is uncorrelated
+* @param avNum number of averagings
+* @param quiet quiet?
+*/
+void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet)
 {
 #pragma omp critical
 	stout << "\t\t----> STARTING AVERAGING FOR : " + this->info << EL;
+
 	this->neg_num = 0;																				// counter of negative signs
 	this->pos_num = 0;																				// counter of positive signs
 	this->avs->av_sign = 0;
 	this->equalibrate = false;
 
-	std::function<int(int)> fptr = std::bind(&HubbardQR::heat_bath_single_step, this, std::placeholders::_1);
-
 	const uint bucket_num = 1;
 	// Progress bar
 	this->pbar.reset(new pBar(34, avNum));
-	//ofstream file;
-	//file.open("test.dat");
 
 	// check if this saved already
 	for (int step = 0; step < avNum; step++) {
 		// Monte Carlo steps
-		if (times)
-			useHirsh ? this->cal_green_mat_times_hirsh() : this->cal_green_mat_times_cycle(); 			// calculate time-displaced Green's functions
-		for (this->current_time = 0; this->current_time < this->M; this->current_time++) {
+#ifdef USE_HIRSH
+		// calculate time-displaced Green's functions USING HIRSH
+		this->cal_green_mat_times_hirsh();
+#endif
+		// stout << "CALCULATING: " << VEQ(step) << EL;
+
+		for (auto time_im = 0; time_im < this->M; time_im++) {
 			// imaginary Trotter times
-			if (!times || (times && !useHirsh)) this->upd_Green_step(this->current_time);
-			if (times) {
-				// because we save the 0'th on the fly :3
-				const auto elem = this->current_time * this->Ns;
-				if (useHirsh) {
-					//? using Hirsh we know that we can set the whole matrix so we can set the eq times Green's function too
-					setMatrixFromSubmatrix(green_up, g_up_time, elem, elem, Ns, Ns, false);
-					setMatrixFromSubmatrix(green_down, g_down_time, elem, elem, Ns, Ns, false);
-				}
-				else {
-					//? otherwise we do differently, we set it from the standardly calculated one
-					setSubmatrixFromMatrix(g_up_time, green_up, elem, elem, Ns, Ns, false);
-					setSubmatrixFromMatrix(g_down_time, green_down, elem, elem, Ns, Ns, false);
-				}
+			this->current_time = time_im;
+			//stout << "\t->TIME: " << VEQ(current_time) << EL;
+#if !defined CAL_TIMES || defined CAL_TIMES && !defined USE_HIRSH
+			this->upd_Green_step(this->current_time);
+#endif
+#ifdef CAL_TIMES
+			// because we save the 0'th on the fly :3
+			const auto elem = this->current_time * this->Ns;
+#ifdef USE_HIRSH
+			//? using Hirsh we know that we can set the whole matrix so we can set the eq times Green's function too
+			setMatrixFromSubmatrix(green_up, g_up_time, elem, elem, Ns, Ns, false);
+			setMatrixFromSubmatrix(green_down, g_down_time, elem, elem, Ns, Ns, false);
+#else
+			//? otherwise we do differently, we set it from the standardly calculated one
+			setSubmatrixFromMatrix(g_up_time, green_up, elem, elem, Ns, Ns, false);
+			setSubmatrixFromMatrix(g_down_time, green_down, elem, elem, Ns, Ns, false);
+#endif
+#endif
+			// collect all averages
+			for (int i = 0; i < this->Ns; i++) {
+				//stout << "\t\t->SITE: " << VEQ(i) << EL;
+				this->av_single_step(i, this->config_sign);
 			}
-			for (int i = 0; i < this->Ns; i++) 
-				this->av_single_step(i, this->config_sign, times);									// collect all averages
+			//! increase sign
+			this->config_sign > 0 ? this->pos_num++ : this->neg_num++;
+
+#ifdef CAL_TIMES
+			//? Average the Green's over the buckets
+			if (step % bucket_num == 0) {
+				if (step != 0) this->save_unequal_greens(step / bucket_num, bucket_num);
+				this->avs->resetGreens();
 		}
-		//! increase sign
-		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;											
-		//? Average the Green's over the buckets
-		if (times && step % bucket_num == 0) {
-			if(step != 0)
-				this->save_unequal_greens(step / bucket_num, bucket_num);
-			this->avs->resetGreens();
-			//this->g_up_time.print(file, "up");
-		}
+#endif
+	}
 		//! kill correlations
-		for (int ii = 0; ii < corr_time; ii++) this->sweep_0_M(fptr);										
+		for (int ii = 0; ii < corr_time; ii++) {
+			this->sweep_0_M();
+		}
+
 		//! printer
-		if (!quiet && step % pbar->percentageSteps == 0) 
+		if (!quiet && step % pbar->percentageSteps == 0)
 			pbar->printWithTime(" -> AVERAGES PROGRESS for " + this->info);
 	}
 	//! Normalise after
-	this->av_normalise(avNum, this->M, times);
+	this->av_normalise(avNum, this->M);
 }
 
 // ---------------------------------------------------------------------------------------------------------------- PUBLIC CALCULATORS ----------------------------------------------------------------------------------------------------------------

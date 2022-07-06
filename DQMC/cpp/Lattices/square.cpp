@@ -136,7 +136,7 @@ void SquareLattice::calculate_coordinates()
 	for (int i = 0; i < Ns; i++) {
 		this->coordinates[i][0] = i % Lx;												// x axis coordinate
 		this->coordinates[i][1] = (static_cast<int>(1.0 * i / Lx)) % Ly;				// y axis coordinate
-		this->coordinates[i][2] = (static_cast<int>(1.0 * i / (LxLy))) % Lz;			// z axis coordinate			
+		this->coordinates[i][2] = (static_cast<int>(1.0 * i / LxLy)) % Lz;				// z axis coordinate			
 		//std::cout << "(" << this->coordinates[i][0] << "," << this->coordinates[i][1] << "," << this->coordinates[i][2] << ")\n";
 	}
 }

@@ -16,9 +16,18 @@
 #include <chrono>
 #include <stdlib.h>
 
+
+
+
+#define USE_QR
+//#define CAL_TIMES
+
+#ifdef CAL_TIMES
+#define USE_HIRSH
+#endif
+
+
 using namespace std;
-
-
 using namespace arma;
 /* 
 * In this file we define the virtual class for Monte Carlo simulations models of condensed matter systems
@@ -37,22 +46,27 @@ struct general_directories {
 * Structure for storing the averages from the Quantum Monte Carlo simulation
 */
 struct averages_par {
-	averages_par(int Lx, int Ly, int Lz, int M = 1, bool times = false) {
+	averages_par(const std::shared_ptr<Lattice>& lat, int M = 1, bool times = false) {
+		auto [x_num, y_num, z_num] = lat->getNumElems();
+		auto Lx = lat->get_Lx();
+		auto Ly = lat->get_Ly();
+		auto Lz = lat->get_Lz();
+
+		x_num = 2 * Lx - 1;
+		y_num = 2 * Ly - 1;
+		z_num = 2 * Lz - 1; 
+
 		// Correlations - depend on the dimension - equal time
-		this->av_occupation_corr = v_3d<double>(2 * Lx - 1, v_2d<double>(2 * Ly - 1, v_1d<double>(2 * Lz - 1, 0.0)));
-		this->av_M2z_corr = v_3d<double>(2 * Lx - 1, v_2d<double>(2 * Ly - 1, v_1d<double>(2 * Lz - 1, 0.0)));
-		this->av_ch2_corr = v_3d<double>(2 * Lx - 1, v_2d<double>(2 * Ly - 1, v_1d<double>(2 * Lz - 1, 0.0)));
+		this->av_occupation_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
+		this->av_M2z_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
+		this->av_ch2_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
 		// Setting av Greens
-		if (times) {
-			this->g_up_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->g_down_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->sd_g_up_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->sd_g_down_diffs = v_1d<mat>(M, arma::zeros(Lx / 2 + 1, Ly / 2 + 1));
-			this->g_up_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
-			this->g_down_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
-			this->sd_g_up_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
-			this->sd_g_down_diffs_k = v_1d<cx_mat>(M, cx_mat(Lx, Ly, fill::zeros));
-		}
+#ifdef CAL_TIMES
+			this->g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+			this->g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+			this->sd_g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+			this->sd_g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+#endif
 	}
 	//! ----------------- functions for Green's
 	/**
@@ -157,7 +171,10 @@ public:
 
 	// ----------------------- CALCULATORS
 	virtual void relaxation(impDef::algMC algorithm, int mc_steps, bool conf, bool quiet) = 0;
-	virtual void average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet, int times = 0) = 0;
+	virtual void average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet) = 0;
+
+	// ----------------------- CHECKERS
+
 
 	// ----------------------- GETTERS
 	int getDim() const { return this->lattice->get_Dim(); };
