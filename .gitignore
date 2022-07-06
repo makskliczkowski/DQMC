@@ -16,6 +16,7 @@
 *.vcxproj.filters
 *.dat
 *.h5
+*.out
 *.png
 *c_cpp_properties.json
 *.json
