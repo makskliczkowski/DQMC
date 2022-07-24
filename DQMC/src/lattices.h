@@ -90,11 +90,11 @@ inline void Lattice::calculate_nn() {
 inline void Lattice::calculate_spatial_norm(int x, int y, int z)
 {
 	// spatial norm
-	this->spatialNorm = SPACE_VEC(x, y, z);
+	this->spatialNorm = SPACE_VEC(2*x-1, 2*y-1, 2*z-1);
 	for (int i = 0; i < this->Ns; i++) {
 		for (int j = 0; j < this->Ns; j++) {
-			const auto [x, y, z] = this->getSiteDifference(i, j);
-			spatialNorm[abs(x)][abs(y)][abs(z)]++;
+			const auto [xx, yy, zz] = this->getSiteDifference(i, j);
+			spatialNorm[xx+x-1][yy+y-1][zz+z-1]++;
 		}
 	}
 }

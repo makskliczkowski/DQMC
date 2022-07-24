@@ -101,7 +101,11 @@ namespace hubbard {
 		this->inner_threads = threads;
 		this->dir = std::make_shared<hubbard::directories>();
 		// if we use hirsh calculation of the time displaced greens then all times are not necessary
-		// useHirsh ? this->all_times = true : this->all_times = false;
+#ifdef ALL_TIMES
+		this->all_times = true;
+#else 
+		this->all_times = false;
+#endif
 
 		this->dim = this->lattice->get_Dim();
 		this->Lx = this->lattice->get_Lx();

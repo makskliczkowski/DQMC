@@ -38,9 +38,9 @@ public:
 
 		switch (this->_BC)
 		{
-		case 0:
-			return std::make_tuple(this->Lx / 2, this->Ly / 2, this->Lz / 2);
-			break;
+		//case 0:
+		//	return std::make_tuple(this->Lx / 2, this->Ly / 2, this->Lz / 2);
+		//	break;
 		default:
 			return std::make_tuple(this->Lx, this->Ly, this->Lz);
 			break;

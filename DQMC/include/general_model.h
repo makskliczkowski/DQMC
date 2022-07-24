@@ -20,10 +20,11 @@
 
 
 #define USE_QR
-//#define CAL_TIMES
+#define CAL_TIMES
 
 #ifdef CAL_TIMES
 #define USE_HIRSH
+#define ALL_TIMES
 #endif
 
 
@@ -92,14 +93,16 @@ struct averages_par {
 	 */
 	void normaliseGreens(std::shared_ptr<Lattice>& lat, int bucketNum, bool all = true) {
 		const auto M = this->g_up_diffs.size();
+		auto [Lx, Ly, Lz] = lat->getNumElems();
 		for (int tau = 0; tau < M; tau++) {
-			for (int x = 0; x < this->g_up_diffs[tau].n_rows; x++) {
-				for (int y = 0; y < this->g_up_diffs[tau].n_cols; y++) {
-					const auto norm = bucketNum * (all ? -double(M) : -(1.0*(M-tau))) * lat->get_norm(x, y, 0);
-					this->g_up_diffs[tau](x, y) /= norm;
-					this->g_down_diffs[tau](x, y) /= norm;
-					this->sd_g_up_diffs[tau](x, y) = variance(this->sd_g_up_diffs[tau](x, y), this->g_up_diffs[tau](x, y), norm);
-					this->sd_g_down_diffs[tau](x, y) = variance(this->sd_g_down_diffs[tau](x, y), this->g_down_diffs[tau](x, y), norm);
+			auto norm = bucketNum * (all ? -double(M) : -(1.0 * (M - tau)));
+			for (int x = 0; x < 2 * Lx - 1; x++) {
+				for (int y = 0; y < 2 * Ly - 1; y++) {
+					const auto norm2 = norm * lat->get_norm(x, y, 0);
+					this->g_up_diffs[tau](x, y) /= norm2;
+					this->g_down_diffs[tau](x, y) /= norm2;
+					this->sd_g_up_diffs[tau](x, y) = variance(this->sd_g_up_diffs[tau](x, y), this->g_up_diffs[tau](x, y), norm2);
+					this->sd_g_down_diffs[tau](x, y) = variance(this->sd_g_down_diffs[tau](x, y), this->g_down_diffs[tau](x, y), norm2);
 				}
 			}
 		}

@@ -10,27 +10,27 @@
 * @param binSize the size of a given single bin
 * @returns average in each bin
 */
-template<typename T>
-inline v_1d<T> binning(const v_1d<T>& seriesData, size_t nBins, size_t binSize){
-    v_1d<T> bins(nBins, 0);
-    if(binSize * nBins > seriesData.size()) throw "Cannot create bins of insufficient elements";
-    for(int i = 0; i < bins.size(); i++)
-        bins[i] = std::accumulate(seriesData.begin() + binSize * i, seriesData.end() + binSize * (i+1) - 1,  decltype(vector)::value_type(0))/binSize;
-    return bins;
-}
-
-/* 
-* bin the data to calculate the correlation time approximation 
-* @param seriesData data to be binned
-* @param bins the vector to save the average into
-* @param binSize the size of a given single bin
-*/
-template<typename T>
-inline v_1d<T> binning(const v_1d<T>& seriesData, v_1d<T>& bins, size_t binSize){
-    if(binSize * bins.size() > seriesData.size()) throw "Cannot create bins of insufficient elements";
-    for(int i = 0; i < bins.size(); i++)
-        bins[i] = std::accumulate(seriesData.begin() + binSize * i, seriesData.end() + binSize * (i+1) - 1,  decltype(vector)::value_type(0))/binSize;
-}
+//template<typename T>
+//inline v_1d<T> binning(const v_1d<T>& seriesData, size_t nBins, size_t binSize){
+//    v_1d<T> bins(nBins, 0);
+//    if(binSize * nBins > seriesData.size()) throw "Cannot create bins of insufficient elements";
+//    for(int i = 0; i < bins.size(); i++)
+//        bins[i] = std::accumulate(seriesData.begin() + binSize * i, seriesData.end() + binSize * (i+1) - 1,  decltype(vector)::value_type(0))/binSize;
+//    return bins;
+//}
+//
+///* 
+//* bin the data to calculate the correlation time approximation 
+//* @param seriesData data to be binned
+//* @param bins the vector to save the average into
+//* @param binSize the size of a given single bin
+//*/
+//template<typename T>
+//inline v_1d<T> binning(const v_1d<T>& seriesData, v_1d<T>& bins, size_t binSize){
+//    if(binSize * bins.size() > seriesData.size()) throw "Cannot create bins of insufficient elements";
+//    for(int i = 0; i < bins.size(); i++)
+//        bins[i] = std::accumulate(seriesData.begin() + binSize * i, seriesData.end() + binSize * (i+1) - 1,  decltype(vector)::value_type(0))/binSize;
+//}
 
 /* 
 * bin the data to calculate the correlation time approximation 

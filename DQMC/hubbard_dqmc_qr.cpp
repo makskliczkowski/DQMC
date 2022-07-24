@@ -535,7 +535,7 @@ void hubbard::HubbardQR::cal_green_mat_times_cycle()
 */
 void hubbard::HubbardQR::cal_green_mat_times_hirsh()
 {
-	assert("should allow time calculations" && this->cal_times);
+	//assert("should allow time calculations" && this->cal_times);
 	this->g_up_time.eye();
 	this->g_down_time.eye();
 
@@ -544,7 +544,7 @@ void hubbard::HubbardQR::cal_green_mat_times_hirsh()
 #pragma omp parallel for num_threads(this->inner_threads)
 	for (int sec = 0; sec < this->M - 1; sec++) {
 		const auto row = (sec + 1) * this->Ns;
-		const auto col = (sec)*this->Ns;
+		const auto col = sec * this->Ns;
 		setSubmatrixFromMatrix(g_up_time, this->b_mat_up[sec], row, col, this->Ns, this->Ns, true, true);
 		setSubmatrixFromMatrix(g_down_time, this->b_mat_down[sec], row, col, this->Ns, this->Ns, true, true);
 	}
@@ -703,14 +703,14 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 		auto [x, y, z] = this->lattice->getSiteDifference(current_elem_i, current_elem_j);
 		auto [xx, yy, zz] = this->lattice->getSymPos(x, y, z);
 
-		auto xi = x + Lx - 1;
-		auto yi = y + Ly - 1;
-		auto zi = z + Lz - 1;
+		xx = x + Lx - 1;
+		yy = y + Ly - 1;
+		zz = z + Lz - 1;
 
 		//? normal equal - time correlations
-		this->avs->av_M2z_corr[xi][yi][zi] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
-		this->avs->av_occupation_corr[xi][yi][zi] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
-		this->avs->av_ch2_corr[xi][yi][zi] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, this->green_up, this->green_down) / (this->Ns * 2.0);
+		this->avs->av_M2z_corr[xx][yy][zz] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
+		this->avs->av_occupation_corr[xx][yy][zz] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
+		this->avs->av_ch2_corr[xx][yy][zz] += this->cal_ch_correlation(sign, current_elem_i, current_elem_j, this->green_up, this->green_down) / (this->Ns * 2.0);
 
 			
 		/// time difference different than 0
@@ -718,26 +718,26 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 #ifdef CAL_TIMES
 		//? handle zero time difference here in greens
 		//! we handle it with the calculated current Green's functions
-		this->avs->g_up_diffs[0](xx, yy) += this->green_up(current_elem_i, current_elem_j);
-		this->avs->g_down_diffs[0](xx, yy) += this->green_down(current_elem_i, current_elem_j);
+		this->avs->g_up_diffs[0](xx, yy) += sign * this->green_up(current_elem_i, current_elem_j);
+		this->avs->g_down_diffs[0](xx, yy) += sign * this->green_down(current_elem_i, current_elem_j);
 		this->avs->sd_g_up_diffs[0](xx, yy) += this->green_up(current_elem_i, current_elem_j) * this->green_up(current_elem_i, current_elem_j);
 		this->avs->sd_g_down_diffs[0](xx, yy) += this->green_down(current_elem_i, current_elem_j) * this->green_down(current_elem_i, current_elem_j);
 		
 		for (int time2 = 0; time2 < this->M; time2++) {
 			auto tim = (this->current_time - time2);
-
+			//stout << "\t\t->SITES: " << VEQ(x) << "," << VEQ(y) << "\n\t\t\t->TIME:" << VEQ(tim) << EL;
 			// check if we include time symmetry
 			if(tim == 0 || (tim < 0 && !this->all_times)) continue;
-			int xi = 1;
+			auto xk = sign;
 			// handle antiperiodicity
 			if (tim < 0) {
-				xi = -1;
+				xk *= -1;
 				tim += this->M;
 			}
 			const auto col = time2 * this->Ns;
 			const auto row = this->current_time * this->Ns;
-			const auto up_elem = xi * this->g_up_time(row + current_elem_i, col + current_elem_j);
-			const auto down_elem = xi * this->g_down_time(row + current_elem_i, col + current_elem_j);
+			const auto up_elem = xk * this->g_up_time(row + current_elem_i, col + current_elem_j);
+			const auto down_elem = xk * this->g_down_time(row + current_elem_i, col + current_elem_j);
 			// save only the positive first half
 			this->avs->g_up_diffs[tim](xx, yy) += up_elem;
 			this->avs->g_down_diffs[tim](xx, yy) += down_elem;
@@ -870,12 +870,12 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet)
 	this->avs->av_sign = 0;
 	this->equalibrate = false;
 
-	const uint bucket_num = 1;
+	const uint bucket_num = 5;
 	// Progress bar
 	this->pbar.reset(new pBar(34, avNum));
 
 	// check if this saved already
-	for (int step = 0; step < avNum; step++) {
+	for (int step = 1; step < avNum; step++) {
 		// Monte Carlo steps
 #ifdef USE_HIRSH
 		// calculate time-displaced Green's functions USING HIRSH
@@ -908,21 +908,19 @@ void hubbard::HubbardQR::heat_bath_av(int corr_time, int avNum, bool quiet)
 				//stout << "\t\t->SITE: " << VEQ(i) << EL;
 				this->av_single_step(i, this->config_sign);
 			}
-			//! increase sign
-			this->config_sign > 0 ? this->pos_num++ : this->neg_num++;
-
+		}
+		//! increase sign
+		this->config_sign > 0 ? this->pos_num++ : this->neg_num++;
 #ifdef CAL_TIMES
-			//? Average the Green's over the buckets
-			if (step % bucket_num == 0) {
-				if (step != 0) this->save_unequal_greens(step / bucket_num, bucket_num);
-				this->avs->resetGreens();
+		//? Average the Green's over the buckets
+		if (step % bucket_num == 0) {
+			this->save_unequal_greens(step / bucket_num, bucket_num);
+			this->avs->resetGreens();
 		}
 #endif
-	}
 		//! kill correlations
-		for (int ii = 0; ii < corr_time; ii++) {
+		for (int ii = 0; ii < corr_time; ii++) 
 			this->sweep_0_M();
-		}
 
 		//! printer
 		if (!quiet && step % pbar->percentageSteps == 0)

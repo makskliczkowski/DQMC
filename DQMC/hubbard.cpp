@@ -109,20 +109,22 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
 
 	for (int nx = 0; nx < x_num; nx++) {
+		auto x = nx + x_num - 1;
 		for (int ny = nx; ny < y_num; ny++) {
+			auto y = ny + y_num - 1;
 			printSeparated(fileUp, '\t', 6,true, VEQ(nx), VEQ(ny));
 			printSeparated(fileDown, '\t', 6, true, VEQ(nx), VEQ(ny));
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
 				printSeparated(fileUp, '\t', 4, false, tau1);
-				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](nx,ny),width));
+				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](x, y), width));
 				printSeparated(fileUp, '\t', 5, false, "+-");
-				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](nx,ny),width));
+				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](x, y), width));
 
 				printSeparated(fileDown, '\t', 4, false, tau1);
-				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](nx, ny), width));
+				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](x, y), width));
 				printSeparated(fileDown, '\t', 5, false, "+-");
-				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
+				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](x, y), width));
 			}
 		}
 	}
