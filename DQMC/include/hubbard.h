@@ -33,12 +33,15 @@ namespace hubbard {
 
 
 	struct directories : public general_directories {
+		
+		std::string token = "";
+		
 		std::string fourier_dir = "";
 		std::string params_dir = "";
 		std::string conf_dir = "";
 		std::string greens_dir = "";
 		std::string time_greens_dir = "";
-
+		
 		// filenames
 		std::string nameFouriers = "";							//
 		std::string nameFouriersTime = "";						//
@@ -56,12 +59,12 @@ namespace hubbard {
 		directories() = default;
 
 		void setFileNames() {
-			this->nameFouriers = fourier_dir + "fouriers_" + info + ".dat";
-			this->nameFouriersTime = fourier_dir + "times" + kPS + "fouriersTime_" + info + ".dat";
-			this->nameNormal = params_dir + "parameters_" + info + ".dat";
-			this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + info + ".dat";
-			this->nameGreens = "greens" + info + ".dat";
-			this->nameGreensTime = "greensTime_" + info + ".dat";
+			this->nameFouriers = fourier_dir + "fouriers_" + this->token + "_" + info + ".dat";
+			this->nameFouriersTime = fourier_dir + "times" + kPS + "fouriersTime_" + this->token + "_" + info + ".dat";
+			this->nameNormal = params_dir + "parameters_" + this->token + "_" + info + ".dat";
+			this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + this->token + "_" + info + ".dat";
+			this->nameGreens = "greens_" + this->token + "_" + info + ".dat";
+			this->nameGreensTime = "greensTime_" + this->token + "_" + info + ".dat";
 		};
 	};
 
@@ -180,7 +183,6 @@ namespace hubbard {
 		static double cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down);								// calculate the average occupation
 
 		static double cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the z-th magnetization squared
-
 		static double cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the y-th magnetization squared
 		static double cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the x-th magnetization squared
 		
@@ -202,6 +204,7 @@ namespace hubbard {
 			<< "->t = " << this->t << EL \
 			// lattice
 			<< "->dimension = " << this->getDim() << EL \
+			<< "->type = " << this->lattice->get_type() << EL \
 			<< "->Lx = " << this->lattice->get_Lx() << EL \
 			<< "->Ly = " << this->lattice->get_Ly() << EL \
 			<< "->Lz = " << this->lattice->get_Lz() << EL \
@@ -218,11 +221,12 @@ namespace hubbard {
 		void save_unequal_greens(int filenum, uint bucketnum = 1);
 
 		// -------------------------- GETTERS
-		int get_M() const { return this->M; };
-		int get_M_0() const { return this->M_0; };
-		std::string get_info() const { return this->info; };
-		std::shared_ptr<directories> get_directories() const { return this->dir; };
-		std::shared_ptr<directories> get_directories(std::string working_directory) { this->setDirs(working_directory); return this->dir; };
+		auto get_M()												const RETURNS(this->M);
+		auto get_M_0()												const RETURNS(this->M_0);
+		auto get_info()												const RETURNS(this->info);
+		auto get_directories()										const RETURNS(this->dir);
+		auto get_directories(std::string working_directory) { this->setDirs(working_directory); return this->dir; };
+		
 		// -------------------------- SETTERS
 		void setDirs(directories* dirs) {this->dir.reset(dirs);};
 		void setDirs(std::string working_directory);

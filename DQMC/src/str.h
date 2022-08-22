@@ -17,6 +17,12 @@ using v_2d = std::vector<std::vector<T>>;							// 2d double vector
 template<class T>
 using v_1d = std::vector<T>;										// 1d double vector
 
+template<class T>
+using t_3d = std::tuple<T, T, T>;									// 3d tuple
+template<class T>
+using t_2d = std::pair<T, T>;										// 2d tuple - pair
+
+
 //! -------------------------------------------------------- STRING RELATED FUNCTIONS --------------------------------------------------------
 
 /*

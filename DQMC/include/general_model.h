@@ -20,7 +20,7 @@
 
 
 #define USE_QR
-#define CAL_TIMES
+//#define CAL_TIMES
 
 #ifdef CAL_TIMES
 #define USE_HIRSH
@@ -49,13 +49,6 @@ struct general_directories {
 struct averages_par {
 	averages_par(const std::shared_ptr<Lattice>& lat, int M = 1, bool times = false) {
 		auto [x_num, y_num, z_num] = lat->getNumElems();
-		auto Lx = lat->get_Lx();
-		auto Ly = lat->get_Ly();
-		auto Lz = lat->get_Lz();
-
-		x_num = 2 * Lx - 1;
-		y_num = 2 * Ly - 1;
-		z_num = 2 * Lz - 1; 
 
 		// Correlations - depend on the dimension - equal time
 		this->av_occupation_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
@@ -71,8 +64,8 @@ struct averages_par {
 	}
 	//! ----------------- functions for Green's
 	/**
-	 * @brief Resets the Green's functions
-	 */
+	* @brief Resets the Green's functions
+	*/
 	void resetGreens() {
 		for (int i = 0; i < g_up_diffs.size(); i++) {
 			this->g_up_diffs[i].zeros();
@@ -87,17 +80,17 @@ struct averages_par {
 	}
 
 	/**
-	 * @brief Normalizes the Green's given the model parameters and the lattice
-	 * @param lattice general lattice class -> allows the normalisation
-	 * @param bucketNum number of bucket on which the Green's are averaged
-	 */
+	* @brief Normalizes the Green's given the model parameters and the lattice
+	* @param lattice general lattice class -> allows the normalisation
+	* @param bucketNum number of bucket on which the Green's are averaged
+	*/
 	void normaliseGreens(std::shared_ptr<Lattice>& lat, int bucketNum, bool all = true) {
 		const auto M = this->g_up_diffs.size();
-		auto [Lx, Ly, Lz] = lat->getNumElems();
+		auto [xx, yy, zz] = lat->getNumElems();
 		for (int tau = 0; tau < M; tau++) {
 			auto norm = bucketNum * (all ? -double(M) : -(1.0 * (M - tau)));
-			for (int x = 0; x < 2 * Lx - 1; x++) {
-				for (int y = 0; y < 2 * Ly - 1; y++) {
+			for (int x = 0; x < xx; x++) {
+				for (int y = 0; y < yy; y++) {
 					const auto norm2 = norm * lat->get_norm(x, y, 0);
 					this->g_up_diffs[tau](x, y) /= norm2;
 					this->g_down_diffs[tau](x, y) /= norm2;
@@ -153,9 +146,9 @@ struct averages_par {
 
 // -------------------------------------------------------- LATTICE MODEL --------------------------------------------------------
 
-/// <summary>
-/// A general abstract class for models on a lattice that use Monte Carlo
-/// </summary>
+/*
+* A general abstract class for models on a lattice that use Monte Carlo
+*/
 class LatticeModel {
 protected:
 	int inner_threads;											// threads for the inner loops
@@ -180,10 +173,10 @@ public:
 
 
 	// ----------------------- GETTERS
-	int getDim() const { return this->lattice->get_Dim(); };
-	int getNs() const { return this->Ns; };
-	double getT() const { return this->T; };
-	std::shared_ptr<averages_par> get_avs() const { return this->avs; };
+	auto getDim()						const RETURNS(this->lattice->get_Dim());
+	auto getNs()						const RETURNS(this->Ns);
+	auto getT()							const RETURNS(this->T);
+	auto get_avs()						const RETURNS(this->avs);
 	// ----------------------- SETTERS
 };
 #endif // !GENERAL_H

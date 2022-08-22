@@ -26,11 +26,24 @@ SquareLattice::SquareLattice(int Lx, int Ly, int Lz, int dim, int _BC)
 
 	this->calculate_nn();
 	this->calculate_coordinates();
-	this->calculate_spatial_norm(Lx, Ly, Lz);
+	this->calculate_spatial_norm();
 
+	this->a1 = { this->a, 0, 0 };
+	this->a2 = { 0, this->b, 0 };
+	this->a3 = { 0, 0, this->c };
+
+	// calculate k_space vectors
+	this->k_vectors = mat(this->Ns, 3, arma::fill::zeros);
+	this->calculate_k_vectors();
 }
 
-
+/*
+* @brief returns the real space vector for a given multipliers of reciprocal vectors
+*/
+vec SquareLattice::get_real_space_vec(int x, int y, int z) const
+{
+	return { a * x, b * y, c * z };
+}
 
 /*
 * @brief Calculate the nearest neighbors with PBC
@@ -138,5 +151,27 @@ void SquareLattice::calculate_coordinates()
 		this->coordinates[i][1] = (static_cast<int>(1.0 * i / Lx)) % Ly;				// y axis coordinate
 		this->coordinates[i][2] = (static_cast<int>(1.0 * i / LxLy)) % Lz;				// z axis coordinate			
 		//std::cout << "(" << this->coordinates[i][0] << "," << this->coordinates[i][1] << "," << this->coordinates[i][2] << ")\n";
+	}
+}
+
+/*
+* @brief calculates all the k_vectors for a square lattice
+*/
+void SquareLattice::calculate_k_vectors()
+{
+	const auto two_pi_over_Lx = TWOPI / a / Lx;
+	const auto two_pi_over_Ly = TWOPI / b / Ly;
+	const auto two_pi_over_Lz = TWOPI / c / Lz;
+
+	for (int qx = 0; qx < Lx; qx++) {
+		double kx = -PI + two_pi_over_Lx * qx;
+		for (int qy = 0; qy < Ly; qy++) {
+			double ky = -PI + two_pi_over_Ly * qy;
+			for (int qz = 0; qz < Lz; qz++) {
+				double kz = -PI + two_pi_over_Lz * qz;
+				uint iter = qz * (Lx * Ly) + qy * Lx + qx;
+				this->k_vectors.row(iter) = { kx, ky, kz };
+			}
+		}
 	}
 }

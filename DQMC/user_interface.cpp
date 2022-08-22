@@ -411,7 +411,7 @@ void hubbard::ui::make_simulation()
 			fileLog.seekg(0, std::ios::beg);
 			printSeparated(fileLog, ',', 20, true ,"lattice_type","mcsteps","avsNum","corrTime", "M", "M0", "dtau", "Lx",\
 				"Ly", "Lz", "beta", "U", "mu", "occ", "sd(occ)", "av_sgn", "sd(sgn)", "Ekin",\
-				"sd(Ekin)", "m^2_z", "sd(m^2_z)", "m^2_x", "time taken");
+				"sd(Ekin)", "m^2_z", "sd(m^2_z)", "m^2_x", "time taken", "token");
 		}
 		fileLog.close();
 	}
@@ -472,13 +472,14 @@ void hubbard::ui::collectRealSpace(std::string name_times, std::string name, con
 	printSeparated(fileP, ',', 8, 0, "x", "y", "z");
 	printSeparated(fileP, ',', prec + 3, true, "avM2z_corr", "avCharge_corr");
 
+	auto [x_num, y_num, z_num] = lat->getNumElems();
 	// FILES CORRELATIONS
-	for (int x = 0; x < Lx; x++)
-		for (int y = 0; y < Ly; y++)
-			for (int z = 0; z < Lz; z++) {
-				auto [x_pos, y_pos, z_pos] = lat->getSymPos(x, y, z);
-				printSeparated(fileP, ',', prec, false, x , y, z);
-				printSeparatedP(fileP, ',', prec + 6, true, prec, avs->av_M2z_corr[x_pos][y_pos][z_pos], avs->av_ch2_corr[x_pos][y_pos][z_pos]);
+	for (int x = 0; x < x_num; x++)
+		for (int y = 0; y < y_num; y++)
+			for (int z = 0; z < z_num; z++) {
+				auto [xx, yy, zz] = lat->getSymPosInv(x, y, z);
+				printSeparated(fileP, ',', prec, false, xx , yy, zz);
+				printSeparatedP(fileP, ',', prec + 6, true, prec, avs->av_M2z_corr[x][y][z], avs->av_ch2_corr[x][y][z]);
 				//if (times) {
 				//	for (int i = 0; i < M; i++) {
 						//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << (avs.av_M2z_corr_uneqTime[x_pos][y_pos][z_pos][i]) << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
@@ -493,6 +494,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, cons
 	using namespace std;
 	std::ofstream file_fouriers, file_fouriers_time, file_response;
 	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
+	const auto N = lat->get_Ns();
+
 
 	openFile(file_fouriers, name);
 	/*if (times) {
@@ -507,66 +510,57 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, cons
 	printSeparated(file_fouriers, ',', 12, false, "kx","ky","kz");
 	printSeparated(file_fouriers, ',', 16, true, "occ(k)","spin_str_fac","ch_str_fac");
 
-	int kx_num = Lx; int ky_num = Ly; int kz_num = Lz;
-	int N = kx_num * ky_num * kz_num;
-	const auto two_pi_over_Lx = TWOPI / kx_num;
-	const auto two_pi_over_Ly = TWOPI / ky_num;
-	const auto two_pi_over_Lz = TWOPI / kz_num;
+	auto [x_num, y_num, z_num] = lat->getNumElems();
+	for (int iter = 0; iter < Lx * Ly * Lz; iter++) {
 
-	for (int qx = 0; qx < kx_num; qx++) {
-		double kx = -PI + two_pi_over_Lx * qx;
-		for (int qy = 0; qy < ky_num; qy++) {
-			double ky = -PI + two_pi_over_Ly * qy;
-			for (int qz = 0; qz < kz_num; qz++) {
-				double kz = -PI + two_pi_over_Lz * qz;
-				/* Fourier occupation */
+		/* Fourier occupation */
+		arma::cx_double spin_structure_factor = 0;
+		arma::cx_double charge_structure_factor = 0;
+		//arma::cx_double charge_susc = 0;
+		//arma::cx_double mag_susc = 0;
+		arma::cx_double occupation_fourier = 0;
+		//arma::cx_vec green_up(M_0, arma::fill::zeros);
+		//arma::cx_vec green_down(M_0, arma::fill::zeros);
+		const auto k_vec = lat->get_k_vectors(iter);
 
-				arma::cx_double spin_structure_factor = 0;
-				arma::cx_double charge_structure_factor = 0;
-				//arma::cx_double charge_susc = 0;
-				//arma::cx_double mag_susc = 0;
-				arma::cx_double occupation_fourier = 0;
-				//arma::cx_vec green_up(M_0, arma::fill::zeros);
-				//arma::cx_vec green_down(M_0, arma::fill::zeros);
-				for (int i = -kx_num + 1; i < kx_num; i++) {
-					for (int j = -ky_num + 1; j < ky_num; j++) {
-						for (int k = -kz_num + 1; k < kz_num; k++) {
-							//auto [x, y, z] = lat->getSymPos(i, j, k);
-							auto x = i + Lx - 1;
-							auto y = j + Ly - 1;
-							auto z = k + Lz - 1;
+		const auto kx = k_vec[0];
+		const auto ky = k_vec[1];
+		const auto kz = k_vec[2];
+		for (int i = 0; i < x_num; i++) {
+			for (int j = 0; j < y_num; j++) {
+				for (int k = 0; k < z_num; k++) {
+					auto [x, y, z] = lat->getSymPosInv(i, j, k);
+					const auto r = lat->get_real_space_vec(x, y, z);
 
-							arma::cx_double expa = exp(imn * (kx * i + ky * j + kz * k));
+					arma::cx_double expa = exp(imn * dot(r, k_vec));
 
-							occupation_fourier += expa * avs->av_occupation_corr[x][y][z];
-							spin_structure_factor += expa * avs->av_M2z_corr[x][y][z];
-							charge_structure_factor += expa * avs->av_ch2_corr[x][y][z];
-							//spin_structure_factor += expa * avs.avM2z_corr[x][y][z];
-							//if (times) {
-							//	for (int l = 0; l < M_0; l++) {
-									/* DODAC LICZENIE TYCH WSZYSTKICH CZASOWYCH */
-							//		green_up[l] += expa * avs.av_green_up[x][y][z][l];
-							//		green_down[l] += expa * avs.av_green_down[x][y][z][l];
-									//avs.av_green_down[x][y][z][0] + avs.av_green_up[x][y][z][0]
-							//	}
-							//}
-						}
-					}
+					occupation_fourier += expa * avs->av_occupation_corr[i][j][k];
+					spin_structure_factor += expa * avs->av_M2z_corr[i][j][k];
+					charge_structure_factor += expa * avs->av_ch2_corr[i][j][k];
+					//spin_structure_factor += expa * avs.avM2z_corr[x][y][z];
+					//if (times) {
+					//	for (int l = 0; l < M_0; l++) {
+							/* DODAC LICZENIE TYCH WSZYSTKICH CZASOWYCH */
+					//		green_up[l] += expa * avs.av_green_up[x][y][z][l];
+					//		green_down[l] += expa * avs.av_green_down[x][y][z][l];
+							//avs.av_green_down[x][y][z][0] + avs.av_green_up[x][y][z][0]
+					//	}
+					//}
 				}
-				printSeparatedP(file_fouriers, ',', 12, false, 4, kx, ky, kz);
-				printSeparatedP(file_fouriers, ',', 16, true, 8, 1 - occupation_fourier.real() / (2.0 * N), spin_structure_factor.real(), charge_structure_factor.real());
-				//if (qx == 0 && qy == 0) {
-				//	file_response.open(this->saving_dir + "response_U=" + STR(this->U, 2) +",occ=" + STR(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
-				//	file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
-				//	file_response.close();
-				//}
-				//if (times) {
-				//	for (int l = 0; l < M_0; l++) {
-				//		file_fouriers_time << kx << "\t" << ky << "\t" << kz << "\t" << l << "\t" << green_up[l] << "\t" << green_down[l] << endl;
-				//	}
-				//}
 			}
 		}
+		printSeparatedP(file_fouriers, ',', 12, false, 4, kx, ky, kz);
+		printSeparatedP(file_fouriers, ',', 16, true, 8, 1 - occupation_fourier.real() / (2.0 * N), spin_structure_factor.real(), charge_structure_factor.real());
+		//if (qx == 0 && qy == 0) {
+		//	file_response.open(this->saving_dir + "response_U=" + STR(this->U, 2) +",occ=" + STR(avs->av_occupation,2) + ".dat", std::ofstream::out | std::ofstream::app);
+		//	file_response << Lx << "\t" << Ly << "\t" << Lz << "\t" << beta << "\t" << real(spin_structure_factor) << std::endl;
+		//	file_response.close();
+		//}
+		//if (times) {
+		//	for (int l = 0; l < M_0; l++) {
+		//		file_fouriers_time << kx << "\t" << ky << "\t" << kz << "\t" << l << "\t" << green_up[l] << "\t" << green_down[l] << endl;
+		//	}
+		//}
 	}
 #pragma omp critical
 	file_fouriers.close();

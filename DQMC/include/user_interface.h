@@ -139,7 +139,7 @@ inline void hubbard::ui::collectAvs(const hubbard::HubbardParams& params)
 				avs->av_sign, avs->sd_sign,
 				avs->av_Ek, avs->sd_Ek,
 				avs->av_M2z, avs->sd_M2z,
-				avs->av_M2x, tim_s(start));
+				avs->av_M2x, tim_s(start), dirs->token);
 			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
 #pragma omp critical
 			printSeparatedP(stout, '\t', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));

@@ -37,6 +37,8 @@ public:
 		this->update(percentage);
 	}
 	
+
+
 	pBar() : timer(std::chrono::high_resolution_clock::now()) { };							// constructor
 	pBar(double percentage, int discreteSteps)
 		: percentage(percentage)
@@ -57,6 +59,7 @@ private:
 	double currentProgress = 0;													            // current progress
 	double neededProgress = 100;												            // final progress
 public:
+	auto get_start_time()																	const RETURNS(this->timer);
 	double percentage = 34;																	// print percentage
 	int percentageSteps = 1;
 };

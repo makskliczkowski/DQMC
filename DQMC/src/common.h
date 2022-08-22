@@ -495,7 +495,7 @@ T stddev(const v_1d<T>& v)
 	T mean = sum / cpx(v.size());
 
 	std::vector<T> diff(v.size());
-	std::ranges::transform(v.begin(), v.end(), diff.begin(), [mean](T x) { return x - mean; });
+	std::transform(v.begin(), v.end(), diff.begin(), [mean](T x) { return x - mean; });
 	T sq_sum = std::inner_product(diff.begin(), diff.end(), diff.begin(), cpx(0.0));
 	T stdev = std::sqrt(sq_sum / cpx(v.size()));
 	return stdev;

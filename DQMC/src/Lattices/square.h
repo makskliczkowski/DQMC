@@ -13,6 +13,12 @@ private:
 	int Lx;																												// spatial x-length
 	int Ly;																												// spatial y-length
 	int Lz;																												// spatial z-length
+
+	double a = 1;
+	double b = 1;
+	double c = 1;
+
+
 public:
 	// CONSTRUCTORS
 	~SquareLattice() = default;	
@@ -24,6 +30,8 @@ public:
 	int get_Ly() const override { return this->Ly; };
 	int get_Lz() const override { return this->Lz; };
 	int get_norm(int x, int y, int z) const override { return this->spatialNorm[x][y][z]; };
+	vec get_real_space_vec(int x, int y, int z) const override;
+
 
 	// CALCULATORS
 	void calculate_nn_pbc() override;
@@ -34,7 +42,7 @@ public:
 	// SYMMETRIES
 	std::tuple<int, int, int> getNumElems() override {
 		if(!this->symmetry)
-			return std::make_tuple(this->Lx, this->Ly, this->Lz);
+			return std::make_tuple(2 * this->Lx - 1, 2 * this->Ly - 1, 2 * this->Lz - 1);
 
 		switch (this->_BC)
 		{
@@ -47,10 +55,14 @@ public:
 		}
 	}
 	
-	std::tuple<int, int, int> getSymPos(int x, int y, int z) override {
+	t_3d<int> getSymPos(int x, int y, int z) override {
 		if (!this->symmetry)
-			return std::make_tuple(abs(x), abs(y), abs(z));
-		
+			return std::make_tuple(x + Lx - 1, y + Ly - 1, z + Lz - 1);
+	}
+	
+	t_3d<int> getSymPosInv(int x, int y, int z) override {
+		if (!this->symmetry)
+			return std::make_tuple(x - (Lx - 1), y - (Ly - 1), z - (Lz - 1));
 	}
 
 	bool symmetry_checker(int xx, int yy, int zz) override {
@@ -59,6 +71,8 @@ public:
 			(yy <= this->Ly / 2 && yy >= 0) &&
 			(zz <= this->Lz / 2 && zz >= 0);
 	};
+private:
+	void calculate_k_vectors() override;
 
 };
 

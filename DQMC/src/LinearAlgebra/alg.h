@@ -230,18 +230,18 @@ void inline setUDTDecomp(const arma::mat& mat, arma::mat& Q, arma::mat& R, arma:
 
 
 /*
- * @brief Calculate the multiplication of two matrices with numerical stability. USING SVD.
- * SciPost Phys. Core 2, 011 (2020)
- * @param right right matrix of multiplication
- * @param left left matrix of multiplication
- * @param Ql
- * @param Dl
- * @param Tl
- * @param Qr
- * @param Dr
- * @param Tr
- * @return matrix after multiplication
- */
+* @brief Calculate the multiplication of two matrices with numerical stability. USING SVD.
+* SciPost Phys. Core 2, 011 (2020)
+* @param right right matrix of multiplication
+* @param left left matrix of multiplication
+* @param Ql
+* @param Dl
+* @param Tl
+* @param Qr
+* @param Dr
+* @param Tr
+* @return matrix after multiplication
+*/
 arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& right,
 	arma::mat& Ql, arma::vec& Dl, arma::mat& Tl,
 	arma::mat& Qr, arma::vec& Dr, arma::mat& Tr)
@@ -257,20 +257,20 @@ arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& ri
 }
 
 /*
- * @brief Calculate the multiplication of two matrices with numerical stability. USING QR.
- * SciPost Phys. Core 2, 011 (2020)
- * @param right right matrix of multiplication
- * @param left left matrix of multiplication
- * @param Ql
- * @param Rl
- * @param Pl
- * @param Tl
- * @param Qr
- * @param Rr
- * @param Pr
- * @param Tr
- * @return matrix after multiplication
- */
+* @brief Calculate the multiplication of two matrices with numerical stability. USING QR.
+* SciPost Phys. Core 2, 011 (2020)
+* @param right right matrix of multiplication
+* @param left left matrix of multiplication
+* @param Ql
+* @param Rl
+* @param Pl
+* @param Tl
+* @param Qr
+* @param Rr
+* @param Pr
+* @param Tr
+* @return matrix after multiplication
+*/
 arma::mat inline stableMultiplication(const arma::mat& left, const arma::mat& right,
 	arma::mat& Ql, arma::mat& Rl, arma::umat& Pl, arma::mat& Tl,
 	arma::mat& Qr, arma::mat& Rr, arma::umat& Pr, arma::mat& Tr)

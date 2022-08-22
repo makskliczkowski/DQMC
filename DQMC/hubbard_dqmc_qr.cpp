@@ -696,17 +696,24 @@ void hubbard::HubbardQR::av_single_step(int current_elem_i, int sign)
 	auto Ek = this->cal_kinetic_en(sign, current_elem_i, this->green_up, this->green_down);
 	this->avs->av_Ek = Ek;
 	this->avs->sd_Ek = Ek * Ek;
+	
 
+	// save i'th point coordinates
+	const auto xi = this->lattice->get_coordinates(current_elem_i, 0);
+	const auto yi = this->lattice->get_coordinates(current_elem_i, 1);
+	const auto zi = this->lattice->get_coordinates(current_elem_i, 2);
+	const auto ith_coord = std::make_tuple(xi, yi, zi);
+
+	//stout << VEQ(current_elem_i) << "\t" << VEQ(xi) << "\t" << VEQ(yi) << "\t" << VEQ(zi) << EL;
 	// -------------------------------- CORRELATIONS ----------------------------------------
 	for (int current_elem_j = 0; current_elem_j < this->Ns; current_elem_j++) {
 		// real space coordinates differences
-		auto [x, y, z] = this->lattice->getSiteDifference(current_elem_i, current_elem_j);
+		auto [x, y, z] = this->lattice->getSiteDifference(ith_coord, current_elem_j);
+		//stout << "\tDifference->" << VEQ(current_elem_j) << "\t" << VEQ(x) << "\t" << VEQ(y) << "\t" << VEQ(z) << EL;
+
 		auto [xx, yy, zz] = this->lattice->getSymPos(x, y, z);
 
-		xx = x + Lx - 1;
-		yy = y + Ly - 1;
-		zz = z + Lz - 1;
-
+		//stout << "\t->" << VEQ(current_elem_j) << "\t" << VEQ(xx) << "\t" << VEQ(yy) << "\t" << VEQ(zz) << EL << EL;
 		//? normal equal - time correlations
 		this->avs->av_M2z_corr[xx][yy][zz] += this->cal_mz2_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);
 		this->avs->av_occupation_corr[xx][yy][zz] += this->cal_occupation_corr(sign, current_elem_i, current_elem_j, this->green_up, this->green_down);

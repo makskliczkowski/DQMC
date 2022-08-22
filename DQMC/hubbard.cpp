@@ -29,17 +29,17 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum)
 	// Ek
 	this->avs->av_Ek /= normalisation_sign;
 	this->avs->sd_Ek = variance(this->avs->av_Ek2, this->avs->av_Ek, normalisation_sign);
+
+
+	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
 	// correlations
-	for (int x = -Lx + 1; x < Lx; x++) {
-		for (int y = -Ly + 1; y < Ly; y++) {
-			for (int z = -Lz + 1; z < Lz; z++) {
-				//auto [x_pos, y_pos, z_pos] = this->lattice->getSymPos(x, y, z);
-				auto x_pos = x + Lx - 1;
-				auto y_pos = y + Ly - 1;
-				auto z_pos = z + Lz - 1;
-				this->avs->av_M2z_corr[x_pos][y_pos][z_pos] /= normalisation_sign;
-				this->avs->av_ch2_corr[x_pos][y_pos][z_pos] /= normalisation_sign;
-				this->avs->av_occupation_corr[x_pos][y_pos][z_pos] = this->Ns * this->avs->av_occupation_corr[x_pos][y_pos][z_pos] / normalisation_sign;
+	for (int i = 0; i < x_num; i++) {
+		for (int j = 0; j < y_num; j++) {
+			for (int k = 0; k < z_num; k++) {
+
+				this->avs->av_M2z_corr[i][j][k] /= normalisation_sign;
+				this->avs->av_ch2_corr[i][j][k] /= normalisation_sign;
+				this->avs->av_occupation_corr[i][j][k] = this->Ns * this->avs->av_occupation_corr[i][j][k] / normalisation_sign;
 				//if (times) {
 					//for (int l = 0; l < this->M; l++) {
 						//this->avs->av_green_down[x_pos][y_pos][z_pos][l] /= normalisation_sign/this->M;
@@ -109,22 +109,20 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
 	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
 
 	for (int nx = 0; nx < x_num; nx++) {
-		auto x = nx + x_num - 1;
-		for (int ny = nx; ny < y_num; ny++) {
-			auto y = ny + y_num - 1;
+		for (int ny = 0; ny < y_num; ny++) {
 			printSeparated(fileUp, '\t', 6,true, VEQ(nx), VEQ(ny));
 			printSeparated(fileDown, '\t', 6, true, VEQ(nx), VEQ(ny));
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
 				printSeparated(fileUp, '\t', 4, false, tau1);
-				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](x, y), width));
+				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](nx, ny), width));
 				printSeparated(fileUp, '\t', 5, false, "+-");
-				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](x, y), width));
+				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](nx, ny), width));
 
 				printSeparated(fileDown, '\t', 4, false, tau1);
-				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](x, y), width));
+				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](nx, ny), width));
 				printSeparated(fileDown, '\t', 5, false, "+-");
-				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](x, y), width));
+				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
 			}
 		}
 	}
@@ -190,6 +188,11 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 	int Lx = this->lattice->get_Lx();
 	int Ly = this->lattice->get_Ly();
 	int Lz = this->lattice->get_Lz();
+
+	// set the unique token for file names
+	const auto token = clk::now().time_since_epoch().count();
+	this->dir->token = STR(token % this->ran.randomInt_uni(0, 1e6));
+
 	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
 	this->dir->info = this->info;
 	this->dir->LxLyLz = "Lx=" + STR(Lx) + ",Ly=" + STR(Ly) + ",Lz=" + STR(Lz);

@@ -27,7 +27,35 @@ HexagonalLattice::HexagonalLattice(int Lx, int Ly, int Lz, int dim, int _BC)
 	this->calculate_nn();
 	this->calculate_coordinates();
 	// we take 2 * Ly because of the fact that we have two elements in one elementary cell always
-	this->calculate_spatial_norm(Lx, 2 * Ly, Lz);
+	this->calculate_spatial_norm();
+
+
+	this->a1 = vec({ sqrt(3) * this->a / 2.0, 3 * this->a / 2.0, 0 });
+	this->a2 = vec({ -sqrt(3) * this->a / 2.0, 3 * this->a / 2.0, 0 });
+	this->a3 = vec({ 0, 0, this->c });
+
+	this->k_vectors = mat(this->Lx * this->Ly * this->Lz, 3, arma::fill::zeros);
+
+	//! make vectors
+	this->calculate_k_vectors();
+}
+
+/*
+* @brief returns the real space vector for a given multipliers of reciprocal vectors
+*/
+vec HexagonalLattice::get_real_space_vec(int x, int y, int z) const
+{
+	// elementary cell Y value (two atoms in each elementary cell)
+	auto Y = std::floor(double(y) / 2.0);
+	// how much should we move in y direction with a1 + a2 (each Y / 4 gives additional movement in a1 + a2)
+	auto y_movement = std::floor(double(Y) / 2.0);
+
+	// go in y direction
+	vec tmp = (y_movement * (this-> a1 + this->a2)) + (z * this->a3);
+	tmp += myModuloEuclidean(Y, 2) * this->a1;
+
+	// go in x is direction, working for negative
+	return tmp + x * (this->a1 - this->a2);
 }
 
 /*
@@ -220,17 +248,46 @@ void HexagonalLattice::calculate_coordinates()
 	this->coordinates = v_2d<int>(this->Ns, v_1d<int>(3, 0));
 	// we must categorize elements by pairs
 	for (int i = 0; i < Ns; i++) {
-		this->coordinates[i][0] = (static_cast<int>(1.0 * i / 2.0)) % Lx;				// x axis coordinate
+		this->coordinates[i][0] = (static_cast<int>(1.0 * i / 2.0)) % Lx;					// x axis coordinate
 		this->coordinates[i][1] = (static_cast<int>(1.0 * i / (2.0*Lx))) % Ly;				// y axis coordinate
+		this->coordinates[i][2] = (static_cast<int>(1.0 * i / (LxLy))) % Lz;				// z axis coordinate			
+		
 		// we calculate the big Y that is enumerated normally accordingly and then calculate the small y which is twice bigger or twice bigger + 1
 		if (i % 2 == 0)
 			this->coordinates[i][1] = this->coordinates[i][1] * 2;
 		else
 			this->coordinates[i][1] = this->coordinates[i][1] * 2 + 1;
 
-		this->coordinates[i][2] = (static_cast<int>(1.0 * i / (LxLy))) % Lz;			// z axis coordinate			
 		//stout << VEQ(i) << "->(" << this->coordinates[i][0] << "," << this->coordinates[i][1] << "," << this->coordinates[i][2] << ")\n";
 	}
 
+
+}
+
+/*
+* @brief calculates the matrix of all k vectors
+*/
+void HexagonalLattice::calculate_k_vectors()
+{
+	const auto two_pi_over_Lx = TWOPI / Lx / a;
+	const auto two_pi_over_Ly = TWOPI / Ly / a;
+	const auto two_pi_over_Lz = TWOPI / Lz / c;
+
+	const vec b1 = { 1. / sqrt(3), 1. / 3., 0 };
+	const vec b2 = { -1. / sqrt(3), 1. / 3., 0 };
+	const vec b3 = { 0, 0, 1 };
+
+
+	for (int qx = 0; qx < Lx; qx++) {
+		double kx = -PI + two_pi_over_Lx * qx;
+		for (int qy = 0; qy < Ly; qy++) {
+			double ky = -PI + two_pi_over_Ly * qy;
+			for (int qz = 0; qz < Lz; qz++) {
+				double kz = -PI + two_pi_over_Lz * qz;
+				uint iter = qz * (Lx * Ly) + qy * Lx + qx;
+				this->k_vectors.row(iter) = (kx * b1 + ky * b2 + kz * b3).st();
+			}
+		}
+	}
 
 }
