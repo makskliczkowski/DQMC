@@ -362,7 +362,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	this->t = std::vector<double>(Ns, t_fill);
 	// lattice type
 	choosen_option = "-l";
-	this->set_option(this->lattice_type, argv, choosen_option);
+	this->set_option(this->lattice_type, argv, choosen_option, false);
 
 
 	// get help

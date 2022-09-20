@@ -27,6 +27,8 @@ protected:
 	string type;													// type of the lattice
 	int _BC = 0;													// boundary conditions 0 = PBC, 1 = OBC
 	v_2d<int> nearest_neighbors;									// vector of the nearest neighbors
+	uint nearest_nei_forward_num;									// number of nearest neighbors forward
+
 	v_2d<int> next_nearest_neighbors;								// vector of the next nearest neighbors
 	v_2d<int> coordinates;											// vector of real coordiates allowing to get the distance between lattice points
 	v_3d<int> spatialNorm;											// norm for averaging over all spatial sites
@@ -46,6 +48,7 @@ public:
 	// ----------------------- GETTERS
 	virtual vec get_real_space_vec(int x, int y, int z)		const = 0;
 	virtual int get_norm(int x, int y, int z)				const = 0;
+	virtual v_1d<uint> get_nn_forward_number(int lat_site)	const = 0;
 	auto get_Ns()											const RETURNS(this->Ns);												// returns the number of sites
 	auto get_Dim()											const RETURNS(this->dim);												// returns dimension of the lattice
 	auto get_nn(int lat_site, int nei_num)					const RETURNS(this->nearest_neighbors[lat_site][nei_num]);				// returns given nearest nei at given lat site

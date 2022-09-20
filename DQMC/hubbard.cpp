@@ -4,7 +4,6 @@
 
 /*
 * @brief Normalise all the averages taken during simulation
-* 
 * @param avNum number of avs taken
 * @param timesNum number of Trotter times used
 * @param times if the non-equal time properties were calculated
@@ -440,7 +439,7 @@ void hubbard::HubbardModel::cal_int_exp() {
 		// Attractive case
 		for (int l = 0; l < this->M; l++) {
 			// Trotter times
-			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * this->lambda);
+			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * this->lambda * 0.5);
 			this->int_exp_up.col(l) = this->int_exp_down.col(l);
 		}
 	else {

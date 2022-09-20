@@ -1,4 +1,4 @@
-#include "include/hubbard_dqmc_qr.h"
+﻿#include "include/hubbard_dqmc_qr.h"
 using namespace arma;
 
 void hubbard::HubbardQR::initializeMemory()
@@ -230,6 +230,8 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 	makeTwoScalesFromUDT(R_up, D_up);
 	makeTwoScalesFromUDT(R_down, D_down);
 	// calculate equal time Green
+	//this->green_up = arma::inv(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up) * DIAG(D_up) * Q_up.t();
+	//this->green_down = arma::inv(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down) * DIAG(D_down) * Q_down.t();
 	this->green_up = arma::solve(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up, DIAG(D_up) * Q_up.t());
 	this->green_down = arma::solve(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down, DIAG(D_down) * Q_down.t());
 }
@@ -254,8 +256,12 @@ void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
 	// making two scales for the decomposition following Loh
 	makeTwoScalesFromUDT(R_up, D_up);
 	makeTwoScalesFromUDT(R_down, D_down);
+	//this->green_up = arma::inv(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up) * DIAG(D_up) * Q_up.t();
+	//this->green_down = arma::inv(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down) * DIAG(D_down) * Q_down.t();
+
 	this->green_up = arma::solve(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up, DIAG(D_up) * Q_up.t());
 	this->green_down = arma::solve(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down, DIAG(D_down) * Q_down.t());
+
 }
 
 //? -------------------------------------------------------- UNEQUAL
@@ -771,6 +777,8 @@ void hubbard::HubbardQR::sweep_0_M()
 		//this->compare_green_direct(this->current_time, 1e-4, true);
 		this->config_sign = (this->sweep_lat_sites() > 0) ? +this->config_sign : -this->config_sign;
 	}
+	//this->green_down.print("up");
+	//this->green_up.print("up");
 }
 
 /*
@@ -799,16 +807,18 @@ int hubbard::HubbardQR::heat_bath_single_step(int lat_site)
 	auto [gamma_up, gamma_down] = this->cal_gamma(lat_site);										// first up then down
 	auto [proba_up, proba_down] = this->cal_proba(lat_site, gamma_up, gamma_down);					// take the probabilities
 
+
 	this->probability = (proba_up * proba_down);													// Metropolis probability
 	if (this->U < 0) {
 		this->probability *= (this->gammaExp0.second + 1.0);										// add phase factor for U<0
 	}
 	
 	this->probability = this->probability / (1.0 + this->probability);								// heat-bath probability
-
+	//stout << VEQ(probability) << EL;
 	const int sign = (this->probability >= 0) ? 1 : -1;												// check sign
 	//if (sign < 0) stout << VEQ(proba_up) << "," << VEQ(proba_down) << EL;
 	if (this->ran.randomReal_uni() <= sign * this->probability) {
+		//stout << "\t->wlazlem z " << VEQ(probability) << EL;
 		const auto delta_up = gamma_up + 1;
 		const auto delta_down = gamma_down + 1;
 		this->hsFields(this->current_time, lat_site) *= -1;											// flip the field!

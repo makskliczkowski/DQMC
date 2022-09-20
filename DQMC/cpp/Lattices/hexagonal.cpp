@@ -68,6 +68,7 @@ void HexagonalLattice::calculate_nn_pbc()
 	case 1:
 		// One dimension 
 		this->nearest_neighbors = v_2d<int>(Ns, v_1d<int>(1, 0));
+		this->nearest_nei_forward_num = 1;
 		for (int i = 0; i < Lx; i++) {
 			// z bond only
 			this->nearest_neighbors[2 * i][0] = 2 * i + 1; // this is the neighbor top
@@ -78,41 +79,46 @@ void HexagonalLattice::calculate_nn_pbc()
 		// Two dimensions 
 		// numeration begins from the bottom as 0 to the second as 1 with lattice vectors move
 		this->nearest_neighbors = v_2d<int>(Ns, v_1d<int>(3, 0));
+		this->nearest_nei_forward_num = 2;
 		for (int i = 0; i < Lx; i++) {
 			for (int j = 0; j < Ly; j++) {
-				auto current_elem_a = 2 * i + 2 * Lx * j;
-				auto current_elem_b = 2 * i + 2 * Lx * j + 1;
+				// current elements a corresponding to first site, b corresponding to the second one
+				auto current_elem_a = 2 * i + 2 * Lx * j;				// lower
+				auto current_elem_b = 2 * i + 2 * Lx * j + 1;			// upper
 
+				// check the elementary cells
 				auto up = myModuloEuclidean(j + 1, Ly);
 				auto down = myModuloEuclidean(j - 1, Ly);
 				auto right = myModuloEuclidean(i + 1, Lx);
 				auto left = myModuloEuclidean(i - 1, Lx);
 
-				// y and x bonding depends on current y level as the hopping between sites changes
-				// false;
-				auto x_change_i_a = (2 * i + 2 * down * Lx + 1); 
-				// true;
-				auto y_change_i_a = (2 * left + 2 * down * Lx + 1); 
+				// y and x bonding depends on current y level as the hopping between sites changes 
+				// ------------ if (myModuloEuclidean(j, 2) == 0) ------------
 				
-				// true;
-				auto x_change_i_b = (2 * left + 2 * up * Lx); 
-				// false;
+				// right neighbor x does not change for a but y changes;
+				auto y_change_i_a = (2 * i + 2 * down * Lx + 1); // site b is the neighbor for a
+				// left neighbor y does change for a and x changes;
+				auto xy_change_i_a = (2 * left + 2 * down * Lx + 1); 
+				
+				// left neighbor x does change for a and y changes;
+				auto xy_change_i_b = (2 * left + 2 * up * Lx); 
+				// right neighbor x does not change for a but y changes;
 				auto y_change_i_b = (2 * i + 2 * up * Lx); 
 
 				if (myModuloEuclidean(j, 2) == 1) {
-					// true
-					x_change_i_a = (2 * right + 2 * down * Lx + 1); 
-					// false
-					x_change_i_b = (2 * i + 2 * up * Lx); 
-					// false;
+					// right a - x changes for a, y changes for a
+					xy_change_i_a = (2 * right + 2 * down * Lx + 1);
+					// left b - x does not change y changes
+					y_change_i_b = (2 * i + 2 * up * Lx);
+					// left a - x does not change, y changes;
 					y_change_i_a = (2 * i + 2 * down * Lx + 1);
-					// true;
-					y_change_i_b = (2 * right + 2 * up * Lx); 
+					// right b - x changes, y changes;
+					xy_change_i_b = (2 * right + 2 * up * Lx);
 				}
 
 				// x bonding
-				this->nearest_neighbors[current_elem_a][2] = x_change_i_a;
-				this->nearest_neighbors[current_elem_b][2] = x_change_i_b;
+				this->nearest_neighbors[current_elem_a][2] = xy_change_i_a;
+				this->nearest_neighbors[current_elem_b][2] = xy_change_i_b;
 				// y bonding
 				this->nearest_neighbors[current_elem_a][1] = y_change_i_a;
 				this->nearest_neighbors[current_elem_b][1] = y_change_i_b;
@@ -121,7 +127,7 @@ void HexagonalLattice::calculate_nn_pbc()
 				this->nearest_neighbors[current_elem_b][0] = current_elem_b - 1;
 			}
 		}
-		// stout << this->nearest_neighbors << EL;
+		stout << this->nearest_neighbors << EL;
 		break;
 	case 3:
 		/* Three dimensions */
@@ -290,4 +296,15 @@ void HexagonalLattice::calculate_k_vectors()
 		}
 	}
 
+}
+
+/*
+* @brief returns forward neighbors number
+*/
+v_1d<uint> HexagonalLattice::get_nn_forward_number(int lat_site) const
+{
+	if (this->dim == 1 || lat_site % 2 == 0)
+		return { 0 };
+	else
+		return { 1,2 };
 }

@@ -131,8 +131,8 @@ namespace hubbard {
 		this->p = params.p;																				// number of QR decompositions (sectors)
 
 		this->avs = std::make_shared<averages_par>(this->lattice, M, this->cal_times);
-		// Calculate alghorithm parameters
-		this->lambda = std::acosh(exp((abs(this->U) * this->dtau) * 0.5));								// lambda couples to the auxiliary spins
+		// Calculate alghorithm parameters // lambda couples to the auxiliary spins
+		this->lambda = U > 0 ? std::acosh(exp((this->U * this->dtau) * 0.5)) : std::acosh(exp((-this->U * this->dtau) * 0.5));								
 
 		// Calculate changing exponents before, not to calculate exp all the time
 		// 0 -> sigma * hsfield = 1, 1 -> sigma * hsfield = -1

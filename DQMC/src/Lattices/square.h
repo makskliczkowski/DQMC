@@ -26,11 +26,12 @@ public:
 	SquareLattice(int Lx, int Ly = 1, int Lz = 1, int dim = 1, int _BC = 0);											// general constructor
 
 	// GETTERS
-	int get_Lx() const override { return this->Lx; };
-	int get_Ly() const override { return this->Ly; };
-	int get_Lz() const override { return this->Lz; };
-	int get_norm(int x, int y, int z) const override { return this->spatialNorm[x][y][z]; };
-	vec get_real_space_vec(int x, int y, int z) const override;
+	int get_Lx()											const override { return this->Lx; };
+	int get_Ly()											const override { return this->Ly; };
+	int get_Lz()											const override { return this->Lz; };
+	int get_norm(int x, int y, int z)						const override { return this->spatialNorm[x][y][z]; };
+	vec get_real_space_vec(int x, int y, int z)				const override;
+	v_1d<uint> get_nn_forward_number(int lat_site)			const override;
 
 
 	// CALCULATORS
