@@ -2,15 +2,15 @@
 #ifndef GENERAL_H
 #define GENERAL_H
 
-#include "../src/progress.h"
-#include "../src/statistical.h"
-#include "../src/random.h"
+#include "../source/src/progress.h"
+#include "../source/src/statistical.h"
+#include "../source/src/random.h"
 
 #ifndef SQUARE_H
-#include "../src/Lattices/square.h"
+#include "../source/src/Lattices/square.h"
 #endif
 #ifndef HEXAGONAL_H
-#include "../src/Lattices/hexagonal.h"
+#include "../source/src/Lattices/hexagonal.h"
 #endif
 
 #include <chrono>

@@ -5,55 +5,55 @@
 
 //#include "../include/plog/Log.h"
 //#include "../include/plog/Initializers/RollingFileInitializer.h"
-#include "../src/UserInterface/ui.h"
+#include "../source/src/UserInterface/ui.h"
 #include "../include/hubbard_dqmc_qr.h"
 
 
 // -------------------------------------------------------- HUBBARD USER INTERFACE --------------------------------------------------------
 
-namespace hubbard {
 	// -------------------------------------------------------- MAP OF DEFAULTS FOR HUBBARD
 
 
-	std::unordered_map <std::string, std::string> const default_params = {
-		{"m","300"},
-		{"d","2"},
-		{"l","0"},
-		{"t","1"},
-		{"a","50"},
-		{"c","1"},
-		{"m0","10"},
-		{"dt","0.1"},
-		{"dtn","1"},
-		{"dts","0"},
-		{"lx","4"},
-		{"lxs","0"},
-		{"lxn","1"},
-		{"ly","4"},
-		{"lys","0"},
-		{"lyn","1"},
-		{"lz","1"},
-		{"lzs","0"},
-		{"lzn","1"},
-		{"b","6"},
-		{"bs","0"},
-		{"bn","1"},
-		{"u","2"},
-		{"us","0"},
-		{"un","1"},
-		{"mu","0"},
-		{"mus","0"},
-		{"mun","1"},
-		{"th","1"},
-		{"ti","1"},
-		{"q","0"},
-		{"qr","1" },
-		{"cg","0"},
-		{"ct","0"},
-		{"sf","0"},
-		{"sfn","1"}
-	};
+std::unordered_map <std::string, std::string> const default_params = {
+	{"m","300"},
+	{"d","2"},
+	{"l","0"},
+	{"t","1"},
+	{"a","50"},
+	{"c","1"},
+	{"m0","10"},
+	{"dt","0.1"},
+	{"dtn","1"},
+	{"dts","0"},
+	{"lx","4"},
+	{"lxs","0"},
+	{"lxn","1"},
+	{"ly","4"},
+	{"lys","0"},
+	{"lyn","1"},
+	{"lz","1"},
+	{"lzs","0"},
+	{"lzn","1"},
+	{"b","6"},
+	{"bs","0"},
+	{"bn","1"},
+	{"u","2"},
+	{"us","0"},
+	{"un","1"},
+	{"mu","0"},
+	{"mus","0"},
+	{"mun","1"},
+	{"th","1"},
+	{"ti","1"},
+	{"q","0"},
+	{"qr","1" },
+	{"cg","0"},
+	{"ct","0"},
+	{"sf","0"},
+	{"sfn","1"}
+};
 
+namespace hubbard {
 	// -------------------------------------------------------- CLASS
 	class ui : public user_interface {
 	private:

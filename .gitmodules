@@ -1,0 +1,3 @@
+[submodule "DQMC/source"]
+	path = DQMC/source
+	url = https://github.com/makskliczkowski/general_cpp/

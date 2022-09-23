@@ -1,85 +1,5 @@
 #include "include/user_interface.h"
 
-// -------------------------------------------------------- USER INTERFACE --------------------------------------------------------
-
-/// <summary>
-///
-/// </summary>
-/// <typeparam name="T"></typeparam>
-/// <param name="value"></param>
-/// <param name="argv"></param>
-/// <param name="choosen_option"></param>
-/// <param name="geq_0"></param>
-template<typename T>
-void user_interface::set_option(T& value, const v_1d<std::string>& argv, std::string choosen_option, bool geq_0)
-{
-	if (std::string option = this->getCmdOption(argv, choosen_option); option != "")
-		value = static_cast<T>(stod(option));												// set value to an option
-	if (geq_0 && value <= 0)																	// if the variable shall be bigger equal 0
-		this->set_default_msg(value, choosen_option.substr(1), \
-			choosen_option + " cannot be negative\n", hubbard::default_params);
-}
-
-template<>
-void user_interface::set_option<std::string>(std::string& value, const v_1d<std::string>& argv, std::string choosen_option, bool geq_0) {
-	if (std::string option = this->getCmdOption(argv, choosen_option); option != "")
-		value = option;
-}
-
-
-/// <summary>
-/// Set
-/// </summary>
-/// <typeparam name="T"></typeparam>
-/// <param name="value"></param>
-/// <param name="option"></param>
-/// <param name="message"></param>
-template<typename T>
-void user_interface::set_default_msg(T& value, std::string option, std::string message, const std::unordered_map <std::string, std::string>& map) const
-{
-	std::cout << message;																// print warning
-	std::string value_str = "";																// we will set this to value
-	auto it = map.find(option);
-	if (it != map.end()) {
-		value_str = it->second;															// if in table - we take the enum
-	}
-	value = stod(value_str);
-}
-
-/// <summary>
-/// Find a given option in a vector of string given from cmd parser
-/// </summary>
-/// <param name="vec">vector of strings from cmd</param>
-/// <param name="option">the option that we seek</param>
-/// <returns>value for given option if exists, if not an empty string</returns>
-std::string user_interface::getCmdOption(const v_1d<std::string>& vec, std::string option) const
-{
-	if (auto itr = std::find(vec.begin(), vec.end(), option); itr != vec.end() && ++itr != vec.end())
-		return *itr;
-	return std::string();
-}
-
-/// <summary>
-/// If the commands are given from file, we must treat them the same as arguments
-/// </summary>
-/// <param name="filename"> the name of the file that contains the command line </param>
-/// <returns></returns>
-std::vector<std::string> user_interface::parseInputFile(std::string filename) {
-	std::vector<std::string> commands;
-	std::ifstream inputFile(filename);
-	std::string line = "";
-	if (!inputFile.is_open()) {
-		std::cout << "Cannot open a file " + filename + " that I could parse. Setting all parameters to default. Sorry :c \n";
-		this->set_default();
-	}
-	else {
-		if (std::getline(inputFile, line)) {
-			commands = split_str(line, " ");										// saving lines to out vector if it can be done, then the parser shall treat them normally
-		}
-	}
-	return std::vector<std::string>(commands.begin(), commands.end());
-}
-
 // -------------------------------------------------------- HUBBARD --------------------------------------------------------
 // -------------------------------------------------------- CONSTRUCTOR
 
@@ -245,7 +165,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	this->set_option(this->dim, argv, choosen_option, false);
 	if (this->dim >= 3 || this->dim < 1)
 		this->set_default_msg(this->dim, choosen_option.substr(1), \
-			"Wrong dimmension\n", hubbard::default_params);
+			"Wrong dimmension\n", default_params);
 	// correlation time
 	choosen_option = "-c";
 	this->set_option(this->corrTime, argv, choosen_option);
@@ -331,13 +251,13 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	this->set_option(this->outer_threads, argv, choosen_option, false);
 	if (this->outer_threads <= 0 || this->outer_threads * this->inner_threads > this->thread_number)
 		this->set_default_msg(this->outer_threads, choosen_option.substr(1), \
-			"Wrong number of threads\n", hubbard::default_params);
+			"Wrong number of threads\n", default_params);
 	// inner thread number
 	choosen_option = "-ti";
 	this->set_option(this->inner_threads, argv, choosen_option, false);
 	if (this->inner_threads <= 0 || this->outer_threads * this->inner_threads > this->thread_number)
 		this->set_default_msg(this->inner_threads, choosen_option.substr(1), \
-			"Wrong number of threads\n", hubbard::default_params);
+			"Wrong number of threads\n", default_params);
 	// qr
 	choosen_option = "-hs";
 	this->set_option(this->useHirsh, argv, choosen_option, false);
@@ -352,7 +272,7 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 	this->set_option(this->sf, argv, choosen_option, false);
 	if (this->sf < 0 || this->sf > 2)
 		this->set_default_msg(this->sf, choosen_option.substr(1), \
-			"Wrong input for self learning\n", hubbard::default_params);
+			"Wrong input for self learning\n", default_params);
 	// self learning number
 	choosen_option = "-sfn";
 	this->set_option(this->sfn, argv, choosen_option, false);
