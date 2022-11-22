@@ -33,15 +33,15 @@ namespace hubbard {
 
 
 	struct directories : public general_directories {
-		
+
 		std::string token = "";
-		
+
 		std::string fourier_dir = "";
 		std::string params_dir = "";
 		std::string conf_dir = "";
 		std::string greens_dir = "";
 		std::string time_greens_dir = "";
-		
+
 		// filenames
 		std::string nameFouriers = "";							//
 		std::string nameFouriersTime = "";						//
@@ -49,6 +49,7 @@ namespace hubbard {
 		std::string nameNormalTime = "";							//
 		std::string nameGreens = "";								//
 		std::string nameGreensTime = "";							//
+		std::string nameGreensTimeH5 = "";
 
 		// configuration directories
 		std::string neg_dir = "";								// directory for negative configurations
@@ -65,13 +66,13 @@ namespace hubbard {
 			this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + this->token + "_" + info + ".dat";
 			this->nameGreens = "greens_" + this->token + "_" + info + ".dat";
 			this->nameGreensTime = "greensTime_" + this->token + "_" + info + ".dat";
+			this->nameGreensTimeH5 = "greensTime_" + this->token + "_" + info + ".h5";
 		};
 	};
 
 
 	/*
-	* @brief 
-	* 
+	* @brief the main class for the Hubbard model
 	*/
 	class HubbardModel : public LatticeModel {
 	protected:
@@ -80,34 +81,28 @@ namespace hubbard {
 		//using sinOpType = std::function<double(int, int, const mat&, const mat&)>;
 
 
+		double probability;
 		int from_scratch;																				// number of Trotter times for Green to be calculated from scratch
 		int config_sign;																				// keep track of the configuration sign
-		double probability;
-		bool cal_times;
-		bool useHirsh;																					// use Hirsh for non-equal Greens
-		bool all_times;																					// if we calculate only the positive part of the Green's or all of them
+		bool equalibrate;																				// if we shall equalibrate stuff now
 		long int pos_num;																				// helps with number of positive signs
 		long int neg_num;																				// helps with number of negative signs
-		bool equalibrate;																				// if we shall equalibrate stuff now
-		//bool useHirsh;																					// works only when this->cal_times -> if we shall use hirsh for non-equal Greens
 
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
+		v_1d<double> t;																					// hopping integral vector
 		int dim;																						// dimension
-		std::vector<double> t;																			// hopping integral vector
 		double U;																						// Coulomb force strength
 		double mu;																						// chemical potential
 
 		// -------------------------- SUZUKI - TROTTER RELATED PARAMETERS
 		int M;																							// number of Trotter times
-		double dtau;																					// Trotter time step
 		int current_time;																				// current Trotter time
+		double dtau;																					// Trotter time step
 
 		// -------------------------- TRANSFORMATION RELATED PARAMETERS
 		arma::mat hsFields;																				// Hubbard - Stratonovich fields - first time then field
-		//std::vector<std::vector<std::string>> hsFields_img;
 		std::pair<double, double> gammaExp0;															// precalculated exponent of gammas
-		std::pair<double, double> gammaExp1;
-
+		std::pair<double, double> gammaExp1;															// precalculated exponent of gammas
 		double lambda;																					// lambda parameter in HS transform
 
 		// -------------------------- SPACE - TIME FORMULATION OR QR PARAMETERS
@@ -118,11 +113,12 @@ namespace hubbard {
 		v_3d<int> spatialNorm;
 		arma::mat hopping_exp;																			// exponential of a hopping matrix
 		arma::mat int_exp_up, int_exp_down;																// exponentials of up and down spin interaction matrices at all times
-		std::vector<arma::mat> b_mat_up, b_mat_down;													// up and down B matrices vector
-		std::vector<arma::mat> b_mat_up_inv, b_mat_down_inv;											// up and down B matrices inverses vector
+		v_1d<arma::mat> b_mat_up, b_mat_down;															// up and down B matrices vector
+		v_1d<arma::mat> b_mat_up_inv, b_mat_down_inv;													// up and down B matrices inverses vector
 
 		arma::mat green_up, green_down;																	// Green's matrix up and down at given (equal) time
 		arma::mat tempGreen_up; arma::mat tempGreen_down;												// temporary Green's for wrap updating
+		arma::mat tempGreen_up_i; arma::mat tempGreen_down_i;											// temporary Green's for wrap updating inverse
 
 		// -------------------------- HELPING PARAMETERS
 		std::string info;																				// info about the model for file creation
@@ -144,8 +140,8 @@ namespace hubbard {
 		virtual int heat_bath_single_step(int lat_site) = 0;											// calculates the single step of a heat-bath algorithm
 		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) = 0;	// uses heat-bath to equilibrate system
 		virtual void heat_bath_av(int corr_time, int avNum, bool quiet) = 0;							// collect the averages from the simulation
-		virtual void sweep_0_M() = 0;																	// sweep forward in time
-		virtual void sweep_M_0() = 0;																	// sweep backwards
+		virtual double sweep_0_M() = 0;																	// sweep forward in time
+		virtual double sweep_M_0() = 0;																	// sweep backwards
 
 		// -------------------------- CALCULATORS
 		virtual void cal_green_mat(int which_time) = 0;													// calculates the Green matrices
@@ -153,7 +149,6 @@ namespace hubbard {
 		void cal_int_exp();																				// calculates interaction exponents at all times
 		void cal_B_mat();																				// calculates B matrices
 		void cal_B_mat(int which_time);																	// recalculates the B matrix at a given time
-
 		void cal_hopping_exp();																			// calculates hopping exponent for nn
 
 		// -------------------------- UPDATERS
@@ -166,7 +161,7 @@ namespace hubbard {
 		virtual void upd_Green_step(int im_time_step, bool forward) = 0;
 
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
-		void calOneSiteParam(int sign, int current_elem_i, sinOpType op, long double & av, long double & std){
+		void calOneSiteParam(int sign, int current_elem_i, sinOpType op, long double& av, long double& std) {
 			double tmp = (*op)(sign, current_elem_i, this->green_up, this->green_down);
 			av += tmp;
 			std += tmp * tmp;
@@ -174,7 +169,7 @@ namespace hubbard {
 	public:
 		/// nonstatic operators (use fields)
 		double cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the kinetic energy part for averaging
-		 
+
 		double cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down);					// calculate the z-th magnetization d correlation at i and j
 		double cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down);			// calculate the average occupation correlation at i and j
 		double cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down);			// calculate the charge correlation at i and j
@@ -185,40 +180,40 @@ namespace hubbard {
 		static double cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the z-th magnetization squared
 		static double cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the y-th magnetization squared
 		static double cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down);									// calculate the x-th magnetization squared
-		
+
 
 
 		// -------------------------- EQUAL TIME FOURIER TRANSFORMS
 
 	public:
 		// -------------------------- PRINTERS
-		void say_hi(){
+		void say_hi() {
 			stout << "->M = " << this->M << EL \
-			<< "->M0 = " << this->M_0 << EL \
-			<< "->p = " << this->p << EL \
-			// physical
-			<< "->beta = " << this->beta << EL \
-			<< "->U = " << this->U << EL \
-			<< "->dtau = " << this->dtau << EL \
-			<< "->mu = " << this->mu << EL \
-			<< "->t = " << this->t << EL \
-			// lattice
-			<< "->dimension = " << this->getDim() << EL \
-			<< "->type = " << this->lattice->get_type() << EL \
-			<< "->Lx = " << this->lattice->get_Lx() << EL \
-			<< "->Ly = " << this->lattice->get_Ly() << EL \
-			<< "->Lz = " << this->lattice->get_Lz() << EL \
-			<< "->lambda = " << this->lambda << EL << EL;
-		/// Setting info about the model for files
-		this->info = "M=" + STR(this->M) + ",M0=" + STR(this->M_0) + \
-			",dtau=" + str_p(this->dtau) + ",Lx=" + STR(this->lattice->get_Lx()) + \
-			",Ly=" + STR(this->lattice->get_Ly()) + ",Lz=" + STR(this->lattice->get_Lz()) + \
-			",beta=" + str_p(this->beta) + ",U=" + str_p(this->U) + \
-			",mu=" + str_p(this->mu);
+				<< "->M0 = " << this->M_0 << EL \
+				<< "->p = " << this->p << EL \
+				// physical
+				<< "->beta = " << this->beta << EL \
+				<< "->U = " << this->U << EL \
+				<< "->dtau = " << this->dtau << EL \
+				<< "->mu = " << this->mu << EL \
+				<< "->t = " << this->t << EL \
+				// lattice
+				<< "->dimension = " << this->getDim() << EL \
+				<< "->type = " << this->lattice->get_type() << EL \
+				<< "->Lx = " << this->lattice->get_Lx() << EL \
+				<< "->Ly = " << this->lattice->get_Ly() << EL \
+				<< "->Lz = " << this->lattice->get_Lz() << EL \
+				<< "->lambda = " << this->lambda << EL << EL;
+			/// Setting info about the model for files
+			this->info = "M=" + STR(this->M) + ",M0=" + STR(this->M_0) + \
+				",dtau=" + str_p(this->dtau) + ",Lx=" + STR(this->lattice->get_Lx()) + \
+				",Ly=" + STR(this->lattice->get_Ly()) + ",Lz=" + STR(this->lattice->get_Lz()) + \
+				",beta=" + str_p(this->beta) + ",U=" + str_p(this->U) + \
+				",mu=" + str_p(this->mu);
 		};
 		void print_hs_fields(std::string separator = "\t") const;			// prints current HS fields configuration
 		void print_hs_fields(std::string separator, const arma::mat& toPrint) const;
-		void save_unequal_greens(int filenum, uint bucketnum = 1);
+		void save_unequal_greens(int filenum, const vec& signs);
 
 		// -------------------------- GETTERS
 		auto get_M()												const RETURNS(this->M);
@@ -226,9 +221,9 @@ namespace hubbard {
 		auto get_info()												const RETURNS(this->info);
 		auto get_directories()										const RETURNS(this->dir);
 		auto get_directories(std::string working_directory) { this->setDirs(working_directory); return this->dir; };
-		
+
 		// -------------------------- SETTERS
-		void setDirs(directories* dirs) {this->dir.reset(dirs);};
+		void setDirs(directories* dirs) { this->dir.reset(dirs); };
 		void setDirs(std::string working_directory);
 
 		// -------------------------- CALCULATORS OVERRIDE

@@ -53,81 +53,91 @@ void hubbard::HubbardModel::av_normalise(int avNum, int timesNum)
 
 /*
 * saves the unequal times Green's functions in a special form
-* @param filenum 
-* @param useWrapping 
+* @param filenum
+* @param useWrapping
 */
-void hubbard::HubbardModel::save_unequal_greens(int filenum, uint bucketnum)
+void hubbard::HubbardModel::save_unequal_greens(int filenum, const vec& signs)
 {
+	this->avs->normaliseGreens(this->lattice);
+	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
+	const std::string sign = this->config_sign == 1 ? "+" : "-";
+
+#ifndef SAVE_UNEQUAL_HDF5
 	std::string information = " Some version\n\n This is the file that contains real space Green's functions for different times.\n";
 	information += " The structure of each is we average over time differences and first row\n";
 	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
 
-	std::ofstream fileUp; 
-	openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + this->dir->nameGreensTime);
-	std::ofstream fileDown; 
-	openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + this->dir->nameGreensTime);
+	std::ofstream fileUp;
+	openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + sign + this->dir->nameGreensTime);
+	std::ofstream fileDown;
+	openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + sign + this->dir->nameGreensTime);
 
 	fileUp << " Up different time, real-space Greens\n" << information;
 	fileDown << " Down different time, real-space Greens\n" << information;
 	std::initializer_list<std::string> enter_params = { "n =\t",
 		STR(this->lattice->get_Lx()),"\n",
 		"l =\t",STR(this->M),"\n",
-		VEQP(M,3),"\n",
+		"tausk =\t",STR(this->p),"\n",
 		"doall =\t",std::string("don't know what is that"),"\n",
-		"densw =\t",std::string("don't know what is that"),"\n",
+		"denswp =\t",STR(BUCKET_NUM),"\n",
 		"histn =\t",std::string("don't know what is that"),"\n",
 		"iran =\t",std::string("don't know what is that"),"\n",
-		"t  =\t",str_p(this->t[0],5),"\n",
-		VEQP(mu,3),"\n",
+		"t  =\t",STRP(this->t[0],5),"\n",
+		"mu =\t",STRP(this->mu, 5),"\n",
 		"delmu =\t",std::string("don't know what is that"),"\n",
 		"bpar  =\t",std::string("don't know what is that"),"\n",
-		VEQP(dtau,4),"\n",
+		"dtau = \t",STRP(this->dtau,5),"\n",
 		"warms  =\t",STR(1000),		"\n",
 		"sweeps =\t",STR(2000),"\n",
-		VEQP(U,2),"\n",
+		"u =\t",STRP(this->U,5),"\n",
 		"nwrap =\t",STR(this->M_0),"\n",
 		"difflim =\t",std::string("don't know what is that"),"\n",
 		"errrat =\t",std::string("don't know what is that"),	"\n",
-		VEQ(M_0),"\n",
+		"doauto = \t0","\n",
 		"orthlen =\t",std::string("don't know what is that"),"\n",
 		"eorth =\t",std::string("don't know what is that"),"\n",
 		"dopair =\t",std::string("don't know what is that"),"\n",
 		"numpair =\t",std::string("don't know what is that"),"\n",
-		VEQP(lambda,4),"\n",
+		"lambda=\t",STRP(this->lambda,4),"\n",
 		"start = \t0", "\n",
-		VEQP(config_sign,3), "\n\n\n"};
+		"signs=\n" };
+
 	printSeparated(fileUp, ' ', enter_params, 30);
 	printSeparated(fileDown, ' ', enter_params, 30);
-
-	this->avs->normaliseGreens(this->lattice, bucketnum, this->all_times);
-
-	const u16 width = 8;
+	fileUp << signs.t() << "\n\n";
+	fileDown << signs.t() << "\n\n";
+	const u16 width = 12;
 	printSeparated(fileUp, '\t', { std::string(" G(nx,ny,ti):") });
 	printSeparated(fileDown, '\t', { std::string(" G(nx,ny,ti):") });
 
-	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
-
 	for (int nx = 0; nx < x_num; nx++) {
 		for (int ny = 0; ny < y_num; ny++) {
-			printSeparated(fileUp, '\t', 6,true, VEQ(nx), VEQ(ny));
-			printSeparated(fileDown, '\t', 6, true, VEQ(nx), VEQ(ny));
+			auto [x, y, z] = this->lattice->getSymPosInv(nx, ny, 0);
+			printSeparated(fileUp, '\t', 6, true, VEQ(x), VEQ(y));
+			printSeparated(fileDown, '\t', 6, true, VEQ(x), VEQ(y));
 			for (int tau1 = 0; tau1 < this->M; tau1++)
 			{
 				printSeparated(fileUp, '\t', 4, false, tau1);
-				printSeparated(fileUp, '\t', width + 5, false, str_p(this->avs->g_up_diffs[tau1](nx, ny), width));
+				printSeparated(fileUp, '\t', width + 5, false, STRP(this->avs->g_up_diffs[tau1](nx, ny), width));
 				printSeparated(fileUp, '\t', 5, false, "+-");
-				printSeparated(fileUp, '\t', width + 5, true, str_p(this->avs->sd_g_up_diffs[tau1](nx, ny), width));
+				printSeparated(fileUp, '\t', width + 5, true, STRP(this->avs->sd_g_up_diffs[tau1](nx, ny), width));
 
 				printSeparated(fileDown, '\t', 4, false, tau1);
-				printSeparated(fileDown, '\t', width + 5, false, str_p(this->avs->g_down_diffs[tau1](nx, ny), width));
+				printSeparated(fileDown, '\t', width + 5, false, STRP(this->avs->g_down_diffs[tau1](nx, ny), width));
 				printSeparated(fileDown, '\t', 5, false, "+-");
-				printSeparated(fileDown, '\t', width + 5, true, str_p(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
+				printSeparated(fileDown, '\t', width + 5, true, STRP(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
 			}
 		}
 	}
-
 	fileUp.close();
 	fileDown.close();
+#else
+	for (int tau = 0; tau < this->M; tau++) {
+		this->tempGreen_down = (this->avs->g_up_diffs[tau] + this->avs->g_down_diffs[tau]) / 2.0;
+		this->tempGreen_down.save(arma::hdf5_name(this->dir->time_greens_dir + STR(filenum) + "_" + sign + "_" + this->dir->nameGreensTimeH5,
+			STR(tau), arma::hdf5_opts::append));
+	}
+#endif
 }
 
 //! -------------------------------------------------------- SETTERS
@@ -156,8 +166,8 @@ void hubbard::HubbardModel::setConfDir() {
 	this->dir->pos_dir = this->dir->conf_dir + kPS + this->info;
 	// create directories
 
-	this->dir->neg_dir +=  kPS + "negative";
-	this->dir->pos_dir +=  kPS + "positive";
+	this->dir->neg_dir += kPS + "negative";
+	this->dir->pos_dir += kPS + "positive";
 
 	fs::create_directories(this->dir->neg_dir);
 	fs::create_directories(this->dir->pos_dir);
@@ -233,11 +243,10 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 * @return A pair for gammas for two spin channels, 0 is spin up, 1 is spin down
 */
 std::pair<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
-{				
-	if (this->U > 0) {
+{
+	if (this->U > 0)
 		// Repulsive case
 		return (this->hsFields(this->current_time, lat_site) == 1) ? this->gammaExp0 : this->gammaExp1;
-	}
 	else
 		// Attractive case
 		return std::make_pair(this->gammaExp0.first, this->gammaExp0.first);
@@ -456,8 +465,8 @@ void hubbard::HubbardModel::cal_B_mat() {
 	//#pragma omp parallel for num_threads(this->inner_threads)
 	for (int l = 0; l < this->M; l++) {
 		// Trotter times
-		this->b_mat_down[l] = DIAG(this->int_exp_down.col(l)) * this->hopping_exp;
-		this->b_mat_up[l] = DIAG(this->int_exp_up.col(l)) * this->hopping_exp;
+		this->b_mat_down[l] = this->hopping_exp * DIAG(this->int_exp_down.col(l));
+		this->b_mat_up[l] = this->hopping_exp * DIAG(this->int_exp_up.col(l));
 		// only needed for non-equal properties
 		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
 		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
@@ -469,8 +478,8 @@ void hubbard::HubbardModel::cal_B_mat() {
 */
 void hubbard::HubbardModel::cal_B_mat(int which_time)
 {
-	this->b_mat_down[which_time] = DIAG(this->int_exp_down.col(which_time)) * this->hopping_exp;
-	this->b_mat_up[which_time] = DIAG(this->int_exp_up.col(which_time)) * this->hopping_exp;
+	this->b_mat_down[which_time] = this->hopping_exp * DIAG(this->int_exp_down.col(which_time));
+	this->b_mat_up[which_time] = this->hopping_exp * DIAG(this->int_exp_up.col(which_time));
 
 	this->b_mat_up_inv[which_time] = this->b_mat_up[which_time].i();
 	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
@@ -480,11 +489,11 @@ void hubbard::HubbardModel::cal_B_mat(int which_time)
 // TODO ----------->
 /*
 * TODO
-* @param output 
-* @param which_time_caused 
-* @param which_site_caused 
-* @param this_site_spin 
-* @param separator 
+* @param output
+* @param which_time_caused
+* @param which_site_caused
+* @param this_site_spin
+* @param separator
 */
 void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 {
@@ -503,11 +512,11 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_conf);
-	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign)},26 );
+	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign) }, 26);
 
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
-			file_conf << (this->hsFields(i,j) > 0 ? 1 : 0) << separator;
+			file_conf << (this->hsFields(i, j) > 0 ? 1 : 0) << separator;
 		}
 		file_conf << "\n";
 	}
@@ -516,14 +525,14 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator) const
 }
 
 /*
-* 
-* @param separator 
-* @param toPrint 
+*
+* @param separator
+* @param toPrint
 */
 void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
 {
 	std::ofstream file_conf, file_log;														// savefiles
-	std::string name_config ="", name_log ="";												// filenames to save
+	std::string name_config = "", name_log = "";												// filenames to save
 	if (this->config_sign < 0) {
 		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + STR(this->neg_num) + ".dat";
 		name_log = this->dir->neg_log;
@@ -535,11 +544,11 @@ void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::m
 	// open files
 	openFile(file_log, name_log, ios::app);
 	openFile(file_conf, name_config);
-	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign)},26 );
-	
+	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign) }, 26);
+
 	for (int i = 0; i < this->M; i++) {
 		for (int j = 0; j < this->Ns; j++) {
-			file_conf << (toPrint(i,j) > 0 ? 1 : 0) << separator;
+			file_conf << (toPrint(i, j) > 0 ? 1 : 0) << separator;
 		}
 		file_conf << "\n";
 	}
@@ -659,7 +668,7 @@ void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, boo
 * @param algorithm type of equilibration algorithm
 * @param corr_time how many times to wait for correlations breakout
 * @param avNum number of averages to take
-* @param bootStraps Number of bootstraps - NOT IMPLEMENTED 
+* @param bootStraps Number of bootstraps - NOT IMPLEMENTED
 * @param quiet shall be quiet?
 */
 void hubbard::HubbardModel::average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet)

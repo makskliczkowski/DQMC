@@ -20,17 +20,24 @@
 
 
 #define USE_QR
-//#define CAL_TIMES
+#define CAL_TIMES
 
+#define BUCKET_NUM 20
 #ifdef CAL_TIMES
-#define USE_HIRSH
-#define ALL_TIMES
+//#define USE_HIRSH
+#define SAVE_UNEQUAL
+//#define ALL_TIMES
+
+#ifdef SAVE_UNEQUAL
+#define SAVE_UNEQUAL_HDF5
+#endif
+
 #endif
 
 
 using namespace std;
 using namespace arma;
-/* 
+/*
 * In this file we define the virtual class for Monte Carlo simulations models of condensed matter systems
 */
 
@@ -43,11 +50,11 @@ struct general_directories {
 
 // -------------------------------------------------------- GENERAL LATTICE --------------------------------------------------------
 
-/* 
+/*
 * Structure for storing the averages from the Quantum Monte Carlo simulation
 */
 struct averages_par {
-	averages_par(const std::shared_ptr<Lattice>& lat, int M = 1, bool times = false) {
+	averages_par(const std::shared_ptr<Lattice>& lat, int M = 1) {
 		auto [x_num, y_num, z_num] = lat->getNumElems();
 
 		// Correlations - depend on the dimension - equal time
@@ -56,12 +63,29 @@ struct averages_par {
 		this->av_ch2_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
 		// Setting av Greens
 #ifdef CAL_TIMES
-			this->g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
-			this->g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
-			this->sd_g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
-			this->sd_g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
-#endif
+		this->g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+		this->g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+		this->sd_g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+		this->sd_g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
+
+		this->M_norm = vec(M, arma::fill::zeros);
+		for (int tau1 = 0; tau1 < M; tau1++)
+		{
+#ifdef ALL_TIMES
+			for (int tau2 = 0; tau2 < M; tau2++) {
+#else
+			for (int tau2 = 0; tau2 <= tau1; tau2++) {
+#endif			
+				auto tim = (tau1 - tau2);
+				if (tim < 0) {
+					tim += M;
+				}
+				this->M_norm(tim) += 1.0;
+			}
+		}
+#endif	
 	}
+
 	//! ----------------- functions for Green's
 	/**
 	* @brief Resets the Green's functions
@@ -72,23 +96,19 @@ struct averages_par {
 			this->g_down_diffs[i].zeros();
 			this->sd_g_up_diffs[i].zeros();
 			this->sd_g_down_diffs[i].zeros();
-			//this->g_up_diffs_k[i].zeros();
-			//this->g_down_diffs_k[i].zeros();
-			//this->sd_g_up_diffs_k[i].zeros();
-			//this->sd_g_down_diffs_k[i].zeros();
 		}
 	}
 
-	/**
+	/*
 	* @brief Normalizes the Green's given the model parameters and the lattice
 	* @param lattice general lattice class -> allows the normalisation
-	* @param bucketNum number of bucket on which the Green's are averaged
 	*/
-	void normaliseGreens(std::shared_ptr<Lattice>& lat, int bucketNum, bool all = true) {
+	void normaliseGreens(std::shared_ptr<Lattice>&lat) {
 		const auto M = this->g_up_diffs.size();
 		auto [xx, yy, zz] = lat->getNumElems();
+
 		for (int tau = 0; tau < M; tau++) {
-			auto norm = bucketNum * (all ? -double(M) : -(1.0 * (M - tau)));
+			auto norm = -BUCKET_NUM * this->M_norm(tau);
 			for (int x = 0; x < xx; x++) {
 				for (int y = 0; y < yy; y++) {
 					const auto norm2 = norm * lat->get_norm(x, y, 0);
@@ -140,6 +160,7 @@ struct averages_par {
 	v_1d<mat> sd_g_up_diffs, sd_g_down_diffs;
 	v_1d<cx_mat> g_up_diffs_k, g_down_diffs_k;
 	v_1d<cx_mat> sd_g_up_diffs_k, sd_g_down_diffs_k;
+	vec M_norm;																// norm for time_saving
 
 	v_3d<double> av_occupation_corr;										// \sum _sigma <c_jsigma c_isigma> -> AVERAGE OF EQUAL TIME GREEN FUNCTION ELEMENTS
 };

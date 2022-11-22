@@ -8,6 +8,8 @@ For more information, please refere to [Wiki](https://github.com/makskliczkowski
 
 # About
 Copyright (c) 2020-2022
+[![DOI](https://zenodo.org/badge/394382473.svg)](https://zenodo.org/badge/latestdoi/394382473)
 * Maksymilian Kliczkowski, PhD student, Wrocław University of Science and Technology
   * email: maksymilian.kliczkowski.at.pwr.edu.pl						
 # Bibliography
+

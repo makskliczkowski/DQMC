@@ -3,10 +3,10 @@
 // -------------------------------------------------------- HUBBARD --------------------------------------------------------
 // -------------------------------------------------------- CONSTRUCTOR
 
-/// <summary>
-/// </summary>
-/// <param name="argc">number of cmd parameters</param>
-/// <param name="argv">cmd parameters</param>
+/*
+* @param argc number of cmd parameters
+* @param argv cmd parameters
+*/
 hubbard::ui::ui(int argc, char** argv)
 {
 	auto input = changeInpToVec(argc, argv);									// change standard input to vec of strings
@@ -21,9 +21,9 @@ hubbard::ui::ui(int argc, char** argv)
 
 // -------------------------------------------------------- PARSERS
 
-/// <summary>
-/// Prints help for a Hubbard interface
-/// </summary>
+/*
+* @brief Prints help for a Hubbard interface
+*/
 void hubbard::ui::exit_with_help()
 {
 	printf(
@@ -89,9 +89,9 @@ void hubbard::ui::exit_with_help()
 	std::exit(1);
 }
 
-/// <summary>
-/// Setting Hubbard parameters to default
-/// </summary>
+/*
+* @brief  Setting Hubbard parameters to default
+*/
 void hubbard::ui::set_default()
 {
 	this->inner_threads = 1;
@@ -145,11 +145,11 @@ void hubbard::ui::set_default()
 	this->corrTime = 1;
 }
 
-/// <summary>
-/// Hubbard model parser
-/// </summary>
-/// <param name="argc">number of line arguments</param>
-/// <param name="argv">line arguments</param>
+/*
+* @brief model parser
+* @param argc number of line arguments
+* @param argv line arguments
+*/
 void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 {
 	this->set_default();
@@ -296,9 +296,9 @@ void hubbard::ui::parseModel(int argc, const v_1d<std::string>& argv)
 		this->set_option(this->saving_dir, argv, choosen_option, false);
 		set_dir = true;
 	}
-	if(!set_dir)
+	if (!set_dir)
 		this->saving_dir = fs::current_path().string() + kPS + "results" + kPS;
-	
+
 	fs::create_directories(this->saving_dir);
 	//std::string folder = "." + kPS + "results" + kPS;
 	//if (!argv[argc - 1].empty() && argc % 2 != 0) {
@@ -329,8 +329,8 @@ void hubbard::ui::make_simulation()
 		if (fileLog.tellg() == 0) {
 			fileLog.clear();
 			fileLog.seekg(0, std::ios::beg);
-			printSeparated(fileLog, ',', 20, true ,"lattice_type","mcsteps","avsNum","corrTime", "M", "M0", "dtau", "Lx",\
-				"Ly", "Lz", "beta", "U", "mu", "occ", "sd(occ)", "av_sgn", "sd(sgn)", "Ekin",\
+			printSeparated(fileLog, ',', 20, true, "lattice_type", "mcsteps", "avsNum", "corrTime", "M", "M0", "dtau", "Lx", \
+				"Ly", "Lz", "beta", "U", "mu", "occ", "sd(occ)", "av_sgn", "sd(sgn)", "Ekin", \
 				"sd(Ekin)", "m^2_z", "sd(m^2_z)", "m^2_x", "time taken", "token");
 		}
 		fileLog.close();
@@ -398,7 +398,7 @@ void hubbard::ui::collectRealSpace(std::string name_times, std::string name, con
 		for (int y = 0; y < y_num; y++)
 			for (int z = 0; z < z_num; z++) {
 				auto [xx, yy, zz] = lat->getSymPosInv(x, y, z);
-				printSeparated(fileP, ',', prec, false, xx , yy, zz);
+				printSeparated(fileP, ',', prec, false, xx, yy, zz);
 				printSeparatedP(fileP, ',', prec + 6, true, prec, avs->av_M2z_corr[x][y][z], avs->av_ch2_corr[x][y][z]);
 				//if (times) {
 				//	for (int i = 0; i < M; i++) {
@@ -427,8 +427,8 @@ void hubbard::ui::collectFouriers(std::string name_times, std::string name, cons
 		//file_fouriers_time << "kx\tky\tkz\tdtau\toccupation_fourier\tgreen_up\tgreen_down\tmagnetic_susc\tcharge_susc" << endl;
 		file_fouriers_time << "kx\tky\tkz\ttau\tgreen_up\tgreen_down" << endl;
 	}*/
-	printSeparated(file_fouriers, ',', 12, false, "kx","ky","kz");
-	printSeparated(file_fouriers, ',', 16, true, "occ(k)","spin_str_fac","ch_str_fac");
+	printSeparated(file_fouriers, ',', 12, false, "kx", "ky", "kz");
+	printSeparated(file_fouriers, ',', 16, true, "occ(k)", "spin_str_fac", "ch_str_fac");
 
 	auto [x_num, y_num, z_num] = lat->getNumElems();
 	for (int iter = 0; iter < Lx * Ly * Lz; iter++) {
