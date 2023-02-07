@@ -11,9 +11,7 @@
 
 // -------------------------------------------------------- HUBBARD USER INTERFACE --------------------------------------------------------
 
-	// -------------------------------------------------------- MAP OF DEFAULTS FOR HUBBARD
-
-
+// -------------------------------------------------------- MAP OF DEFAULTS FOR HUBBARD
 std::unordered_map <std::string, std::string> const default_params = {
 	{"m","300"},
 	{"d","2"},
@@ -55,7 +53,8 @@ std::unordered_map <std::string, std::string> const default_params = {
 
 namespace hubbard {
 	// -------------------------------------------------------- CLASS
-	class ui : public user_interface {
+	class ui : public user_interface 
+	{
 	private:
 		v_1d<double> t;																						// hopping coefficients
 		int lattice_type; 																					// for non_numeric data
@@ -74,6 +73,7 @@ namespace hubbard {
 		void collectFouriers(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
 	public:
 		// ----------------------- CONSTRUCTORS
+		~ui() = default;
 		ui() = default;
 		ui(int argc, char** argv);
 		// ----------------------- PARSER FOR HELP
@@ -82,6 +82,7 @@ namespace hubbard {
 		void parseModel(int argc, const v_1d<std::string>& argv) override;									// the function to parse the command line
 		// ----------------------- HELPERS
 		void set_default() override;																		// set default parameters
+		void functionChoice() override {};
 		// ----------------------- SIMULATION
 		void make_simulation() override;
 	};

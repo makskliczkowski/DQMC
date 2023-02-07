@@ -24,14 +24,12 @@
 
 #define BUCKET_NUM 20
 #ifdef CAL_TIMES
-//#define USE_HIRSH
-#define SAVE_UNEQUAL
-//#define ALL_TIMES
-
-#ifdef SAVE_UNEQUAL
-#define SAVE_UNEQUAL_HDF5
-#endif
-
+	#define USE_HIRSH
+	#define SAVE_UNEQUAL
+	//#define ALL_TIMES
+	#ifdef SAVE_UNEQUAL
+		#define SAVE_UNEQUAL_HDF5
+	#endif
 #endif
 
 

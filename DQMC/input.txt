@@ -1,1 +1,1 @@
--m 1000 -a 500 -d 2 -m0 5 -c 1 -t 1 -l 0 -dt 0.05 -lx 4 -ly 4 -u 8.0 -b 2.0 -mu -0.0 -th 1 -ti 1 -dir ./results3/
+-m 1000 -a 500 -d 2 -m0 10 -c 1 -t 1 -l 0 -dt 0.05 -lx 12 -ly 12 -u 10 -b 2.0 -mu -0.0 -th 1 -ti 1 -dir ./results3/
