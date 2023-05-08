@@ -172,30 +172,28 @@ class LatticeModel {
 protected:
 	int inner_threads;											// threads for the inner loops
 	// ----------------------- Certain physical parameters
-	int Lx, Ly, Lz;
-	double T;
-	double beta;												// in kB units
-	unsigned int Ns;											// number of lattice sites
-	randomGen ran;												// consistent quick random number generator
-	std::shared_ptr<Lattice> lattice;							// contains all the information about the lattice
-	std::shared_ptr<averages_par> avs;							// structure containing all the averages
-	std::unique_ptr<pBar> pbar;									// for printing progress
+	//int Lx, Ly, Lz;
+	//double T;
+	//double beta;												// in kB units
+	//unsigned int Ns;											// number of lattice sites
+	//randomGen ran;												// consistent quick random number generator
+	//std::shared_ptr<Lattice> lattice;							// contains all the information about the lattice
+	//std::shared_ptr<averages_par> avs;							// structure containing all the averages
 
 public:
-	virtual ~LatticeModel() = default;							// pure virtual destructor
 
 	// ----------------------- CALCULATORS
-	virtual void relaxation(impDef::algMC algorithm, int mc_steps, bool conf, bool quiet) = 0;
-	virtual void average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet) = 0;
+	//virtual void relaxation(impDef::algMC algorithm, int mc_steps, bool conf, bool quiet) = 0;
+	//virtual void average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet) = 0;
 
 	// ----------------------- CHECKERS
 
 
 	// ----------------------- GETTERS
-	auto getDim()						const RETURNS(this->lattice->get_Dim());
-	auto getNs()						const RETURNS(this->Ns);
-	auto getT()							const RETURNS(this->T);
-	auto get_avs()						const RETURNS(this->avs);
+	//auto getDim()						const RETURNS(this->lattice->get_Dim());
+	//auto getNs()						const RETURNS(this->Ns);
+	//auto getT()							const RETURNS(this->T);
+	//auto get_avs()						const RETURNS(this->avs);
 	// ----------------------- SETTERS
 };
 #endif // !GENERAL_H

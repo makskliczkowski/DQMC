@@ -2,73 +2,126 @@
 #ifndef HUBBARD_H
 #define HUBBARD_H
 
-#include "general_model.h"
-
-
+#ifndef DQMC_H
+	#include "../dqmc.h"
+#endif
 
 //#define SAVE_CONF
 
 
-namespace hubbard {
-	using namespace arma;
+//namespace hubbard {
+//	using namespace arma;
+//
+//	struct HubbardParams {
+//		int dim;
+//		double beta;
+//		double mu;
+//		double U;
+//		int Lx;
+//		int Ly;
+//		int Lz;
+//		int M;
+//		int M0;
+//		int p;
+//		double dtau;
+//		// constructor
+//		HubbardParams(int dim, double beta, double mu, double U, int Lx, int Ly, int Lz, double dtau, int M, int M0, int p) : dim(dim), beta(beta), mu(mu), U(U),
+//			Lx(Lx), Ly(Ly), Lz(Lz), M(M), M0(M0), p(p), dtau(dtau) {};
+//	};
 
-	struct HubbardParams {
-		int dim;
-		double beta;
-		double mu;
-		double U;
-		int Lx;
-		int Ly;
-		int Lz;
-		int M;
-		int M0;
-		int p;
-		double dtau;
-		// constructor
-		HubbardParams(int dim, double beta, double mu, double U, int Lx, int Ly, int Lz, double dtau, int M, int M0, int p) : dim(dim), beta(beta), mu(mu), U(U),
-			Lx(Lx), Ly(Ly), Lz(Lz), M(M), M0(M0), p(p), dtau(dtau) {};
+
+
+
+	//struct directories : public general_directories {
+
+	//	std::string token = "";
+
+	//	std::string fourier_dir = "";
+	//	std::string params_dir = "";
+	//	std::string conf_dir = "";
+	//	std::string greens_dir = "";
+	//	std::string time_greens_dir = "";
+
+	//	// filenames
+	//	std::string nameFouriers = "";							//
+	//	std::string nameFouriersTime = "";						//
+	//	std::string nameNormal = "";								//
+	//	std::string nameNormalTime = "";							//
+	//	std::string nameGreens = "";								//
+	//	std::string nameGreensTime = "";							//
+	//	std::string nameGreensTimeH5 = "";
+
+	//	// configuration directories
+	//	std::string neg_dir = "";								// directory for negative configurations
+	//	std::string neg_log = "";								// the name of negative sign log file
+	//	std::string pos_dir = "";								// directory for positive configurations
+	//	std::string pos_log = "";								// the name of positive sign log file
+
+	//	directories() = default;
+
+	//	void setFileNames() {
+	//		this->nameFouriers = fourier_dir + "fouriers_" + this->token + "_" + info + ".dat";
+	//		this->nameFouriersTime = fourier_dir + "times" + kPS + "fouriersTime_" + this->token + "_" + info + ".dat";
+	//		this->nameNormal = params_dir + "parameters_" + this->token + "_" + info + ".dat";
+	//		this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + this->token + "_" + info + ".dat";
+	//		this->nameGreens = "greens_" + this->token + "_" + info + ".dat";
+	//		this->nameGreensTime = "greensTime_" + this->token + "_" + info + ".dat";
+	//		this->nameGreensTimeH5 = "greensTime_" + this->token + "_" + info + ".h5";
+	//	};
+	//};
+
+
+class Hubbard : public DQMC
+{
+protected:
+	enum SPINNUM
+	{
+		_DN_					=			0,
+		_UP_					=			1
 	};
+	
+	// ################ C U R R E N T   P R O P E R T I E S ################
+	uint tau_					=			0;								// current Trotter time
+	int currentSign_			=			1;								// current sign of the HS configuration probability
+	std::pair<double, double> currentGamma_;
+
+	// ############### P H Y S I C A L   P R O P E R T I E S ###############
+	v_1d<double> t_;														// hopping integrals
+	double U_					=			0.0;							// Hubbard U
+	double mu_					=			0.0;							// chemical potential
+
+	// ############# S I M U L A T I O N   P R O P E R T I E S #############
+	bool REPULSIVE_				=			true;							// U > 0?
+	double dtau_				=			1e-2;							// Trotter time step
+	uint M_						=			1;								// number of Trotter times
+
+	arma::mat TExp_;														// hopping exponential
+	v_1d<arma::mat> IExp_;													// interaction exponential
+	v_1d<arma::mat> B_;														// imaginary time propagators	
+	v_1d<arma::mat> iB_;													// imaginary time propagators	
+	v_1d<arma::mat> G_;														// spatial Green's function
+
+	double lambda_				=			1.0;							// lambda parameter in HS transform
+	arma::Mat<int> HSFields_;												// Hubbard-Stratonovich fields
+	v_1d<std::pair<double, double>> gammaExp_;								
+
+	// ################# O T H E R   F O R M U L A T I O N #################
+	uint M0_					=			1;								// in ST - num of time subinterval, in QR num of stable multiplications
+	uint p_						=			1;								// p = M / M0
+
+protected:
+	// ####################### C A L C U L A T O R S #######################
+	auto calGamma(uint _site)										-> void;
+	auto calProba(uint _site, std::initializer_list<double> gii)	-> void;
+
+
+};
 
 
 
 
-	struct directories : public general_directories {
 
-		std::string token = "";
 
-		std::string fourier_dir = "";
-		std::string params_dir = "";
-		std::string conf_dir = "";
-		std::string greens_dir = "";
-		std::string time_greens_dir = "";
-
-		// filenames
-		std::string nameFouriers = "";							//
-		std::string nameFouriersTime = "";						//
-		std::string nameNormal = "";								//
-		std::string nameNormalTime = "";							//
-		std::string nameGreens = "";								//
-		std::string nameGreensTime = "";							//
-		std::string nameGreensTimeH5 = "";
-
-		// configuration directories
-		std::string neg_dir = "";								// directory for negative configurations
-		std::string neg_log = "";								// the name of negative sign log file
-		std::string pos_dir = "";								// directory for positive configurations
-		std::string pos_log = "";								// the name of positive sign log file
-
-		directories() = default;
-
-		void setFileNames() {
-			this->nameFouriers = fourier_dir + "fouriers_" + this->token + "_" + info + ".dat";
-			this->nameFouriersTime = fourier_dir + "times" + kPS + "fouriersTime_" + this->token + "_" + info + ".dat";
-			this->nameNormal = params_dir + "parameters_" + this->token + "_" + info + ".dat";
-			this->nameNormalTime = params_dir + "times" + kPS + "parametersTime_" + this->token + "_" + info + ".dat";
-			this->nameGreens = "greens_" + this->token + "_" + info + ".dat";
-			this->nameGreensTime = "greensTime_" + this->token + "_" + info + ".dat";
-			this->nameGreensTimeH5 = "greensTime_" + this->token + "_" + info + ".h5";
-		};
-	};
 
 
 	/*
@@ -81,7 +134,7 @@ namespace hubbard {
 		//using sinOpType = std::function<double(int, int, const mat&, const mat&)>;
 
 
-		double probability;
+		//double probability;
 		int from_scratch;																				// number of Trotter times for Green to be calculated from scratch
 		int config_sign;																				// keep track of the configuration sign
 		bool equalibrate;																				// if we shall equalibrate stuff now
@@ -89,50 +142,50 @@ namespace hubbard {
 		long int neg_num;																				// helps with number of negative signs
 
 		// -------------------------- INITIAL PHYSICAL PARAMETERS
-		v_1d<double> t;																					// hopping integral vector
-		int dim;																						// dimension
-		double U;																						// Coulomb force strength
-		double mu;																						// chemical potential
+		//v_1d<double> t;																					// hopping integral vector
+		//int dim;																						// dimension
+		//double U;																						// Coulomb force strength
+		//double mu;																						// chemical potential
 
 		// -------------------------- SUZUKI - TROTTER RELATED PARAMETERS
-		int M;																							// number of Trotter times
-		int current_time;																				// current Trotter time
-		double dtau;																					// Trotter time step
+		//int M;																							// number of Trotter times
+		//int current_time;																				// current Trotter time
+		//double dtau;																					// Trotter time step
 
 		// -------------------------- TRANSFORMATION RELATED PARAMETERS
-		arma::mat hsFields;																				// Hubbard - Stratonovich fields - first time then field
-		std::pair<double, double> gammaExp0;															// precalculated exponent of gammas
-		std::pair<double, double> gammaExp1;															// precalculated exponent of gammas
-		double lambda;																					// lambda parameter in HS transform
+		//arma::mat hsFields;																				// Hubbard - Stratonovich fields - first time then field
+		//std::pair<double, double> gammaExp0;															// precalculated exponent of gammas
+		//std::pair<double, double> gammaExp1;															// precalculated exponent of gammas
+		//double lambda;																					// lambda parameter in HS transform
 
 		// -------------------------- SPACE - TIME FORMULATION OR QR PARAMETERS
-		int M_0;																						// in ST - num of time subinterval, in QR num of multiplications
-		int p;																							// M/M_0 = p
+		//int M_0;																						// in ST - num of time subinterval, in QR num of multiplications
+		//int p;																							// M/M_0 = p
 
 		// -------------------------- ALGORITHM RELATED PARAMETERS
 		v_3d<int> spatialNorm;
-		arma::mat hopping_exp;																			// exponential of a hopping matrix
-		arma::mat int_exp_up, int_exp_down;																// exponentials of up and down spin interaction matrices at all times
-		v_1d<arma::mat> b_mat_up, b_mat_down;															// up and down B matrices vector
-		v_1d<arma::mat> b_mat_up_inv, b_mat_down_inv;													// up and down B matrices inverses vector
+		//arma::mat hopping_exp;																			// exponential of a hopping matrix
+		//arma::mat int_exp_up, int_exp_down;																// exponentials of up and down spin interaction matrices at all times
+		//v_1d<arma::mat> b_mat_up, b_mat_down;															// up and down B matrices vector
+		//v_1d<arma::mat> b_mat_up_inv, b_mat_down_inv;													// up and down B matrices inverses vector
 
-		arma::mat green_up, green_down;																	// Green's matrix up and down at given (equal) time
+		//arma::mat green_up, green_down;																	// Green's matrix up and down at given (equal) time
 		arma::mat tempGreen_up; arma::mat tempGreen_down;												// temporary Green's for wrap updating
 		arma::mat tempGreen_up_i; arma::mat tempGreen_down_i;											// temporary Green's for wrap updating inverse
 
 		// -------------------------- HELPING PARAMETERS
-		std::string info;																				// info about the model for file creation
-		std::shared_ptr<directories> dir;																// directories for model parameters saving
+		//std::string info;																				// info about the model for file creation
+		//std::shared_ptr<directories> dir;																// directories for model parameters saving
 
 		// -------------------------- METHODS --------------------------
 
 		// -------------------------- PROTECTED SETTERS
-		void set_hs();																					// setting Hubbard-Stratonovich fields
-		void setConfDir();
+		//void set_hs();																					// setting Hubbard-Stratonovich fields
+		//void setConfDir();
 
 		// -------------------------- HELPING FUNCTIONS
-		std::pair<double, double> cal_gamma(int lat_site) const;										// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
-		std::pair<double, double> cal_proba(int lat_site, double g_up, double g_down) const;			// calculate probability for both spins (0 <-> up index, 1 <-> down index)
+		//std::pair<double, double> cal_gamma(int lat_site) const;										// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
+		//std::pair<double, double> cal_proba(int lat_site, double g_up, double g_down) const;			// calculate probability for both spins (0 <-> up index, 1 <-> down index)
 		virtual void av_single_step(int current_elem_i, int sign) = 0;									// take all the averages of a single step
 		void av_normalise(int avNum, int timesNum);														// normalise all the averages after taking them
 

@@ -1,6 +1,30 @@
-#include "include/hubbard.h"
-// -------------------------------------------------------- HUBBARD MODEL -------------------------------------------------------- */
-// -------------------------------------------------------- HELPERS
+#include "../include/Models/hubbard.h"
+
+/*
+* @brief Function to calculate the change in the interaction exponent
+* @param _site site on which the change has been made
+* @returns A pair for gammas for two spin channels, 0 is spin up, 1 is spin down
+*/
+auto Hubbard::calGamma(uint _site) -> void
+{
+	if (this->REPULSIVE_)
+		// Repulsive case
+		this->currentGamma_ = (this->HSFields_(this->tau_, _site) == 1) ? this->gammaExp_[0] : this->gammaExp_[1];
+	else
+		// Attractive case
+		this->currentGamma_ = std::make_pair(this->gammaExp_[0].first, this->gammaExp_[0].first);
+}
+
+
+
+
+
+
+
+
+
+
+
 
 /*
 * @brief Normalise all the averages taken during simulation
@@ -237,20 +261,7 @@ void hubbard::HubbardModel::setDirs(std::string working_directory)
 
 //! -------------------------------------------------------- HELPERS --------------------------------------------------------
 
-/*
-* @brief Function to calculate the change in the potential exponential
-* @param lattice site on which the change has been made
-* @return A pair for gammas for two spin channels, 0 is spin up, 1 is spin down
-*/
-std::pair<double, double> hubbard::HubbardModel::cal_gamma(int lat_site) const
-{
-	if (this->U > 0)
-		// Repulsive case
-		return (this->hsFields(this->current_time, lat_site) == 1) ? this->gammaExp0 : this->gammaExp1;
-	else
-		// Attractive case
-		return std::make_pair(this->gammaExp0.first, this->gammaExp0.first);
-}
+
 
 /*
 * @brief Return probabilities of spin flip for both spin channels
