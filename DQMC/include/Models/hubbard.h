@@ -6,6 +6,10 @@
 	#include "../dqmc.h"
 #endif
 
+#ifndef ALG_H
+	#include "../../source/src/lin_alg.h"
+#endif
+
 //#define SAVE_CONF
 
 
@@ -71,7 +75,7 @@
 	//};
 
 
-class Hubbard : public DQMC
+class Hubbard : public DQMC<2>
 {
 protected:
 	enum SPINNUM
@@ -80,11 +84,10 @@ protected:
 		_UP_					=			1
 	};
 	
-	// ################ C U R R E N T   P R O P E R T I E S ################
-	uint tau_					=			0;								// current Trotter time
-	int currentSign_			=			1;								// current sign of the HS configuration probability
-	std::pair<double, double> currentGamma_;
-
+	// ############################# Q R ################################### 
+	std::unique_ptr<algebra::UDT<double>> udtUP, udtDown;
+	spinTuple_ currentGamma_;
+	
 	// ############### P H Y S I C A L   P R O P E R T I E S ###############
 	v_1d<double> t_;														// hopping integrals
 	double U_					=			0.0;							// Hubbard U
@@ -96,14 +99,14 @@ protected:
 	uint M_						=			1;								// number of Trotter times
 
 	arma::mat TExp_;														// hopping exponential
-	v_1d<arma::mat> IExp_;													// interaction exponential
-	v_1d<arma::mat> B_;														// imaginary time propagators	
-	v_1d<arma::mat> iB_;													// imaginary time propagators	
-	v_1d<arma::mat> G_;														// spatial Green's function
+	std::array<arma::mat		, spinNumber_> IExp_;						// interaction exponential
+	std::array<v_1d<arma::mat>	, spinNumber_> B_;							// imaginary time propagators	
+	std::array<v_1d<arma::mat>	, spinNumber_> iB_;							// imaginary time propagators	
+	std::array<arma::mat		, spinNumber_> G_;							// spatial Green's function
 
 	double lambda_				=			1.0;							// lambda parameter in HS transform
 	arma::Mat<int> HSFields_;												// Hubbard-Stratonovich fields
-	v_1d<std::pair<double, double>> gammaExp_;								
+	v_1d<spinTuple_> gammaExp_;
 
 	// ################# O T H E R   F O R M U L A T I O N #################
 	uint M0_					=			1;								// in ST - num of time subinterval, in QR num of stable multiplications
@@ -111,11 +114,24 @@ protected:
 
 protected:
 	// ####################### C A L C U L A T O R S #######################
-	auto calGamma(uint _site)										-> void;
-	auto calProba(uint _site, std::initializer_list<double> gii)	-> void;
+	void calQuadratic()														override;
+	void calInteracts()														override;
+	void calPropagatB()														override;
+	void calPropagatB(uint _tau)											override;
+	spinTuple_ calProba(uint _site)											override;
 
+	auto calGamma(uint _site)				->								void;
+	auto calDelta()							->								spinTuple_;
 
+	// ########################### S E T T E R S ##########################
+	void setHS(HS_CONF_TYPES _t)											override;
+	void setDir(std::string _m)												override;
+	
+	// ########################## U P D A T E R S #########################
+	void updPropagatB(uint _site, uint _t)									override;
+	void updInteracts(uint _site, uint _t)									override;
 };
+
 
 
 
@@ -186,31 +202,31 @@ protected:
 		// -------------------------- HELPING FUNCTIONS
 		//std::pair<double, double> cal_gamma(int lat_site) const;										// calculate gamma for both spins (0 <-> up index, 1 <-> down index)
 		//std::pair<double, double> cal_proba(int lat_site, double g_up, double g_down) const;			// calculate probability for both spins (0 <-> up index, 1 <-> down index)
-		virtual void av_single_step(int current_elem_i, int sign) = 0;									// take all the averages of a single step
+		//virtual void av_single_step(int current_elem_i, int sign) = 0;									// take all the averages of a single step
 		void av_normalise(int avNum, int timesNum);														// normalise all the averages after taking them
 
 		// -------------------------- HEAT BATH
-		virtual int heat_bath_single_step(int lat_site) = 0;											// calculates the single step of a heat-bath algorithm
-		virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) = 0;	// uses heat-bath to equilibrate system
-		virtual void heat_bath_av(int corr_time, int avNum, bool quiet) = 0;							// collect the averages from the simulation
-		virtual double sweep_0_M() = 0;																	// sweep forward in time
-		virtual double sweep_M_0() = 0;																	// sweep backwards
+		//virtual int heat_bath_single_step(int lat_site) = 0;											// calculates the single step of a heat-bath algorithm
+		//virtual void heat_bath_eq(int mcSteps, bool conf, bool quiet, bool save_greens = false) = 0;	// uses heat-bath to equilibrate system
+		//virtual void heat_bath_av(int corr_time, int avNum, bool quiet) = 0;							// collect the averages from the simulation
+		//virtual double sweep_0_M() = 0;																	// sweep forward in time
+		//virtual double sweep_M_0() = 0;																	// sweep backwards
 
 		// -------------------------- CALCULATORS
-		virtual void cal_green_mat(int which_time) = 0;													// calculates the Green matrices
+		//virtual void cal_green_mat(int which_time) = 0;													// calculates the Green matrices
 		virtual void compare_green_direct(int tim, double toll, bool print_greens) = 0;					// compares Green's function from stability formulation to direct evaluation
-		void cal_int_exp();																				// calculates interaction exponents at all times
-		void cal_B_mat();																				// calculates B matrices
-		void cal_B_mat(int which_time);																	// recalculates the B matrix at a given time
-		void cal_hopping_exp();																			// calculates hopping exponent for nn
+		//void cal_int_exp();																				// calculates interaction exponents at all times
+		//void cal_B_mat();																				// calculates B matrices
+		//void cal_B_mat(int which_time);																	// recalculates the B matrix at a given time
+		//void cal_hopping_exp();																			// calculates hopping exponent for nn
 
 		// -------------------------- UPDATERS
-		void upd_int_exp(int lat_site, double delta_up, double delta_down);
-		void upd_B_mat(int lat_site, double delta_up, double delta_down);
-		virtual void upd_equal_green(int lat_site, double gamma_over_prob_up, \
-			double gamma_over_prob_down) = 0;															// updates Greens at the same time after spin flip
-		virtual void upd_next_green(int which_time) = 0;
-		virtual void upd_prev_green(int which_time) = 0;
+		//void upd_int_exp(int lat_site, double delta_up, double delta_down);
+		//void upd_B_mat(int lat_site, double delta_up, double delta_down);
+		//virtual void upd_equal_green(int lat_site, double gamma_over_prob_up, \
+		//	double gamma_over_prob_down) = 0;															// updates Greens at the same time after spin flip
+		//virtual void upd_next_green(int which_time) = 0;
+		//virtual void upd_prev_green(int which_time) = 0;
 		virtual void upd_Green_step(int im_time_step, bool forward) = 0;
 
 		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
@@ -267,13 +283,6 @@ protected:
 		void print_hs_fields(std::string separator = "\t") const;			// prints current HS fields configuration
 		void print_hs_fields(std::string separator, const arma::mat& toPrint) const;
 		void save_unequal_greens(int filenum, const vec& signs);
-
-		// -------------------------- GETTERS
-		auto get_M()												const RETURNS(this->M);
-		auto get_M_0()												const RETURNS(this->M_0);
-		auto get_info()												const RETURNS(this->info);
-		auto get_directories()										const RETURNS(this->dir);
-		auto get_directories(std::string working_directory) { this->setDirs(working_directory); return this->dir; };
 
 		// -------------------------- SETTERS
 		void setDirs(directories* dirs) { this->dir.reset(dirs); };

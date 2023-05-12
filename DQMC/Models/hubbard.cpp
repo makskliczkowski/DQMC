@@ -8,23 +8,168 @@
 auto Hubbard::calGamma(uint _site) -> void
 {
 	if (this->REPULSIVE_)
-		// Repulsive case
 		this->currentGamma_ = (this->HSFields_(this->tau_, _site) == 1) ? this->gammaExp_[0] : this->gammaExp_[1];
 	else
-		// Attractive case
-		this->currentGamma_ = std::make_pair(this->gammaExp_[0].first, this->gammaExp_[0].first);
+		this->currentGamma_ = { this->gammaExp_[0][0], this->gammaExp_[0][0] };
 }
 
+/*
+* @brief Allows to calculate the change in the interaction exponent
+*/
+auto Hubbard::calDelta() -> spinTuple_
+{
+	spinTuple_ _out;
+	std::transform	(		
+						this->currentGamma_.begin(),
+						this->currentGamma_.end(),
+						_out.begin(),
+						[&](auto& i) { return i + 1; }
+					);
+	return _out;
+}
 
+/*
+* @brief Return probabilities of spin flip for both spin channels
+* @param _site flipping candidate site
+* @param gii gammas for both spin channels
+* @returns tuple for probabilities on both spin channels, 
+* @warning remember, 0 is spin up, 1 is spin down
+*/
+auto Hubbard::calProba(uint _site) -> spinTuple_
+{
+	return	{
+				1.0		+	currentGamma_[_UP_]	*	(1.0 - this->G_[SPINNUM::_UP_](_site, _site)),
+				1.0		+	currentGamma_[_DN_]	*	(1.0 - this->G_[SPINNUM::_DN_](_site, _site))
+			};
+}
 
+// #################################################### H A M I L T O N I A N ######################################################
 
+/*
+* @brief Function to calculate the hopping matrix exponential.
+*/
+auto Hubbard::calQuadratic() -> void
+{
+	// cacluate the hopping matrix
+	this->TExp_.zeros(this->Ns_, this->Ns_);
+	for (int _site = 0; _site < this->Ns_; _site++)
+	{
+		const auto neiSize			=	this->lat_->get_nn(_site);
+		for (int neiNum = 0; neiNum < neiSize; neiNum++) {
+			const auto nei			=	this->lat_->get_nn(_site, neiNum);											// get given nn
+			this->TExp_(_site, nei) +=	this->dtau_ * this->t_[_site];									// assign non-diagonal elements
+		}
+	}
+#pragma omp critical
+	this->TExp_						=	arma::expmat(this->TExp_);
+}
 
+/*
+* @brief Function to calculate the interaction exponential at all Trotter times, each column represents the given Trotter time.
+*/
+auto Hubbard::calInteracts() -> void
+{
+	const arma::Col<double> _dtauVec		=		arma::ones(this->Ns_) * this->dtau_ * (this->mu_);
+	if (this->U_ > 0)
+		// Repulsive case
+		for (int l = 0; l < this->M_; l++) {
+			// Trotter times
+			this->IExp_[_UP_].col(l)		=		arma::exp(_dtauVec + this->HSFields_.row(l).t() * (	this->lambda_));
+			this->IExp_[_DN_].col(l)		=		arma::exp(_dtauVec + this->HSFields_.row(l).t() * (-this->lambda_));
+		}
+	else if (this->U_ < 0)
+		// Attractive case
+		for (int l = 0; l < this->M_; l++) {
+			// Trotter times
+			this->IExp_[_UP_].col(l)		=		arma::exp(_dtauVec + this->HSFields_.row(l).t() * (	this->lambda_));
+			this->IExp_[_DN_].col(l)		=		this->IExp_[_UP_].col(l);
+		}
+	else 
+	{
+		this->IExp_[_UP_].col(l)		=		arma::eye(this->Ns, this->Ns);
+		this->IExp_[_DN_].col(l)		=		arma::eye(this->Ns, this->Ns);
+	}
+}
 
+/*
+* @brief Function to calculate all B propagators for a Hubbard model. Those are used for the Gibbs weights.
+*/
+auto Hubbard::calPropagatB() -> void
+{
+	for(auto _spin = 0; _spin < this->spinNumber_; _spin++)
+		for (int l = 0; l < this->M_; l++) {
+			// Trotter times
+			this->B_[_spin][l]		=		this->TExp_ * DIAG(this->IExp_[_spin].col(l));
+			this->iB_[_spin][l]		=		this->B_[_spin][l].i();
+		}
+}
 
+/*
+* @brief Function to calculate all B propagators for a Hubbard model. Those are used for the Gibbs weights.
+* @param _tau Specific Trotter imaginary time
+*/
+auto Hubbard::calPropagatB(uint _tau) -> void override
+{
+	for (auto _spin = 0; _spin < this->spinNumber_; _spin++) 
+	{
+		this->B_[_spin][_tau]		=		this->TExp_ * DIAG(this->IExp_[_spin].col(_tau));
+		this->iB_[_spin][_tau]		=		this->B_[_spin][_tau].i();
+	}
+}
 
+// ######################################################### S E T T E R S ##########################################################
 
+/*
+* @brief Sets the initial state of the Hubbard-Stratonovich fields
+*/
+auto Hubbard::setHS(HS_CONF_TYPES _t) -> void
+{
+	switch (_t)
+	{
+	case HIGH_T:
+		for (int i = 0; i < this->Ns_; i++) 
+			for (int l = 0; l < this->M_; l++) 
+				this->HSFields_(l, i) = this->ran_.random(0, 1) > 0.5 ? 1 : -1;
+		break;
+	case LOW_T:
+		this->HSFields_.ones(this->M_, this->Ns_);
+		break;
+	}
+}
 
+auto Hubbard::setDir(std::string _m) -> void
+{
+	return;
+}
 
+// ######################################################## U P D A T E R S #########################################################
+
+/*
+* @brief Update the interaction matrix for current spin whenever the given lattice site HS field is changed.
+*/
+void Hubbard::updInteracts(uint _site, uint _t)
+{
+	auto _delta							=	this->calDelta();
+	for(auto _spin = 0; _spin < this->spinNumber_; _spin++)
+		this->IExp_[_spin](_site, _t)	*=	_delta[_spin];
+}
+
+/*
+* @brief After accepting spin change update the B matrix by multiplying it by the diagonal element (the delta)
+* @param _site current lattice site for the update
+*/
+void Hubbard::updPropagatB(uint _site, uint _t)
+{
+	auto _delta = this->calDelta();
+	for (int i = 0; i < this->Ns_; i++) 
+	{
+		this->B_[0][_t]	(i, _site)	*=	_delta[0];
+		this->B_[1][_t]	(i, _site)	*=	_delta[1];
+
+		this->iB_[0][_t](i, _site)	*=	_delta[1];
+		this->iB_[1][_t](i, _site)	*=	_delta[0];
+	}
+}
 
 /*
 * @brief Normalise all the averages taken during simulation
@@ -166,335 +311,219 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, const vec& signs)
 
 //! -------------------------------------------------------- SETTERS
 
-/*
-* Setting the Hubbard - Stratonovich fields
-*/
-void hubbard::HubbardModel::set_hs()
-{
-	for (int i = 0; i < this->Ns; i++) {
-		for (int l = 0; l < this->M; l++) {
-			//int elem = this->ran.bernoulli(0.5) ? -1 : 1;
-			int elem = this->ran.randomReal_uni(0, 1) > 0.5 ? 1 : -1;
-			this->hsFields(l, i) = elem;	// set the hs fields to uniform -1 or 1
-			//this->hsFields_img[l][i] = elem > 0 ? ' ' : "|";
-		}
-	}
-}
 
 /*
 * Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
 * @param dir directory to be used for configurations
 */
-void hubbard::HubbardModel::setConfDir() {
-	this->dir->neg_dir = this->dir->conf_dir + kPS + this->info;
-	this->dir->pos_dir = this->dir->conf_dir + kPS + this->info;
-	// create directories
-
-	this->dir->neg_dir += kPS + "negative";
-	this->dir->pos_dir += kPS + "positive";
-
-	fs::create_directories(this->dir->neg_dir);
-	fs::create_directories(this->dir->pos_dir);
-
-	// add a separator
-	this->dir->neg_dir += kPS;
-	this->dir->pos_dir += kPS;
-	// for .log files
-	std::ofstream fileN, fileP;																	// files for saving the configurations
-	this->dir->neg_log = this->dir->neg_dir.substr(0, \
-		this->dir->neg_dir.length() - 9) + "negLog," + info + ".dat";							// for storing the labels of negative files in csv for ML
-	this->dir->pos_log = this->dir->pos_dir.substr(0, \
-		this->dir->pos_dir.length() - 9) + "posLog," + info + ".dat";							// for storing the labels of positive files in csv for ML
-	fileN.open(this->dir->neg_log);
-	fileP.open(this->dir->pos_log);
-	fileN.close();																				// close just to create file neg
-	fileP.close();																				// close just to create file pos
-}
+//void hubbard::HubbardModel::setConfDir() {
+//	this->dir->neg_dir = this->dir->conf_dir + kPS + this->info;
+//	this->dir->pos_dir = this->dir->conf_dir + kPS + this->info;
+//	// create directories
+//
+//	this->dir->neg_dir += kPS + "negative";
+//	this->dir->pos_dir += kPS + "positive";
+//
+//	fs::create_directories(this->dir->neg_dir);
+//	fs::create_directories(this->dir->pos_dir);
+//
+//	// add a separator
+//	this->dir->neg_dir += kPS;
+//	this->dir->pos_dir += kPS;
+//	// for .log files
+//	std::ofstream fileN, fileP;																	// files for saving the configurations
+//	this->dir->neg_log = this->dir->neg_dir.substr(0, \
+//		this->dir->neg_dir.length() - 9) + "negLog," + info + ".dat";							// for storing the labels of negative files in csv for ML
+//	this->dir->pos_log = this->dir->pos_dir.substr(0, \
+//		this->dir->pos_dir.length() - 9) + "posLog," + info + ".dat";							// for storing the labels of positive files in csv for ML
+//	fileN.open(this->dir->neg_log);
+//	fileP.open(this->dir->pos_log);
+//	fileN.close();																				// close just to create file neg
+//	fileP.close();																				// close just to create file pos
+//}
 
 /*
 * @brief setting the model directories
 * @param working_directory current working directory
 */
-void hubbard::HubbardModel::setDirs(std::string working_directory)
-{
-	using namespace std;
-	int Lx = this->lattice->get_Lx();
-	int Ly = this->lattice->get_Ly();
-	int Lz = this->lattice->get_Lz();
-
-	// set the unique token for file names
-	const auto token = clk::now().time_since_epoch().count();
-	this->dir->token = STR(token % this->ran.randomInt_uni(0, 1e6));
-
-	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
-	this->dir->info = this->info;
-	this->dir->LxLyLz = "Lx=" + STR(Lx) + ",Ly=" + STR(Ly) + ",Lz=" + STR(Lz);
-
-	this->dir->lat_type = this->lattice->get_type() + kPS;																// making folder for given lattice type
-	this->dir->working_dir = working_directory + this->dir->lat_type + \
-		STR(this->lattice->get_Dim()) + \
-		"D" + kPS + this->dir->LxLyLz + kPS;																		// name of the working directory
-
-	// CREATE DIRECTORIES
-	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
-	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
-	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
-	this->dir->fourier_dir += kPS;
-
-	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
-	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
-	fs::create_directories(this->dir->greens_dir);
-	this->dir->greens_dir += kPS + this->dir->info;
-	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
-	fs::create_directories(this->dir->params_dir + kPS + "times");
-	fs::create_directories(this->dir->time_greens_dir);
-	this->dir->greens_dir += kPS;
-	this->dir->time_greens_dir += kPS;
-	this->dir->params_dir += kPS;
-
-	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPS;
-
-	// FILES
-	this->setConfDir();
-	this->dir->setFileNames();
-}
-
-//! -------------------------------------------------------- HELPERS --------------------------------------------------------
-
-
-
-/*
-* @brief Return probabilities of spin flip for both spin channels
-* @param lat_stie flipping candidate site
-* @param gamma_up the changing parameter for spin up
-* @param gamma_down the changing parameter for spin down
-* @return tuple for probabilities on both spin channels, remember, 0 is spin up, 1 is spin down
-*/
-std::pair<double, double> hubbard::HubbardModel::cal_proba(int lat_site, double gamma_up, double gamma_down) const
-{
-	return std::make_pair(
-		1.0 + gamma_up * (1.0 - this->green_up(lat_site, lat_site)),
-		1.0 + gamma_down * (1.0 - this->green_down(lat_site, lat_site))
-	);
-
-}
+//void hubbard::HubbardModel::setDirs(std::string working_directory)
+//{
+//	using namespace std;
+//	int Lx = this->lattice->get_Lx();
+//	int Ly = this->lattice->get_Ly();
+//	int Lz = this->lattice->get_Lz();
+//
+//	// set the unique token for file names
+//	const auto token = clk::now().time_since_epoch().count();
+//	this->dir->token = STR(token % this->ran.randomInt_uni(0, 1e6));
+//
+//	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
+//	this->dir->info = this->info;
+//	this->dir->LxLyLz = "Lx=" + STR(Lx) + ",Ly=" + STR(Ly) + ",Lz=" + STR(Lz);
+//
+//	this->dir->lat_type = this->lattice->get_type() + kPS;																// making folder for given lattice type
+//	this->dir->working_dir = working_directory + this->dir->lat_type + \
+//		STR(this->lattice->get_Dim()) + \
+//		"D" + kPS + this->dir->LxLyLz + kPS;																		// name of the working directory
+//
+//	// CREATE DIRECTORIES
+//	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
+//	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
+//	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
+//	this->dir->fourier_dir += kPS;
+//
+//	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
+//	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
+//	fs::create_directories(this->dir->greens_dir);
+//	this->dir->greens_dir += kPS + this->dir->info;
+//	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
+//	fs::create_directories(this->dir->params_dir + kPS + "times");
+//	fs::create_directories(this->dir->time_greens_dir);
+//	this->dir->greens_dir += kPS;
+//	this->dir->time_greens_dir += kPS;
+//	this->dir->params_dir += kPS;
+//
+//	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPS;
+//
+//	// FILES
+//	this->setConfDir();
+//	this->dir->setFileNames();
+//}
 
 // -------------------------------------------------------- UPDATERS --------------------------------------------------------
 
-/*
-* @brief Update the interaction matrix for current spin whenever the given lattice site HS field is changed.
-* Only for testing purpose
-* @param lat_site the site of changed HS field
-* @param delta_sigma difference between changed and not
-* @param sigma spin channel
-*/
-void hubbard::HubbardModel::upd_int_exp(int lat_site, double delta_up, double delta_down)
-{
-	this->int_exp_up(lat_site, this->current_time) *= delta_up;
-	this->int_exp_down(lat_site, this->current_time) *= delta_down;
-}
 
-/*
-* @brief After accepting spin change update the B matrix by multiplying it by diagonal element ( the delta )
-* @param lat_site current lattice site for the update
-* @param delta_up based on parameter gamma + 1, this updates up spin B
-* @param delta_down based on parameter gamma + 1, this updates down spin B
-*/
-void hubbard::HubbardModel::upd_B_mat(int lat_site, double delta_up, double delta_down) {
-	for (int i = 0; i < this->Ns; i++) {
-		this->b_mat_up[this->current_time](i, lat_site) *= delta_up;
-		this->b_mat_down[this->current_time](i, lat_site) *= delta_down;
-		// only needed for non-equal time properties
-		//if (this->equalibrate) {
-		this->b_mat_up_inv[this->current_time](lat_site, i) *= delta_down;
-		this->b_mat_down_inv[this->current_time](lat_site, i) *= delta_up;
-		//}
-	}
-}
 
 //! -------------------------------------------------------- GETTERS
 
 //! -------------------------------------------------------- CALCULATORS
 
 // TODO ------------------------>
-/*
-* @brief Function to calculate the hopping matrix exponential (with nn for now)
-*/
-void hubbard::HubbardModel::cal_hopping_exp()
-{
-	bool checkerboard = false;
-	const int Lx = this->lattice->get_Lx();
-	const int Ly = this->lattice->get_Ly();
 
-	// USE CHECKERBOARD
-	const int dim = this->lattice->get_Dim();
-	if (checkerboard && this->getDim() == 2 && Lx == Ly) {
-		arma::mat Kx_a, Kx_b, Ky_a, Ky_b, Kz_a, Kz_b;
-		Kx_a.zeros(this->Ns, this->Ns);
-		Kx_b = Kx_a;
-		if (dim >= 2) {
-			// 2D
-			Ky_a = Kx_a;
-			Ky_b = Ky_a;
-			if (dim == 3) {
-				// 3D
-				Kz_a = Kx_a;
-				Kz_b = Kz_a;
-			}
-		}
-		// set elements
-		for (int i = 0; i < this->Ns; i++) {
-			const int n_of_neigh = this->lattice->get_nn_number(i);												// take number of nn at given site
-			for (int j = 0; j < n_of_neigh; j++) {
-				const int where_neighbor = this->lattice->get_nn(i, j);											// get given nn
-				const int y = i / Lx;
-				const int x = i - y * Lx;
-				const int y_nei = where_neighbor / Ly;
-				const int x_nei = where_neighbor - y_nei * Lx;
-				if (y_nei == y) {
-					// even rows
-					if (i % 2 == 0) {
-						if (x_nei == (x + 1) % Lx) {
-							Kx_a(i, where_neighbor) = 1;
-						}
-						else {
-							Kx_b(i, where_neighbor) = 1;
-						}
-					}
-					// odd rows
-					else {
-						if (x_nei == (x + 1) % Lx) {
-							Kx_b(i, where_neighbor) = 1;
-						}
-						else {
-							Kx_a(i, where_neighbor) = 1;
-						}
-					}
-				}
-				else {
-					// ky
-					if (where_neighbor % 2 == 0) {
-						Ky_a(i, where_neighbor) = 1;
-						Ky_a(where_neighbor, i) = 1;
-					}
-					else {
-						Ky_b(i, where_neighbor) = 1;
-						Ky_b(where_neighbor, i) = 1;
-					}
-				}
-			}
-		}
-		/*arma::mat K(Ns, Ns, arma::fill::zeros);
-		for(int x = 0; x < Lx; ++x) {
-			for(int y = 0; y < Ly; ++y) {
-				// chemical potential 'mu' on the diagonal
-				//K(x + Lx * y, x + Lx * y) -= this->mu;
-				K(x + Lx * y, ((x + 1) % Lx) + Lx * y) = this->t[0];
-				K(((x + 1) % Lx) + Lx * y, x + Lx * y) = this->t[0];
-				K(x + Lx * y, x + Lx * ((y + 1) % Lx)) = this->t[0];
-				K(x + Lx * ((y + 1) % Lx), x + Lx * y) = this->t[0];
-			}
-		}*/
+//void hubbard::HubbardModel::cal_hopping_exp()
+//{
+//	bool checkerboard = false;
+//	const int Lx = this->lattice->get_Lx();
+//	const int Ly = this->lattice->get_Ly();
+//
+//	// USE CHECKERBOARD
+//	const int dim = this->lattice->get_Dim();
+//	if (checkerboard && this->getDim() == 2 && Lx == Ly) {
+//		arma::mat Kx_a, Kx_b, Ky_a, Ky_b, Kz_a, Kz_b;
+//		Kx_a.zeros(this->Ns, this->Ns);
+//		Kx_b = Kx_a;
+//		if (dim >= 2) {
+//			// 2D
+//			Ky_a = Kx_a;
+//			Ky_b = Ky_a;
+//			if (dim == 3) {
+//				// 3D
+//				Kz_a = Kx_a;
+//				Kz_b = Kz_a;
+//			}
+//		}
+//		// set elements
+//		for (int i = 0; i < this->Ns; i++) {
+//			const int n_of_neigh = this->lattice->get_nn_number(i);												// take number of nn at given site
+//			for (int j = 0; j < n_of_neigh; j++) {
+//				const int where_neighbor = this->lattice->get_nn(i, j);											// get given nn
+//				const int y = i / Lx;
+//				const int x = i - y * Lx;
+//				const int y_nei = where_neighbor / Ly;
+//				const int x_nei = where_neighbor - y_nei * Lx;
+//				if (y_nei == y) {
+//					// even rows
+//					if (i % 2 == 0) {
+//						if (x_nei == (x + 1) % Lx) {
+//							Kx_a(i, where_neighbor) = 1;
+//						}
+//						else {
+//							Kx_b(i, where_neighbor) = 1;
+//						}
+//					}
+//					// odd rows
+//					else {
+//						if (x_nei == (x + 1) % Lx) {
+//							Kx_b(i, where_neighbor) = 1;
+//						}
+//						else {
+//							Kx_a(i, where_neighbor) = 1;
+//						}
+//					}
+//				}
+//				else {
+//					// ky
+//					if (where_neighbor % 2 == 0) {
+//						Ky_a(i, where_neighbor) = 1;
+//						Ky_a(where_neighbor, i) = 1;
+//					}
+//					else {
+//						Ky_b(i, where_neighbor) = 1;
+//						Ky_b(where_neighbor, i) = 1;
+//					}
+//				}
+//			}
+//		}
+//		/*arma::mat K(Ns, Ns, arma::fill::zeros);
+//		for(int x = 0; x < Lx; ++x) {
+//			for(int y = 0; y < Ly; ++y) {
+//				// chemical potential 'mu' on the diagonal
+//				//K(x + Lx * y, x + Lx * y) -= this->mu;
+//				K(x + Lx * y, ((x + 1) % Lx) + Lx * y) = this->t[0];
+//				K(((x + 1) % Lx) + Lx * y, x + Lx * y) = this->t[0];
+//				K(x + Lx * y, x + Lx * ((y + 1) % Lx)) = this->t[0];
+//				K(x + Lx * ((y + 1) % Lx), x + Lx * y) = this->t[0];
+//			}
+//		}*/
+//
+//		//Kx_a.print("Kx a:");
+//		//Kx_b.print("Kx b:");
+//		//Ky_a.print("Ky a:");
+//		//Ky_b.print("Ky b:");
+//		//this->hopping_exp = Kx_a + Kx_b + Ky_a + Ky_b;
+//		//(this->hopping_exp - K).print();
+//		//this->hopping_exp.print("HOPPING MATRIX:");
+//
+//		//arma::mat tmp_exp = arma::expmat(this->hopping_exp);
+//		//tmp_exp.print("NORMALLY CALCULATED EXPONENT");
+//
+//		arma::mat one = arma::eye(this->Ns, this->Ns);
+//		one *= cosh(this->dtau * t[0]);
+//		const double sinus = sinh(this->dtau * this->t[0]);
+//
+//		Kx_a = (Kx_a * sinus + one);
+//		Kx_b = (Kx_b * sinus + one);
+//		Ky_a = (Ky_a * sinus + one);
+//		Ky_b = (Ky_b * sinus + one);
+//		this->hopping_exp = Ky_a * Kx_a * Ky_b * Kx_b;
+//		//this->hopping_exp.print("BETTER CALCULATED EXP");
+//		return;
+//	}
+//	else
+//	{
+//		for (int i = 0; i < this->Ns; i++) {
+//			//this->hopping_exp(i, i) = this->dtau * this->mu;														// diagonal elements
+//			const auto n_of_neigh = this->lattice->get_nn_number(i);											// take number of nn at given site
+//			for (int j = 0; j < n_of_neigh; j++) {
+//				const int where_neighbor = this->lattice->get_nn(i, j);											// get given nn
+//				this->hopping_exp(i, where_neighbor) = this->dtau * this->t[0];									// assign non-diagonal elements
+//			}
+//		}
+//		//this->hopping_exp.print("hopping before exponentiation");
+//		//arma::vec eigval;
+//		//arma::mat eigvec;
+//		//arma::eig_sym(eigval, eigvec, this->hopping_exp);
+//		//stout << "eigenvalues:\n" << eigval.t() << std::endl;
+//		//arma::mat jordan = eigvec.i() * this->hopping_exp * eigvec;
+//		//jordan = arma::expmat_sym(jordan);
+//		//this->hopping_exp = eigvec * this->hopping_exp * eigvec.i();
+//#pragma omp critical
+//		this->hopping_exp = arma::expmat(this->hopping_exp);													// take the exponential
+//		//this->hopping_exp.print("hopping after exponentiation");
+//	}
+//}
 
-		//Kx_a.print("Kx a:");
-		//Kx_b.print("Kx b:");
-		//Ky_a.print("Ky a:");
-		//Ky_b.print("Ky b:");
-		//this->hopping_exp = Kx_a + Kx_b + Ky_a + Ky_b;
-		//(this->hopping_exp - K).print();
-		//this->hopping_exp.print("HOPPING MATRIX:");
 
-		//arma::mat tmp_exp = arma::expmat(this->hopping_exp);
-		//tmp_exp.print("NORMALLY CALCULATED EXPONENT");
-
-		arma::mat one = arma::eye(this->Ns, this->Ns);
-		one *= cosh(this->dtau * t[0]);
-		const double sinus = sinh(this->dtau * this->t[0]);
-
-		Kx_a = (Kx_a * sinus + one);
-		Kx_b = (Kx_b * sinus + one);
-		Ky_a = (Ky_a * sinus + one);
-		Ky_b = (Ky_b * sinus + one);
-		this->hopping_exp = Ky_a * Kx_a * Ky_b * Kx_b;
-		//this->hopping_exp.print("BETTER CALCULATED EXP");
-		return;
-	}
-	else
-	{
-		for (int i = 0; i < this->Ns; i++) {
-			//this->hopping_exp(i, i) = this->dtau * this->mu;														// diagonal elements
-			const auto n_of_neigh = this->lattice->get_nn_number(i);											// take number of nn at given site
-			for (int j = 0; j < n_of_neigh; j++) {
-				const int where_neighbor = this->lattice->get_nn(i, j);											// get given nn
-				this->hopping_exp(i, where_neighbor) = this->dtau * this->t[0];									// assign non-diagonal elements
-			}
-		}
-		//this->hopping_exp.print("hopping before exponentiation");
-		//arma::vec eigval;
-		//arma::mat eigvec;
-		//arma::eig_sym(eigval, eigvec, this->hopping_exp);
-		//stout << "eigenvalues:\n" << eigval.t() << std::endl;
-		//arma::mat jordan = eigvec.i() * this->hopping_exp * eigvec;
-		//jordan = arma::expmat_sym(jordan);
-		//this->hopping_exp = eigvec * this->hopping_exp * eigvec.i();
-#pragma omp critical
-		this->hopping_exp = arma::expmat(this->hopping_exp);													// take the exponential
-		//this->hopping_exp.print("hopping after exponentiation");
-	}
-}
-
-/*
-* @brief Function to calculate the interaction exponential at all times, each column represents the given Trotter time
-*/
-void hubbard::HubbardModel::cal_int_exp() {
-	const arma::vec dtau_vec = arma::ones(this->Ns) * this->dtau * (this->mu);
-	if (this->U > 0)
-		// Repulsive case
-		for (int l = 0; l < this->M; l++) {
-			// Trotter times
-			this->int_exp_up.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (this->lambda));
-			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * (-this->lambda));
-		}
-	else if (U < 0)
-		// Attractive case
-		for (int l = 0; l < this->M; l++) {
-			// Trotter times
-			this->int_exp_down.col(l) = arma::exp(dtau_vec + this->hsFields.row(l).t() * this->lambda * 0.5);
-			this->int_exp_up.col(l) = this->int_exp_down.col(l);
-		}
-	else {
-		this->int_exp_down = arma::eye(this->Ns, this->Ns);
-		this->int_exp_up = arma::eye(this->Ns, this->Ns);
-	}
-	//this->int_exp_up.print();
-}
-
-/*
-* @brief Function to calculate all B exponents for a given model. Those are used for the Gibbs weights
-*/
-void hubbard::HubbardModel::cal_B_mat() {
-	//#pragma omp parallel for num_threads(this->inner_threads)
-	for (int l = 0; l < this->M; l++) {
-		// Trotter times
-		this->b_mat_down[l] = this->hopping_exp * DIAG(this->int_exp_down.col(l));
-		this->b_mat_up[l] = this->hopping_exp * DIAG(this->int_exp_up.col(l));
-		// only needed for non-equal properties
-		this->b_mat_up_inv[l] = this->b_mat_up[l].i();
-		this->b_mat_down_inv[l] = this->b_mat_down[l].i();
-	}
-}
-
-/*
-* @brief Function to calculate all B exponents for a given model at a given time. Those are used for the Gibbs weights
-*/
-void hubbard::HubbardModel::cal_B_mat(int which_time)
-{
-	this->b_mat_down[which_time] = this->hopping_exp * DIAG(this->int_exp_down.col(which_time));
-	this->b_mat_up[which_time] = this->hopping_exp * DIAG(this->int_exp_up.col(which_time));
-
-	this->b_mat_up_inv[which_time] = this->b_mat_up[which_time].i();
-	this->b_mat_down_inv[which_time] = this->b_mat_down[which_time].i();
-}
 
 //! -------------------------------------------------------- PRINTERS --------------------------------------------------------
 // TODO ----------->
@@ -506,66 +535,66 @@ void hubbard::HubbardModel::cal_B_mat(int which_time)
 * @param this_site_spin
 * @param separator
 */
-void hubbard::HubbardModel::print_hs_fields(std::string separator) const
-{
-	std::ofstream file_conf, file_log;														// savefiles
-	std::string name_conf, name_log;														// filenames to save
-	if (this->config_sign < 0) {
-		name_conf = this->dir->neg_dir + "neg_" + this->info + \
-			",n=" + STR(this->neg_num) + ".dat";
-		name_log = this->dir->neg_log;
-	}
-	else {
-		name_conf = this->dir->pos_dir + "pos_" + this->info + \
-			",n=" + STR(this->pos_num) + ".dat";
-		name_log = this->dir->pos_log;
-	}
-	// open files
-	openFile(file_log, name_log, ios::app);
-	openFile(file_conf, name_conf);
-	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign) }, 26);
-
-	for (int i = 0; i < this->M; i++) {
-		for (int j = 0; j < this->Ns; j++) {
-			file_conf << (this->hsFields(i, j) > 0 ? 1 : 0) << separator;
-		}
-		file_conf << "\n";
-	}
-	file_conf.close();
-	file_log.close();
-}
+//void hubbard::HubbardModel::print_hs_fields(std::string separator) const
+//{
+//	std::ofstream file_conf, file_log;														// savefiles
+//	std::string name_conf, name_log;														// filenames to save
+//	if (this->config_sign < 0) {
+//		name_conf = this->dir->neg_dir + "neg_" + this->info + \
+//			",n=" + STR(this->neg_num) + ".dat";
+//		name_log = this->dir->neg_log;
+//	}
+//	else {
+//		name_conf = this->dir->pos_dir + "pos_" + this->info + \
+//			",n=" + STR(this->pos_num) + ".dat";
+//		name_log = this->dir->pos_log;
+//	}
+//	// open files
+//	openFile(file_log, name_log, ios::app);
+//	openFile(file_conf, name_conf);
+//	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign) }, 26);
+//
+//	for (int i = 0; i < this->M; i++) {
+//		for (int j = 0; j < this->Ns; j++) {
+//			file_conf << (this->hsFields(i, j) > 0 ? 1 : 0) << separator;
+//		}
+//		file_conf << "\n";
+//	}
+//	file_conf.close();
+//	file_log.close();
+//}
 
 /*
 *
 * @param separator
 * @param toPrint
 */
-void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
-{
-	std::ofstream file_conf, file_log;														// savefiles
-	std::string name_config = "", name_log = "";												// filenames to save
-	if (this->config_sign < 0) {
-		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + STR(this->neg_num) + ".dat";
-		name_log = this->dir->neg_log;
-	}
-	else {
-		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + STR(this->pos_num) + ".dat";
-		name_log = this->dir->pos_log;
-	}
-	// open files
-	openFile(file_log, name_log, ios::app);
-	openFile(file_conf, name_config);
-	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign) }, 26);
-
-	for (int i = 0; i < this->M; i++) {
-		for (int j = 0; j < this->Ns; j++) {
-			file_conf << (toPrint(i, j) > 0 ? 1 : 0) << separator;
-		}
-		file_conf << "\n";
-	}
-	file_conf.close();
-	file_log.close();
-}
+//void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
+//{
+//	std::ofstream file_conf, file_log;														// savefiles
+//	std::string name_config = "", name_log = "";												// filenames to save
+//	if (this->config_sign < 0) {
+//		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + STR(this->neg_num) + ".dat";
+//		name_log = this->dir->neg_log;
+//	}
+//	else {
+//		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + STR(this->pos_num) + ".dat";
+//		name_log = this->dir->pos_log;
+//	}
+//	// open files
+//	openFile(file_log, name_log, ios::app);
+//	openFile(file_conf, name_config);
+//	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign) }, 26);
+//
+//	for (int i = 0; i < this->M; i++) {
+//		for (int j = 0; j < this->Ns; j++) {
+//			file_conf << (toPrint(i, j) > 0 ? 1 : 0) << separator;
+//		}
+//		file_conf << "\n";
+//	}
+//	file_conf.close();
+//	file_log.close();
+//}
 
 // -------------------------------------------------------- EQUAL TIME AVERAGES --------------------------------------------------------
 
