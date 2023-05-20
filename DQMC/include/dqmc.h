@@ -116,6 +116,7 @@ public:
 	{ 
 		LOGINFO("Base DQMC is destroyed...", LOG_TYPES::INFO, 3); 
 	};
+	virtual void init()														= 0;
 
 	// ###################### C A L C U L A T O R S ########################
 	virtual void relaxes(uint MCs, bool _quiet = false)												= 0;
@@ -142,12 +143,13 @@ protected:
 	virtual void calQuadratic()												= 0;
 	virtual void calInteracts()												= 0;
 	virtual void calPropagatB(uint _tau)									= 0;
+	virtual void calPropagatBC(uint _sec)									= 0;
 	virtual void calPropagatB()												= 0;
 	// GREENS
 	virtual void calGreensFun(uint _tau)									= 0;
 
 	virtual void avSingleStep(int _currI, int _sign)						= 0;
-	virtual void eqSingleStep(int _site)									= 0;
+	virtual int eqSingleStep(int _site)										= 0;
 	// ######################### E V O L U T I O N #########################
 	virtual double sweepForward()											= 0;
 	virtual double sweepBackward()											= 0;
@@ -156,13 +158,13 @@ protected:
 	virtual void updPropagatB(uint _site, uint _t)							= 0;
 	virtual void updPropagatB(uint _site)									{ this->updPropagatB(this->tau_); };
 	virtual void updInteracts(uint _site, uint _t)							= 0;
+	virtual void updInteracts(uint _site)									{ this->updInteracts(this->tau_); };
+
 	// GREENS
-	virtual void updEqlGreens(uint _site,
-							  const std::array<double, spinNumber_>& p)		= 0;
+	virtual void updEqlGreens(uint _site, const spinTuple_& p)				= 0;
 	virtual void updNextGreen(uint _t)										= 0;
 	virtual void updPrevGreen(uint _t)										= 0;
 
-	void updInteracts(uint _site)											{ this->updInteracts(this->tau_); };
 };
 
 #endif

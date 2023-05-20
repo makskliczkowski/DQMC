@@ -5,64 +5,64 @@ using namespace arma;
 /*
 * @brief initializes the memory for all of the matrices used later
 */
-void hubbard::HubbardQR::initializeMemory()
-{
-	/// hopping exponent
-	this->hopping_exp.zeros(this->Ns, this->Ns);
-
-	/// interaction for all times
-	this->int_exp_down.ones(this->Ns, this->M);															// for storing M interaction exponents for down spin
-	this->int_exp_up.ones(this->Ns, this->M);															// for storing M interaction exponents for up spin
-
-	/// all times exponents multiplication
-	this->b_mat_up = v_1d<mat>(this->M, ZEROM(this->Ns));												// for storing M B up matrices
-	this->b_mat_down = v_1d<mat>(this->M, ZEROM(this->Ns));												// for storing M B down matrices
-	this->b_mat_up_inv = v_1d<mat>(this->M, ZEROM(this->Ns));											// for storing M B up matrices inverses
-	this->b_mat_down_inv = v_1d<mat>(this->M, ZEROM(this->Ns));											// for storing M B down matrices inverses
-
-	this->b_up_condensed = v_1d<mat>(this->p, ZEROM(this->Ns));											// for storing the precalculated multiplications of B up matrices series
-	this->b_down_condensed = v_1d<mat>(this->p, ZEROM(this->Ns));										// for storing the precalculated multiplications of B down matrices series
-
-	/// all times hs fields for real spin up and down
-	this->hsFields.ones(this->M, this->Ns);																// for storing the Hubbard-Strattonovich auxliary fields
-
-	/// Green's function matrix
-	this->green_up.zeros(this->Ns, this->Ns);															// for storing equal time Green up matrix
-	this->green_down.zeros(this->Ns, this->Ns);															// for storing equal time Green down matrix
-	this->tempGreen_up.zeros(this->Ns, this->Ns);														// for storing temporary Green up matrices
-	this->tempGreen_down.zeros(this->Ns, this->Ns);														// for storing temporary Green down matrices
-
-	/// decomposition stuff
-	this->Q_up.zeros(this->Ns, this->Ns);
-	this->Q_down.zeros(this->Ns, this->Ns);
-	this->P_up.zeros(this->Ns, this->Ns);
-	this->P_down.zeros(this->Ns, this->Ns);
-	this->R_up.zeros(this->Ns, this->Ns);
-	this->R_down.zeros(this->Ns, this->Ns);
-	this->D_down.zeros(this->Ns);
-	this->D_up.zeros(this->Ns);
-	this->D_tmp.zeros(this->Ns);
-	this->T_down.zeros(this->Ns, this->Ns);
-	this->T_up.zeros(this->Ns, this->Ns);
-
-	this->D_min_down.zeros(this->Ns);
-	this->D_min_up.zeros(this->Ns);
-	this->D_max_down.zeros(this->Ns);
-	this->D_max_up.zeros(this->Ns);
-
-#ifdef CAL_TIMES
-#ifndef USE_HIRSH
-	this->b_ups = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
-	this->b_ups_i = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
-	this->b_downs = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
-	this->b_downs_i = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
-#endif // DEBUG
-	//! Big Green's functions
-	this->g_up_time.eye(this->Ns * this->M, this->Ns * this->M);
-	this->g_down_time.eye(this->Ns * this->M, this->Ns * this->M);
-#endif // CAL_TIMES
-
-}
+//void hubbard::HubbardQR::initializeMemory()
+//{
+//	/// hopping exponent
+//	this->hopping_exp.zeros(this->Ns, this->Ns);
+//
+//	/// interaction for all times
+//	this->int_exp_down.ones(this->Ns, this->M);															// for storing M interaction exponents for down spin
+//	this->int_exp_up.ones(this->Ns, this->M);															// for storing M interaction exponents for up spin
+//
+//	/// all times exponents multiplication
+//	this->b_mat_up = v_1d<mat>(this->M, ZEROM(this->Ns));												// for storing M B up matrices
+//	this->b_mat_down = v_1d<mat>(this->M, ZEROM(this->Ns));												// for storing M B down matrices
+//	this->b_mat_up_inv = v_1d<mat>(this->M, ZEROM(this->Ns));											// for storing M B up matrices inverses
+//	this->b_mat_down_inv = v_1d<mat>(this->M, ZEROM(this->Ns));											// for storing M B down matrices inverses
+//
+//	this->b_up_condensed = v_1d<mat>(this->p, ZEROM(this->Ns));											// for storing the precalculated multiplications of B up matrices series
+//	this->b_down_condensed = v_1d<mat>(this->p, ZEROM(this->Ns));										// for storing the precalculated multiplications of B down matrices series
+//
+//	/// all times hs fields for real spin up and down
+//	this->hsFields.ones(this->M, this->Ns);																// for storing the Hubbard-Strattonovich auxliary fields
+//
+//	/// Green's function matrix
+//	this->green_up.zeros(this->Ns, this->Ns);															// for storing equal time Green up matrix
+//	this->green_down.zeros(this->Ns, this->Ns);															// for storing equal time Green down matrix
+//	this->tempGreen_up.zeros(this->Ns, this->Ns);														// for storing temporary Green up matrices
+//	this->tempGreen_down.zeros(this->Ns, this->Ns);														// for storing temporary Green down matrices
+//
+//	/// decomposition stuff
+//	this->Q_up.zeros(this->Ns, this->Ns);
+//	this->Q_down.zeros(this->Ns, this->Ns);
+//	this->P_up.zeros(this->Ns, this->Ns);
+//	this->P_down.zeros(this->Ns, this->Ns);
+//	this->R_up.zeros(this->Ns, this->Ns);
+//	this->R_down.zeros(this->Ns, this->Ns);
+//	this->D_down.zeros(this->Ns);
+//	this->D_up.zeros(this->Ns);
+//	this->D_tmp.zeros(this->Ns);
+//	this->T_down.zeros(this->Ns, this->Ns);
+//	this->T_up.zeros(this->Ns, this->Ns);
+//
+//	this->D_min_down.zeros(this->Ns);
+//	this->D_min_up.zeros(this->Ns);
+//	this->D_max_down.zeros(this->Ns);
+//	this->D_max_up.zeros(this->Ns);
+//
+//#ifdef CAL_TIMES
+//#ifndef USE_HIRSH
+//	this->b_ups = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
+//	this->b_ups_i = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
+//	this->b_downs = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
+//	this->b_downs_i = v_1d<arma::mat>(this->M, ZEROM(this->Ns));
+//#endif // DEBUG
+//	//! Big Green's functions
+//	this->g_up_time.eye(this->Ns * this->M, this->Ns * this->M);
+//	this->g_down_time.eye(this->Ns * this->M, this->Ns * this->M);
+//#endif // CAL_TIMES
+//
+//}
 
 
 //! -------------------------------------------------------- B MATS --------------------------------------------------------
@@ -71,18 +71,18 @@ void hubbard::HubbardQR::initializeMemory()
 * @brief Precalculate the multiplications of B matrices according to M0 stable ones
 * @param which_sector
 */
-void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
-{
-	auto tim = which_sector * this->M_0;
-	this->b_down_condensed[which_sector] = this->b_mat_down[tim];
-	this->b_up_condensed[which_sector] = this->b_mat_up[tim];
-	//#pragma omp parallel for num_threads(this->inner_threads)
-	for (int i = 1; i < this->M_0; i++) {
-		tim++;
-		this->b_down_condensed[which_sector] = this->b_mat_down[tim] * this->b_down_condensed[which_sector];
-		this->b_up_condensed[which_sector] = this->b_mat_up[tim] * this->b_up_condensed[which_sector];
-	}
-}
+//void hubbard::HubbardQR::cal_B_mat_cond(int which_sector)
+//{
+//	auto tim = which_sector * this->M_0;
+//	this->b_down_condensed[which_sector] = this->b_mat_down[tim];
+//	this->b_up_condensed[which_sector] = this->b_mat_up[tim];
+//	//#pragma omp parallel for num_threads(this->inner_threads)
+//	for (int i = 1; i < this->M_0; i++) {
+//		tim++;
+//		this->b_down_condensed[which_sector] = this->b_mat_down[tim] * this->b_down_condensed[which_sector];
+//		this->b_up_condensed[which_sector] = this->b_mat_up[tim] * this->b_up_condensed[which_sector];
+//	}
+//}
 
 /*
 * @brief We use UDT QR decomposition to decompose the chain multiplication of toMultUp abd toMultDown matrices by B matrices of connected spin from left.
@@ -250,29 +250,29 @@ void hubbard::HubbardQR::cal_green_mat(int which_time) {
 * In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
 * @param sector Which sector does the Green's function starrts at
 */
-void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
-	auto sec = sector;
-	setUDTDecomp(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
-	setUDTDecomp(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
-	for (int i = 1; i < this->p; i++) {
-		sec++;
-		if (sec == this->p) sec = 0;
-		multiplyMatricesQrFromRight(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
-		multiplyMatricesQrFromRight(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
-	}
-	// making two scales for the decomposition following Loh
-	//makeTwoScalesFromUDT(R_up, D_up);
-	//makeTwoScalesFromUDT(R_down, D_down);
-	makeTwoScalesFromUDT(R_up, D_min_up, D_max_up);
-	makeTwoScalesFromUDT(R_down, D_min_down, D_max_down);
-
-	//this->green_up = arma::inv(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up) * DIAG(D_up) * Q_up.t();
-	//this->green_down = arma::inv(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down) * DIAG(D_down) * Q_down.t();
-
-	this->green_up = arma::solve(arma::inv(DIAG(D_min_up)) * Q_up.t() + DIAG(D_max_up) * T_up, arma::inv(DIAG(D_min_up)) * Q_up.t());
-	this->green_down = arma::solve(arma::inv(DIAG(D_min_down)) * Q_down.t() + DIAG(D_max_down) * T_down, arma::inv(DIAG(D_min_down)) * Q_down.t());
-
-}
+//void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
+//	auto sec = sector;
+//	setUDTDecomp(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
+//	setUDTDecomp(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
+//	for (int i = 1; i < this->p; i++) {
+//		sec++;
+//		if (sec == this->p) sec = 0;
+//		multiplyMatricesQrFromRight(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
+//		multiplyMatricesQrFromRight(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
+//	}
+//	// making two scales for the decomposition following Loh
+//	//makeTwoScalesFromUDT(R_up, D_up);
+//	//makeTwoScalesFromUDT(R_down, D_down);
+//	makeTwoScalesFromUDT(R_up, D_min_up, D_max_up);
+//	makeTwoScalesFromUDT(R_down, D_min_down, D_max_down);
+//
+//	//this->green_up = arma::inv(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up) * DIAG(D_up) * Q_up.t();
+//	//this->green_down = arma::inv(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down) * DIAG(D_down) * Q_down.t();
+//
+//	this->green_up = arma::solve(arma::inv(DIAG(D_min_up)) * Q_up.t() + DIAG(D_max_up) * T_up, arma::inv(DIAG(D_min_up)) * Q_up.t());
+//	this->green_down = arma::solve(arma::inv(DIAG(D_min_down)) * Q_down.t() + DIAG(D_max_down) * T_down, arma::inv(DIAG(D_min_down)) * Q_down.t());
+//
+//}
 
 //? -------------------------------------------------------- UNEQUAL
 

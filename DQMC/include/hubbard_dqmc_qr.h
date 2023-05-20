@@ -12,15 +12,6 @@ namespace hubbard {
 	class HubbardQR : public hubbard::HubbardModel {
 	private:
 
-		// decomposition for stable matrix multiplication. We first want to reserve memory for them
-		arma::mat Q_down, Q_up;																							// unitary matrix for spin down
-		arma::umat P_down, P_up;																						// permutation matrix for spin down
-		arma::mat R_down, R_up;																							// right triangular matrix down (for QR decomposition)
-		arma::vec D_down, D_up;																							// diagonal matrix vector for UDT decomposition
-		arma::mat T_down, T_up;																							// UDT upper triangular matrix for spin down
-		arma::vec D_tmp;																								// tmp diagonal matrix vector - for time displaced Green's
-		arma::vec D_min_up, D_max_up, D_min_down, D_max_down;
-
 
 		v_1d<arma::mat> b_up_condensed, b_down_condensed;																// up and down B matrices vector premultiplied
 		/// time displaced Green's functions

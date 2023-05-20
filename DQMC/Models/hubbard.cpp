@@ -1,4 +1,45 @@
 #include "../include/Models/hubbard.h"
+#include <execution>
+#include <numeric>
+#include <utility>
+
+// ################################################# I N I T I A L I Z E R S ######################################################
+
+/*
+* @brief initializes the memory for all of the matrices used later
+*/
+void Hubbard::init()
+{
+	// set the write lock
+	WriteLock lock(this->Mutex);
+
+	// hopping exponent
+	this->TExp_.zeros(this->Ns_, this->Ns_);
+
+	// HS transformation fields
+	this->HSFields_.ones(this->M_, this->Ns_);
+
+	// all the spin matrices
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+	{
+		// Green's matrix
+		this->G_		[_SPIN_].zeros(this->Ns_, this->Ns_);
+		// interaction
+		this->IExp_		[_SPIN_].zeros(this->Ns_, this->M_);
+		// propagators
+		this->B_		[_SPIN_]	=	v_1d<arma::mat>(this->M_, ZEROM(this->Ns_));
+		this->iB_		[_SPIN_]	=	v_1d<arma::mat>(this->M_, ZEROM(this->Ns_));
+		this->Bcond_	[_SPIN_]	=	v_1d<arma::mat>(this->p_, ZEROM(this->Ns_));
+		// initialize UDT decomposition
+		this->udt_		[_SPIN_].reset(new algebra::UDT_QR(this->G_[_SPIN_]));
+
+#ifdef CAL_TIMES
+
+#endif // CAL_TIMES
+	}
+}
+
+// ################################################## C A L C U L A T O R S #######################################################
 
 /*
 * @brief Function to calculate the change in the interaction exponent
@@ -56,7 +97,7 @@ auto Hubbard::calQuadratic() -> void
 	{
 		const auto neiSize			=	this->lat_->get_nn(_site);
 		for (int neiNum = 0; neiNum < neiSize; neiNum++) {
-			const auto nei			=	this->lat_->get_nn(_site, neiNum);											// get given nn
+			const auto nei			=	this->lat_->get_nn(_site, neiNum);								// get given nn
 			this->TExp_(_site, nei) +=	this->dtau_ * this->t_[_site];									// assign non-diagonal elements
 		}
 	}
@@ -86,8 +127,8 @@ auto Hubbard::calInteracts() -> void
 		}
 	else 
 	{
-		this->IExp_[_UP_].col(l)		=		arma::eye(this->Ns, this->Ns);
-		this->IExp_[_DN_].col(l)		=		arma::eye(this->Ns, this->Ns);
+		this->IExp_[_UP_]					=		arma::eye(this->Ns_, this->Ns_);
+		this->IExp_[_DN_]					=		arma::eye(this->Ns_, this->Ns_);
 	}
 }
 
@@ -108,7 +149,7 @@ auto Hubbard::calPropagatB() -> void
 * @brief Function to calculate all B propagators for a Hubbard model. Those are used for the Gibbs weights.
 * @param _tau Specific Trotter imaginary time
 */
-auto Hubbard::calPropagatB(uint _tau) -> void override
+auto Hubbard::calPropagatB(uint _tau) -> void
 {
 	for (auto _spin = 0; _spin < this->spinNumber_; _spin++) 
 	{
@@ -117,7 +158,56 @@ auto Hubbard::calPropagatB(uint _tau) -> void override
 	}
 }
 
-// ######################################################### S E T T E R S ##########################################################
+/*
+* @brief Precalculate the multiplications of B matrices according to M0 stable ones
+* @param _sec the sector to calculate the stable multiplication
+*/
+void Hubbard::calPropagatBC(uint _sec)
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
+		auto _time						=		_sec * this->M0_;
+		this->Bcond_[_SPIN_][_sec]		=		this->B_[_SPIN_][_time];
+		for (int i = _time; i < _time + this->M0_; i++)
+			this->Bcond_[_SPIN_][_sec]	=		this->B_[_SPIN_][i] * this->Bcond_[_SPIN_][_sec];
+	}
+	
+}
+
+/*
+* Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices.
+* For more look into :
+* @copydetails "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems".
+* In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
+* @param _tau starting time sector - always marks the beginning of the sector
+*/
+void Hubbard::calGreensFun(uint _tau)
+{
+	auto _time					= _tau;
+	auto _sector				= _tau / this->M0_;
+
+	// decompose the matrices
+	this->udt_[SPINNUM::_UP_]->decompose(this->Bcond_[SPINNUM::_UP_][_sector]);
+	this->udt_[SPINNUM::_DN_]->decompose(this->Bcond_[SPINNUM::_DN_][_sector]);
+
+	// go through each sector
+	for (int i = 1; i < this->p_; i++) {
+		_sector++;
+		if (_sector == this->p_)
+			_sector				= 0;
+		this->udt_[SPINNUM::_UP_]->factMult(this->Bcond_[SPINNUM::_UP_][_sector]);
+		this->udt_[SPINNUM::_DN_]->factMult(this->Bcond_[SPINNUM::_DN_][_sector]);
+	}
+	// making two scales for the decomposition following Loh
+	this->udt_[SPINNUM::_UP_]->loh_inplace();
+	this->udt_[SPINNUM::_DN_]->loh_inplace();
+
+	// save the Green's
+	this->udt_[SPINNUM::_UP_]->inv1P(this->G_[SPINNUM::_UP_]);
+	this->udt_[SPINNUM::_DN_]->inv1P(this->G_[SPINNUM::_DN_]);
+}
+
+
+// ######################################################## S E T T E R S ###########################################################
 
 /*
 * @brief Sets the initial state of the Hubbard-Stratonovich fields
@@ -142,7 +232,7 @@ auto Hubbard::setDir(std::string _m) -> void
 	return;
 }
 
-// ######################################################## U P D A T E R S #########################################################
+// ####################################################### U P D A T E R S ##########################################################
 
 /*
 * @brief Update the interaction matrix for current spin whenever the given lattice site HS field is changed.
@@ -170,6 +260,34 @@ void Hubbard::updPropagatB(uint _site, uint _t)
 		this->iB_[1][_t](i, _site)	*=	_delta[0];
 	}
 }
+
+// ##################################################### S I M U L A T I O N ########################################################
+
+/*
+* @brief heat - bath based algorithm for the propositon of HS field spin flip
+* @param _site lattice site at which we try a flip
+* @returns sign of the probility
+*/
+int Hubbard::eqSingleStep(int _site)
+{
+	this->calGamma(_site);
+	auto _probaTuple	=		this->calProba(_site);
+	this->proba_		=		std::reduce(_probaTuple.begin(), _probaTuple.end(), 1, std::multiplies<int>());
+	this->proba_		*=		this->proba_ / (1.0 + this->proba_);
+	const int _sign		=		(this->proba_ >= 0) ? 1 : -1;
+	if (this->ran_.bernoulli(proba_) <= _sign * this->proba_)
+	{
+		this->HSFields_(this->tau_, _site) *= -1;
+		this->updPropagatB(_site, this->tau_);
+		this->updEqlGreens(_site, _probaTuple);
+	}
+	return _sign;
+}
+
+
+
+
+
 
 /*
 * @brief Normalise all the averages taken during simulation
