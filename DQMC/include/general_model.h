@@ -20,10 +20,10 @@
 
 
 #define USE_QR
-#define CAL_TIMES
+#define DQMC_CAL_TIMES
 
 #define BUCKET_NUM 20
-#ifdef CAL_TIMES
+#ifdef DQMC_CAL_TIMES
 	#define USE_HIRSH
 	#define SAVE_UNEQUAL
 	//#define ALL_TIMES
@@ -60,7 +60,7 @@ struct averages_par {
 		this->av_M2z_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
 		this->av_ch2_corr = v_3d<double>(x_num, v_2d<double>(y_num, v_1d<double>(z_num, 0.0)));
 		// Setting av Greens
-#ifdef CAL_TIMES
+#ifdef DQMC_CAL_TIMES
 		this->g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
 		this->g_down_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));
 		this->sd_g_up_diffs = v_1d<mat>(M, arma::zeros(x_num, y_num));

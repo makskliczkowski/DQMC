@@ -1,4 +1,5 @@
 #include "../include/Models/hubbard.h"
+
 #include <execution>
 #include <numeric>
 #include <utility>
@@ -33,10 +34,45 @@ void Hubbard::init()
 		// initialize UDT decomposition
 		this->udt_		[_SPIN_].reset(new algebra::UDT_QR(this->G_[_SPIN_]));
 
-#ifdef CAL_TIMES
+#ifdef DQMC_CAL_TIMES
 
 #endif // CAL_TIMES
 	}
+}
+
+// ###################################################### H E L P E R S ###########################################################
+
+/*
+* @brief Compare decomposition created Green's functions with directly calculated
+* @param _tau at which time shall I compare them?
+* @param _toll tollerance for them being equal
+* @param _print shall I print both explicitly?
+*/
+void Hubbard::compareGreen(uint _tau, double _toll, bool _print)
+{
+	LOGINFO("Comparing the exact and numerical Green's functions at $\tau$=" + STR(_tau), LOG_TYPES::TRACE, 2);
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+	{
+		arma::mat _tmpG		=	arma::eye(this->Ns_, this->Ns_);
+
+		// calculate the Green's function directly
+		for (int _t = 0; _t < this->M_; _t++)
+		{
+			_tmpG			=	this->B_[_SPIN_][_tau] * _tmpG;
+			_tau			=	(_tau + 1) % this->M_;
+		}
+		_tmpG				=	(EYE(this->Ns_) + _tmpG).i();
+		if (_print) {
+			LOGINFO("Calculating (exact) Green's function for spin " + std::string(getSTR_SPINNUM(static_cast<SPINNUM>(_SPIN_))), LOG_TYPES::TRACE, 3);
+			LOGINFO(_tmpG, LOG_TYPES::TRACE, 3);
+		}
+		bool isEqual		=	arma::approx_equal(this->G_[_SPIN_], _tmpG, "absdiff", _toll);
+		LOGINFO(isEqual ? "Is the same!!!" : "Is different!!!", LOG_TYPES::TRACE, 4);
+		if (_print) {
+			LOGINFO(this->G_[_SPIN_], LOG_TYPES::TRACE, 3);
+		}
+	}
+	LOGINFO(LOG_TYPES::TRACE, 2);
 }
 
 // ################################################## C A L C U L A T O R S #######################################################
@@ -84,7 +120,7 @@ auto Hubbard::calProba(uint _site) -> spinTuple_
 			};
 }
 
-// #################################################### H A M I L T O N I A N ######################################################
+// ################################################### H A M I L T O N I A N ######################################################
 
 /*
 * @brief Function to calculate the hopping matrix exponential.
@@ -206,8 +242,56 @@ void Hubbard::calGreensFun(uint _tau)
 	this->udt_[SPINNUM::_DN_]->inv1P(this->G_[SPINNUM::_DN_]);
 }
 
+// ################################################# U N E Q U A L   T I M E S ####################################################
+#ifdef DQMC_CAL_TIMES
 
-// ######################################################## S E T T E R S ###########################################################
+/*
+* @brief Use the space-time formulation for Green's function calculation.
+* @trace Using stable multiplication number.
+* @warning Inversion can be unstable.
+* @cite Stable Monte Carlo algorit&sn for fermion lattice systems at low temperatures
+*/
+void Hubbard::calGreensFunTHirshC()
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
+		this->Gtime_[_SPIN_].eye();
+		algebra::setSubMFromM(this->Gtime_[_SPIN_], this->Bcond_[_SPIN_][this->p_ - 1], 0, (this->M_ - 1) * this->Ns_, this->Ns_, this->Ns_, true, false);
+		// other sectors
+		for (int _sec = 0; _sec < this->p_ - 1; _sec++) {
+			const auto row	=	(_sec + 1	) * this->Ns_;
+			const auto col	=	(_sec		) * this->Ns_;
+			algebra::setSubMFromM(this->Gtime_[_SPIN_], this->Bcond_[_SPIN_][_sec], row, col, this->Ns_, this->Ns_, true, true);
+		}
+		arma::inv(this->Gtime_[_SPIN_], this->Gtime_[_SPIN_]);
+	}
+}
+
+/*
+* @brief Use the space-time formulation for Green's function calculation.
+* @warning Inversion can be unstable.
+* @cite Stable Monte Carlo algorit&sn for fermion lattice systems at low temperatures
+*/
+void Hubbard::calGreensFunTHirsh()
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
+		this->Gtime_[_SPIN_].eye();
+		algebra::setSubMFromM(this->Gtime_[_SPIN_], this->B_[_SPIN_][this->M_ - 1], 0, (this->M_ - 1) * this->Ns_, this->Ns_, this->Ns_, true, false);
+		// other sectors
+		for (int _sec = 0; _sec < this->M_ - 1; _sec++) {
+			const auto row = (_sec + 1) * this->Ns_;
+			const auto col = (_sec)*this->Ns_;
+			algebra::setSubMFromM(this->Gtime_[_SPIN_], this->B_[_SPIN_][_sec], row, col, this->Ns_, this->Ns_, true, true);
+		}
+		arma::inv(this->Gtime_[_SPIN_], this->Gtime_[_SPIN_]);
+	}
+}
+
+void Hubbard::calGreensFunT()
+{
+}
+
+#endif
+// ######################################################## S E T T E R S #########################################################
 
 /*
 * @brief Sets the initial state of the Hubbard-Stratonovich fields
@@ -232,7 +316,7 @@ auto Hubbard::setDir(std::string _m) -> void
 	return;
 }
 
-// ####################################################### U P D A T E R S ##########################################################
+// ####################################################### U P D A T E R S ########################################################
 
 /*
 * @brief Update the interaction matrix for current spin whenever the given lattice site HS field is changed.
@@ -261,7 +345,64 @@ void Hubbard::updPropagatB(uint _site, uint _t)
 	}
 }
 
-// ##################################################### S I M U L A T I O N ########################################################
+/*
+* @brief After changing one spin we need to update the Green matrices via the Dyson equation
+* @param _site the site on which HS field has been changed
+* @param p probability of the change
+*/
+void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
+		// use the D matrix from UDT to save the row which does not change
+		this->udt_[_SPIN_]->D	=	this->G_[_SPIN_].row(_site);
+		const auto gammaOverP	=	this->currentGamma_[_SPIN_] / p[_SPIN_];
+		for (int _upd = 0; _upd < this->Ns_; _upd++) {
+			const auto _kron	=	(_upd == _site) ? 1 : 0;
+			const auto G_ai		=	this->G_[_SPIN_](_upd, _site);
+		}
+	}
+}
+
+/*
+* @brief Update the Green's matrices after going to next Trotter time
+* @warning Remember, the time is taken to be the previous one
+* @param _t time that we update to _t + 1
+*/
+void Hubbard::updNextGreen(uint _t)
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+		this->G_[_SPIN_]		=	(this->B_[_SPIN_][_t] * this->G_[_SPIN_]) * this->iB_[_SPIN_][_t];
+}
+
+/*
+* @brief Update the Green's matrices after going to next Trotter time
+* @warning Remember, the time is taken to be the previous one
+* @param _t time that we update to _t - 1
+*/
+void Hubbard::updPrevGreen(uint _t)
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+		this->G_[_SPIN_]		=	(this->iB_[_SPIN_][_t - 1] * this->G_[_SPIN_]) * this->iB_[_SPIN_][_t - 1];
+}
+
+/*
+* @brief How to update the Green's function to the next time.
+* If the time step % from_scratch == 0 -> we recalculate from scratch.
+* @param _t Current time step that needs to be propagated
+*/
+void Hubbard::updGreenStep(uint _t)
+{
+	if (_t % this->fromScratchNum_ == 0)
+	{
+		const auto sectorToUpdate = modEUC<int>(static_cast<int>(_t / double(this->M0_)) - 1, this->p_);
+		this->calPropagatBC(sectorToUpdate);
+		this->calGreensFun(sectorToUpdate * this->M0_);
+	}
+	else
+		this->updNextGreen(_t);
+}
+
+// ###################################################### E V O L U T I O N ########################################################
 
 /*
 * @brief heat - bath based algorithm for the propositon of HS field spin flip
@@ -271,10 +412,10 @@ void Hubbard::updPropagatB(uint _site, uint _t)
 int Hubbard::eqSingleStep(int _site)
 {
 	this->calGamma(_site);
-	auto _probaTuple	=		this->calProba(_site);
-	this->proba_		=		std::reduce(_probaTuple.begin(), _probaTuple.end(), 1, std::multiplies<int>());
-	this->proba_		*=		this->proba_ / (1.0 + this->proba_);
-	const int _sign		=		(this->proba_ >= 0) ? 1 : -1;
+	auto _probaTuple			=	this->calProba(_site);
+	this->proba_				=	std::reduce(_probaTuple.begin(), _probaTuple.end(), 1, std::multiplies<int>());
+	this->proba_				*=	this->proba_ / (1.0 + this->proba_);
+	const int _sign				=	(this->proba_ >= 0) ? 1 : -1;
 	if (this->ran_.bernoulli(proba_) <= _sign * this->proba_)
 	{
 		this->HSFields_(this->tau_, _site) *= -1;
@@ -284,8 +425,125 @@ int Hubbard::eqSingleStep(int _site)
 	return _sign;
 }
 
+/*
+* @brief sweep space-time forward in time
+*/
+double Hubbard::sweepForward()
+{
+	this->configSign_	=	{};
+	this->configSign_	=	1;
+	for (int _tau = 0; _tau < this->M_; _tau++)
+	{
+		this->tau_		=	_tau;
+		this->updGreenStep(_tau);
+		configSign_		=	(this->sweepLattice() > 0) ? +this->configSign_ : -this->configSign_;
+		configSigns_.push_back(configSign_);
+	}
+	return std::reduce(configSigns_.begin(), configSigns_.end()) / configSigns_.size();
+}
 
+// ##################################################### S I M U L A T I O N #######################################################
 
+/*
+* @brief Drive the system to equilibrium
+* @param MCs number of Monte Carlo steps
+* @param _quiet wanna talk?
+*/
+void Hubbard::equalibrate(uint MCs, bool _quiet)
+{
+	if (_quiet && MCs != 1)
+	{
+#pragma omp critical 
+		LOGINFO("Starting the relaxation for " + this->info_, LOG_TYPES::TRACE, 2);
+		this->posNum_		=		0;
+		this->negNum_		=		0;
+	}
+
+#ifdef DQMC_SAVE_CONF
+	LOGINFO("Saving configurations of Hubbard Stratonovich fields", LOG_TYPES::TRACE, 3);
+#endif
+
+	// reset the progress bar
+	this->pBar_ = pBar(20, MCs);
+
+	// sweep all
+	for (int step = 0; step < MCs; step++) {
+		this->sweepForward();
+#ifdef DQMC_SAVE_CONF
+		this->saveConfig("\t");
+#endif
+		if (!_quiet)
+		{
+			this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
+			if (step % this->pBar_.percentageSteps == 0)
+				this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS RELAXATION"));
+		}
+	}
+}
+
+/*
+* @brief Average the system physical measurements in the equilibrium
+* @param corrTime time after which the new measurements are uncorrelated
+* @param avNum number of averages to be taken
+* @param quiet quiet?
+*/
+void Hubbard::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
+{
+#pragma omp critical
+	LOGINFO("Starting the averaging for " + this->info_, LOG_TYPES::TRACE, 2);
+	auto start						=		std::chrono::high_resolution_clock::now();
+	
+	// initialize stuff
+	// this->configSigns_			=		{};
+	this->negNum_					=		0;
+	this->posNum_					=		0;
+	this->avs_->reset();
+	this->pBar_						=		pBar(25, avNum);
+
+	// check if this saved already
+	for (int step = 1; step < avNum; step++) {
+#ifdef DQMC_CAL_TIMES
+	#ifdef DQMC_USE_HIRSH
+		this->calGreensFunTHirsh();
+	#else
+		this->calGreensFunT();
+	#endif
+#endif
+		for (auto _tau = 0; _tau < this->M_; _tau++) 
+		{
+			this->tau_				=		_tau;
+#if !defined DQMC_CAL_TIMES || defined DQMC_CAL_TIMES && !defined DQMC_USE_HIRSH
+			this->updGreenStep(this->tau_);
+#endif
+			// save the diagonal part of the Green's function on the fly
+#ifdef DQMC_CAL_TIMES
+			const uint _element		=		this->tau_ * this->Ns_;
+			for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+	#ifdef DQMC_USE_HIRSH
+				algebra::setMFromSubM(this->G_[_SPIN_], this->Gtime_[_SPIN_], _element, _element, Ns_, Ns_, false);
+	#else
+				algebra::setSubMFromM(this->Gtime_[_SPIN_], this->G_[_SPIN_], _element, _element, Ns_, Ns_, false);
+	#endif
+#endif
+			for (int _site = 0; _site < this->Ns_; _site++)
+				this->avSingleStep(_site, this->configSign_);
+		}
+		this->configSigns_.push_back(this->configSign_);
+		this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
+#ifdef DQMC_CAL_TIMES
+		if (step % DQMC_BUCKET_NUM == (DQMC_BUCKET_NUM - 1)) {
+			LOGINFO("Saving " + STR(step / DQMC_BUCKET_NUM) + ". " + VEQ(DQMC_BUCKET_NUM) + ":" + TMS(start), LOG_TYPES::TRACE, 3);
+			this->saveGreensT(step);
+		}
+#endif
+		// kill correlations
+		for (int _cor = 0; _cor < corrTime; _cor++)
+			this->sweepForward();
+		if(!_quiet && step % this->pBar_.percentageSteps == 0)
+			this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS AVERAGES"));
+	}
+	this->
+}
 
 
 

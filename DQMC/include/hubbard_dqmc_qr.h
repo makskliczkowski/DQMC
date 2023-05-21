@@ -25,7 +25,6 @@ namespace hubbard {
 		// -------------------------- HELPING FUNCTIONS
 		double sweep_0_M() override;																						// sweep forward in time
 		double sweep_M_0() override;																						// sweep backwards in time
-		int sweep_lat_sites();																							// sweep the lattice sites for auxliary Ising spins
 
 		// -------------------------- UPDATERS
 		void upd_equal_green(int lat_site, double gamma_over_prob_up, double gamma_over_prob_down) override;			// after auxliary Ising spin update - local
@@ -40,8 +39,8 @@ namespace hubbard {
 		void b_mat_mult_left_inv(int l_start, int l_end, const mat& toMultUp, const mat& toMultDown, mat& toSetUp, mat& toSetDown);
 
 		/// eq time Green's matrices calculators
-		void cal_green_mat(int which_time) override;
-		void cal_green_mat_cycle(int sector);
+		//void cal_green_mat(int which_time) override;
+		//void cal_green_mat_cycle(int sector);
 
 		/// non-equal time Green's matrices calculators
 		void cal_green_mat_times(); 																					// give left time already
@@ -58,7 +57,7 @@ namespace hubbard {
 		void heat_bath_av(int corr_time, int avNum, bool quiet) override;												// collect averages
 		void av_single_step(int current_elem_i, int sign) override;														// single step of averaging
 		void av_unequal_greens_single_step(int xx, int yy, int zz, int i, int j, int sign);								// save unequal greens in single step
-		int heat_bath_single_step(int lat_site) override;																// single step with lattice updating
+		//int heat_bath_single_step(int lat_site) override;																// single step with lattice updating
 	public:
 		// -------------------------- CONSTRUCTORS
 

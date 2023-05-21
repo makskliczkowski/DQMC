@@ -2,8 +2,8 @@
 #ifndef HUBBARD_H
 #define HUBBARD_H
 
-#ifndef DQMC_H
-	#include "../dqmc.h"
+#ifndef DQMC2_H
+	#include "../dqmc2.h"
 #endif
 
 #ifndef ALG_H
@@ -75,17 +75,8 @@
 	//};
 
 
-class Hubbard : public DQMC<2>
+class Hubbard : public DQMC2
 {
-protected:
-	enum SPINNUM
-	{
-		_DN_					=			0,
-		_UP_					=			1
-	};
-	using matArray				=			std::array<arma::mat, spinNumber_>;
-	using vecMatArray			=			std::array<v_1d<arma::mat>, spinNumber_>;
-
 	// ############################# Q R ################################### 
 	std::array<std::unique_ptr<algebra::UDT<double>>, spinNumber_> udt_;
 	//std::unique_ptr<algebra::UDT<double>[]> udt_;
@@ -101,13 +92,6 @@ protected:
 	bool REPULSIVE_				=			true;							// U > 0?
 	double dtau_				=			1e-2;							// Trotter time step
 	uint M_						=			1;								// number of Trotter times
-
-	arma::mat TExp_;														// hopping exponential
-	matArray G_;															// spatial Green's function
-	matArray IExp_;															// interaction exponential
-	vecMatArray B_;															// imaginary time propagators
-	vecMatArray Bcond_;														// imaginary time propagators - condensation of M0 multiplication - stable
-	vecMatArray iB_;														// imaginary time propagators	
 
 	double lambda_				=			1.0;							// lambda parameter in HS transform
 	arma::Mat<int> HSFields_;												// Hubbard-Stratonovich fields
@@ -130,11 +114,23 @@ protected:
 	void calPropagatB(uint _tau)											override;
 	void calPropagatB()														override;
 	// GREENS
+	void compareGreen(uint _tau, double _toll, bool _print)					override;
 	void calGreensFun(uint _tau)											override;
-
+#ifdef DQMC_CAL_TIMES
+	void calGreensFunT()													override;
+	void calGreensFunTHirsh()												override;
+	void calGreensFunTHirshC()												override;
+#endif
 	void avSingleStep(int _currI, int _sign)								override;
 	int eqSingleStep(int _site)												override;
 
+	// ######################### E V O L U T I O N #########################
+	double sweepForward()													override;
+	//double sweepBackward()													override;
+
+	void equalibrate(uint MCs, bool _quiet = false)							override;
+	void average(uint MCs, uint corrTime, uint avNum,
+				 uint bootStraps, bool _quiet = false)						override;
 	// HELPING
 	auto calGamma(uint _site)				->								void;
 	auto calDelta()							->								spinTuple_;
@@ -149,8 +145,9 @@ protected:
 
 	// Greens
 	void updEqlGreens(uint _site, const spinTuple_& p)						override;
-	void updNextGreen(uint _site)											override;
-	void updPrevGreen(uint _site)											override;
+	void updNextGreen(uint _t)												override;
+	void updPrevGreen(uint _t)												override;
+	void updGreenStep(uint _t)												override;
 };
 
 
@@ -232,23 +229,6 @@ protected:
 //		//virtual void heat_bath_av(int corr_time, int avNum, bool quiet) = 0;							// collect the averages from the simulation
 //		//virtual double sweep_0_M() = 0;																	// sweep forward in time
 //		//virtual double sweep_M_0() = 0;																	// sweep backwards
-//
-//		// -------------------------- CALCULATORS
-//		//virtual void cal_green_mat(int which_time) = 0;													// calculates the Green matrices
-//		virtual void compare_green_direct(int tim, double toll, bool print_greens) = 0;					// compares Green's function from stability formulation to direct evaluation
-//		//void cal_int_exp();																				// calculates interaction exponents at all times
-//		//void cal_B_mat();																				// calculates B matrices
-//		//void cal_B_mat(int which_time);																	// recalculates the B matrix at a given time
-//		//void cal_hopping_exp();																			// calculates hopping exponent for nn
-//
-//		// -------------------------- UPDATERS
-//		//void upd_int_exp(int lat_site, double delta_up, double delta_down);
-//		//void upd_B_mat(int lat_site, double delta_up, double delta_down);
-//		//virtual void upd_equal_green(int lat_site, double gamma_over_prob_up, \
-//		//	double gamma_over_prob_down) = 0;															// updates Greens at the same time after spin flip
-//		//virtual void upd_next_green(int which_time) = 0;
-//		//virtual void upd_prev_green(int which_time) = 0;
-//		virtual void upd_Green_step(int im_time_step, bool forward) = 0;
 //
 //		// -------------------------- EQUAL TIME QUANTITIES TO BE COLLECTED
 //		void calOneSiteParam(int sign, int current_elem_i, sinOpType op, long double& av, long double& std) {

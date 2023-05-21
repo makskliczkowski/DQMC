@@ -1,65 +1,30 @@
-#pragma once
-
 /***************************************
 * Defines the general DQMC class.
-* It is a base for further Hamiltonian
-* developments in finite temperature.
+* It is a base for further more 
+* complicated Hamiltonians
+* development in a finite temperature.
 * APRIL 2023. UNDER CONSTANT DEVELOPMENT
 * MAKSYMILIAN KLICZKOWSKI, WUST, POLAND
 ***************************************/
+#pragma once
 
-#ifndef LATTICE_H
-	#include "../source/src/lattices.h"
+#ifndef DQMC_AV_H
+	#include "dqmc_av.h"
 #endif
 
-#ifndef BINARY_H
-	#include "../source/src/binary.h"
-#endif
-
-#include <mutex>
-#include <shared_mutex>
-#include <complex>
-
-// ##########################################################################################################################################
+#define DQMC_CAL_TIMES
+#define DQMC_USE_HIRSH
+constexpr int DQMC_BUCKET_NUM = 5;
 
 #ifndef DQMC_H
 #define DQMC_H
 
 // #################################################################################
-
-#define SINGLE_PARTICLE_INPUT	int _sign, uint _i,			 const GREEN_TYPE& _g
-#define TWO_PARTICLES_INPUT		int _sign, uint _i, uint _j, const GREEN_TYPE& _g
-
-template <size_t _spinNum>
-class DQMCavs 
-{
-public:
-	using GREEN_TYPE			=	std::array<arma::Mat<double>, _spinNum>;
-	typedef SINGLE_PART_FUN		=	std::complex<double>(*CAL_1P)(SINGLE_PARTICLE_INPUT);
-	typedef TWO_PARTS_FUN		=	std::complex<double>(*CAL_2P)(TWO_PARTICLES_INPUT);
-
-	// ############################# F U N C T I O N S #############################
-#define DQMC_AV_FUN1(x) virtual std::complex<double>##x(SINGLE_PARTICLE_INPUT)	= 0;
-#define DQMC_AV_FUN2(x) virtual std::complex<double>##x(TWO_PARTICLES_INPUT)	= 0;
-#include "averageCalculatorSingle.include"
-//#include "averageCalculatorSingle.include"
-#undef DQMC_AV_FUN1
-#undef DQMC_AV_FUN2
-
-	// ############################## M A P P I N G S ##############################
-#define DQMC_AV_FUN1(x)	{#x, x},
-std::map<std::string, SINGLE_PART_FUN> calFun = {
-#include "averageCalculatorSingle.include"
-}
-#define DQMC_AV_FUN2(x) {#x, x};
-#undef DQMC_AV_FUN1
-#undef DQMC_AV_FUN2
-
-};
-// #################################################################################
 struct DQMCdir
 {
 	std::string mainDir;
+	std::string equalTimeDir;
+	std::string unequalTimeDir;
 };
 // #################################################################################
 
@@ -86,6 +51,8 @@ protected:
 	mutable MutexType Mutex;
 	uint threadNum_						=		1;
 	uint Ns_							=		1;
+	u64 posNum_							=		0;
+	u64 negNum_							=		0;
 
 	// ################ C U R R E N T   P R O P E R T I E S ################
 	uint tau_							=		0;							// current Trotter time
@@ -99,13 +66,15 @@ protected:
 	// ############### P H Y S I C A L   P R O P E R T I E S ###############
 	double T_							=		1;
 	double beta_						=		1;
+	arma::mat TExp_;														// hopping exponential
 
 	// ############# S I M U L A T I O N   P R O P E R T I E S #############
 	std::string info_;
 
 	double proba_						=		0.0;
+	int configSign_						=		1;
 	uint fromScratchNum_				=		1;
-	v_1d<int> configSign_;													// keeps track of the configuration signs
+	v_1d<int> configSigns_;													// keeps track of the configuration signs
 
 public:
 	std::shared_ptr<DQMCdir> dir_;											// directories used in the simulation
@@ -119,8 +88,8 @@ public:
 	virtual void init()														= 0;
 
 	// ###################### C A L C U L A T O R S ########################
-	virtual void relaxes(uint MCs, bool _quiet = false)												= 0;
-	virtual void average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet = false) = 0;
+	virtual void relaxes(uint MCs, bool _quiet = false);
+	virtual void average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet = false);
 
 	// ########################## G E T T E R S ############################
 	auto getInvTemperature()			const -> double						{ return this->beta_; };
@@ -146,13 +115,25 @@ protected:
 	virtual void calPropagatBC(uint _sec)									= 0;
 	virtual void calPropagatB()												= 0;
 	// GREENS
+	virtual void compareGreen(uint _tau, double _toll, bool _print)			= 0;
 	virtual void calGreensFun(uint _tau)									= 0;
+
+#ifdef DQMC_CAL_TIMES
+	virtual void calGreensFunT()											= 0;
+	virtual void calGreensFunTHirsh()										= 0;
+	virtual void calGreensFunTHirshC()										= 0;
+#endif
 
 	virtual void avSingleStep(int _currI, int _sign)						= 0;
 	virtual int eqSingleStep(int _site)										= 0;
 	// ######################### E V O L U T I O N #########################
+	virtual int sweepLattice();
 	virtual double sweepForward()											= 0;
-	virtual double sweepBackward()											= 0;
+	//virtual double sweepBackward()										= 0;
+
+	virtual void equalibrate(uint MCs, bool _quiet = false)					= 0;
+	virtual void average(uint MCs, uint corrTime, uint avNum,
+						 uint bootStraps, bool _quiet = false)				= 0;
 
 	// ########################## U P D A T E R S ##########################
 	virtual void updPropagatB(uint _site, uint _t)							= 0;
@@ -164,7 +145,58 @@ protected:
 	virtual void updEqlGreens(uint _site, const spinTuple_& p)				= 0;
 	virtual void updNextGreen(uint _t)										= 0;
 	virtual void updPrevGreen(uint _t)										= 0;
-
+	virtual void updGreenStep(uint _t)										= 0;
+	
+	// ############################ S A V E R S ############################
+	virtual void saveGreensT(uint _step)									= 0;
+	virtual void saveGreens(uint _step)										= 0;
 };
+
+// ################################################## C A L C U L A T O R S #######################################################
+
+/*
+* @brief A function to sweep all the auxliary Ising fields for a given time configuration in the model
+* @returns sign of the configuration
+*/
+template<size_t spinNum_>
+inline int DQMC<spinNum_>::sweepLattice()
+{
+	int _sign = 1;
+	for (int _site = 0; _site < this->Ns_; _site++)
+	{
+		auto sign = this->eqSingleStep(_site);
+		if (sign < 0)
+			_sign = -1;
+	}
+	return _sign;
+}
+
+// #################################################### E V O L U T O R S #########################################################
+
+template<size_t spinNum_>
+inline void DQMC<spinNum_>::relaxes(uint MCs, bool _quiet)
+{
+	auto start		=		std::chrono::high_resolution_clock::now();											// starting timer for averages
+	this->equalibrate(MCs, _quiet);
+
+	if (!_quiet && MCs != 1) {
+#pragma omp critical
+		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(start) + ". With sign: " + STRP((posNum_ - negNum_) / (posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO(LOG_TYPES::TRACE, 2);
+	}
+}
+
+template<size_t spinNum_>
+inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
+{
+	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
+	this->average(MCs, corrTime, avNum, bootStraps, _quiet);
+
+	if (!_quiet && MCs != 1) {
+#pragma omp critical
+		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(start) + ". With sign: " + STRP((posNum_ - negNum_) / (posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO(LOG_TYPES::TRACE, 2);
+	}
+}
 
 #endif
