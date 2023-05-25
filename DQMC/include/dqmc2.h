@@ -16,14 +16,13 @@
 #ifndef DQMC2_H
 #define DQMC2_H
 
-// ############################################### G E N E R A L   S P I N   2 ####################################################
+// ######################### G E N E R A L   S P I N   2 ############################
 
-class DQMC2 : public DQMC<2>
+class DQMC2 : public virtual DQMC<size_t(2)>
 {
 public:
 	using matArray = std::array<arma::mat, spinNumber_>;
 	using vecMatArray = std::array<v_1d<arma::mat>, spinNumber_>;
-protected:
 	enum SPINNUM
 	{
 		_DN_ = 0,
@@ -36,9 +35,28 @@ protected:
 	}
 	END_ENUM_INLINE(SPINNUM, DQMC2);
 
+	DQMC2()						=			default;
+	DQMC2(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0, int _threadNum = 1)
+		: DQMC<spinNumber_>(_T, _lat, _threadNum), M_(_M), M0_(_M0), p_(_M / _M0)
+	{
+		LOGINFO(std::string("Base DQMC spin-1/2 class is constructed.\n"), LOG_TYPES::TRACE, 2);
+	}
+	virtual ~DQMC2() 
+	{
+		LOGINFO("Spin-1/2 DQMC is destroyed...", LOG_TYPES::INFO, 1);
+	}
+protected:
+	uint M_						=			1;								// number of Trotter times
+
+	// ################# O T H E R   F O R M U L A T I O N #################
+	uint M0_					=			1;								// in ST - num of time subinterval, in QR num of stable multiplications
+	uint p_						=			1;								// p = M / M0
+
 	matArray G_;															// spatial Green's function
+	matArray tmpG_;															// Green's function temporary
 #ifdef DQMC_CAL_TIMES
 	matArray Gtime_;
+	std::string GtimeInf_;
 #endif
 	matArray IExp_;															// interaction exponential
 	vecMatArray B_;															// imaginary time propagators
@@ -48,6 +66,129 @@ protected:
 	// ############################ S A V E R S ############################
 	virtual void saveGreensT(uint _step)									override;
 	virtual void saveGreens(uint _step)										override;
+};
+
+
+// ##################################################################################
+
+class DQMCavs2 : public virtual DQMCavs<2, double>
+{
+	using _T				=	double;
+	const v_1d<double>* t_nn_;							// nn hopping integrals
+	using GREEN_TYPE		=	DQMCavs<2, double>::GREEN_TYPE;
+	using SINGLE_PART_FUN	=	DQMCavs<2, double>::SINGLE_PART_FUN;
+	using TWO_PARTS_FUN		=	DQMCavs<2, double>::TWO_PARTS_FUN;
+public:
+
+	virtual ~DQMCavs2()
+	{
+		LOGINFO("Destroying spin-1/2 averages for DQMC", LOG_TYPES::TRACE, 2);
+	}
+
+	DQMCavs2(std::shared_ptr<Lattice> _lat, int _M)
+		: DQMCavs<2, double>(_lat, _M)
+	{
+
+	};
+
+	// --- SINGLE ---
+	virtual _T cal_Ek(SINGLE_PARTICLE_INPUT)			override
+	{
+		const auto neiNum	=	this->lat_->get_nn(_i);
+		double Ek			=	0.0;
+		for (int nei = 0; nei < neiNum; nei++)
+		{
+			const int whereNei	=	this->lat_->get_nn(_i, nei);
+			Ek					+=	_g[DQMC2::_DN_](_i, whereNei);
+			Ek					+=	_g[DQMC2::_DN_](whereNei, _i);
+			Ek					+=	_g[DQMC2::_UP_](_i, whereNei);
+			Ek					+=	_g[DQMC2::_UP_](whereNei, _i);
+		}
+		return _sign * (*this->t_nn_)[_i] * Ek;
+	}
+	virtual _T cal_Occupation(SINGLE_PARTICLE_INPUT)	override
+	{
+		return (_sign * (1.0 - _g[DQMC2::_DN_](_i, _i)) + _sign * (1.0 - _g[DQMC2::_UP_](_i, _i)));
+	}
+	virtual _T cal_Mz2(SINGLE_PARTICLE_INPUT)			override
+	{
+		return _sign	* (	((1.0 - _g[DQMC2::_UP_](_i, _i)) * (1.0 - _g[DQMC2::_UP_](_i, _i))	)
+						+	((1.0 - _g[DQMC2::_UP_](_i, _i)) * (_g[DQMC2::_UP_](_i, _i))		)
+						-	((1.0 - _g[DQMC2::_UP_](_i, _i)) * (1.0 - _g[DQMC2::_DN_](_i, _i))	)
+						-	((1.0 - _g[DQMC2::_DN_](_i, _i)) * (1.0 - _g[DQMC2::_UP_](_i, _i))	)
+						+	((1.0 - _g[DQMC2::_DN_](_i, _i)) * (1.0 - _g[DQMC2::_DN_](_i, _i))	)
+						+	((1.0 - _g[DQMC2::_DN_](_i, _i)) * (_g[DQMC2::_DN_](_i, _i))		));
+	}
+	virtual _T cal_My2(SINGLE_PARTICLE_INPUT)			override 
+	{
+		return 0;
+	}
+	virtual _T cal_Mx2(SINGLE_PARTICLE_INPUT)			override 
+	{
+		return		_sign * (1.0 - _g[DQMC2::_UP_](_i, _i)) * (_g[DQMC2::_DN_](_i, _i))
+				+	_sign * (1.0 - _g[DQMC2::_DN_](_i, _i)) * (_g[DQMC2::_UP_](_i, _i));
+	}
+
+	// --- TWO ---
+	virtual _T cal_Occupation_C(TWO_PARTICLES_INPUT)	override
+	{
+		return _sign * ((_g[DQMC2::_DN_](_j, _i) + _g[DQMC2::_UP_](_j, _i)));
+	}
+	virtual _T cal_Mz2_C(TWO_PARTICLES_INPUT)			override 
+	{
+		double delta_ij = (_i == _j) ? 1.0L : 0.0L;
+		return _sign	* (	((1.0L		- _g[DQMC2::_UP_](_i, _i)) * (1.0L - _g[DQMC2::_UP_](_j, _j))	)
+						+	((delta_ij	- _g[DQMC2::_UP_](_j, _i)) * (_g[DQMC2::_UP_](_i, _j))			)
+						-	((1.0L		- _g[DQMC2::_UP_](_i, _i)) * (1.0L - _g[DQMC2::_DN_](_j, _j))	)
+						-	((1.0L		- _g[DQMC2::_DN_](_i, _i)) * (1.0L - _g[DQMC2::_UP_](_j, _j))	)
+						+	((1.0L		- _g[DQMC2::_DN_](_i, _i)) * (1.0L - _g[DQMC2::_DN_](_j, _j))	)
+						+	((delta_ij	- _g[DQMC2::_DN_](_j, _i)) * (_g[DQMC2::_DN_](_i, _j))			));
+	}
+
+	// ########################## R E S E T E R S ##########################
+public:
+	
+	/*
+	* @brief Resets all the averages
+	*/
+	void reset()										override {
+		auto [x_num, y_num, z_num]		=		this->lat_->getNumElems();
+
+		this->av_Ek = 0;
+		this->sd_Ek = 0;
+		
+		this->av_Occupation				=		0;
+		this->sd_Occupation				=		0;
+		
+		this->av_Mz2					=		0;
+		this->sd_Mz2					=		0;
+
+		this->av_Mx2					=		0;
+		this->sd_Mx2					=		0;
+
+		this->av_My2					=		0;
+		this->sd_My2					=		0;
+
+		// correlations
+		this->avC_Mz2					=		v_3d<_T>(x_num, v_2d<_T>(y_num, v_1d<_T>(z_num, 0.0)));
+		this->avC_Occupation			=		v_3d<_T>(x_num, v_2d<_T>(y_num, v_1d<_T>(z_num, 0.0)));
+		
+#ifdef DQMC_CAL_TIMES
+		this->resetG();
+#endif
+	}
+
+	/*
+	* @brief Resets the Green's function in time
+	*/
+	void resetG()										override
+	{
+		for(int _SPIN_ = 0; _SPIN_ < this->av_GTimeDiff_.size(); _SPIN_++)
+			for (int tau = 0; tau < this->av_GTimeDiff_[_SPIN_].size(); tau++) {
+				this->av_GTimeDiff_[_SPIN_][tau].zeros();
+				this->sd_GTimeDiff_[_SPIN_][tau].zeros();
+			}
+	}
 };
 
 #endif

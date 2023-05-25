@@ -218,8 +218,8 @@ void Hubbard::calPropagatBC(uint _sec)
 */
 void Hubbard::calGreensFun(uint _tau)
 {
-	auto _time					= _tau;
-	auto _sector				= _tau / this->M0_;
+	auto _time		[[maybe_unused]]	= _tau;
+	auto _sector	[[maybe_unused]]	= _tau / this->M0_;
 
 	// decompose the matrices
 	this->udt_[SPINNUM::_UP_]->decompose(this->Bcond_[SPINNUM::_UP_][_sector]);
@@ -286,8 +286,12 @@ void Hubbard::calGreensFunTHirsh()
 	}
 }
 
+/*
+* @brief Calculate the unequal time Green's function using stable multiplication method
+*/
 void Hubbard::calGreensFunT()
 {
+
 }
 
 #endif
@@ -303,7 +307,7 @@ auto Hubbard::setHS(HS_CONF_TYPES _t) -> void
 	case HIGH_T:
 		for (int i = 0; i < this->Ns_; i++) 
 			for (int l = 0; l < this->M_; l++) 
-				this->HSFields_(l, i) = this->ran_.random(0, 1) > 0.5 ? 1 : -1;
+				this->HSFields_(l, i) = this->ran_.random(0.0, 1.0) > 0.5 ? 1 : -1;
 		break;
 	case LOW_T:
 		this->HSFields_.ones(this->M_, this->Ns_);
@@ -311,9 +315,43 @@ auto Hubbard::setHS(HS_CONF_TYPES _t) -> void
 	}
 }
 
+/*
+* @brief Sets the DQMC simulation directories
+* @param _m main directory to be saved onto
+*/
 auto Hubbard::setDir(std::string _m) -> void
 {
-	return;
+	this->dir_->mainDir			= _m + this->lat_->get_info()		+ kPS	+	this->getInfo()		+	kPS;
+	this->dir_->equalTimeDir	= this->dir_->mainDir	+ "equal"	+ kPS;
+	this->dir_->unequalTimeDir	= this->dir_->mainDir	+ "unequal"	+ kPS;
+
+	this->dir_->unequalGDir		= this->dir_->unequalTimeDir		+	"green"						+	kPS;
+	this->dir_->equalGDir		= this->dir_->equalTimeDir			+	"green"						+	kPS;
+
+	this->dir_->uneqalCorrDir	= this->dir_->unequalTimeDir		+	"corr"						+	kPS;
+	this->dir_->equalCorrDir	= this->dir_->equalTimeDir			+	"corr"						+	kPS;
+
+	this->dir_->createDQMCDirs(this->ran_);
+}
+
+/*
+* @brief Sets the information about the model
+*/
+void Hubbard::setInfo()
+{
+	this->info_ = "Hubbard,";
+	this->info_ += VEQV(M,		M_);
+	this->info_ += "," + VEQV(M0, M0_);
+	this->info_ += "," + VEQV(beta, beta_);
+	this->info_ += "," + VEQV(U, U_);
+	this->info_ += "," + VEQV(mu, mu_);
+
+	for (const auto& par : splitStr(this->lat_->get_info(), ","))
+		LOGINFO(par + "\n", LOG_TYPES::TRACE, 2);
+
+	for (const auto& par : splitStr(this->info_, ","))
+		LOGINFO(par + "\n", LOG_TYPES::TRACE, 2);
+
 }
 
 // ####################################################### U P D A T E R S ########################################################
@@ -356,9 +394,11 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 		// use the D matrix from UDT to save the row which does not change
 		this->udt_[_SPIN_]->D	=	this->G_[_SPIN_].row(_site);
 		const auto gammaOverP	=	this->currentGamma_[_SPIN_] / p[_SPIN_];
-		for (int _upd = 0; _upd < this->Ns_; _upd++) {
-			const auto _kron	=	(_upd == _site) ? 1 : 0;
-			const auto G_ai		=	this->G_[_SPIN_](_upd, _site);
+		for (int _a = 0; _a < this->Ns_; _a++) {
+			const auto _kron [[maybe_unused]]		=	(_a == _site) ? 1 : 0;
+			const auto G_ai							=	this->G_[_SPIN_](_a, _site);
+			for (int _b = 0; _b < this->Ns_; _b++)
+				this->G_[_SPIN_](_a, _b)			-=	(_kron - G_ai) * gammaOverP * this->udt_[_SPIN_]->D(_b);
 		}
 	}
 }
@@ -487,7 +527,7 @@ void Hubbard::equalibrate(uint MCs, bool _quiet)
 * @param avNum number of averages to be taken
 * @param quiet quiet?
 */
-void Hubbard::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
+void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
 {
 #pragma omp critical
 	LOGINFO("Starting the averaging for " + this->info_, LOG_TYPES::TRACE, 2);
@@ -542,237 +582,91 @@ void Hubbard::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool
 		if(!_quiet && step % this->pBar_.percentageSteps == 0)
 			this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS AVERAGES"));
 	}
-	this->
+	auto avSign = (this->posNum_ - this->negNum_) / (this->posNum_ + this->negNum_);
+	this->avs_->normalize(avNum, this->M_ * this->lat_->get_Ns(), avSign);
 }
 
-
+// ####################################################### A V E R A G E S #########################################################
 
 /*
-* @brief Normalise all the averages taken during simulation
-* @param avNum number of avs taken
-* @param timesNum number of Trotter times used
-* @param times if the non-equal time properties were calculated
+* @brief A single step for calculating averages inside a simulation loop.
+* @param _currI current HS spin
+* @param _sign current sign to multiply the averages by
 */
-void hubbard::HubbardModel::av_normalise(int avNum, int timesNum)
+void Hubbard::avSingleStep(int _currI, int _sign)
 {
-	const auto normalization = static_cast<double>(avNum * timesNum * this->Ns);						// average points taken
-	this->avs->av_sign = (this->pos_num - this->neg_num) / double(this->pos_num + this->neg_num);
-	this->avs->sd_sign = variance(static_cast<ld>(avNum), this->avs->av_sign, avNum);
-	const double normalisation_sign = normalization * this->avs->av_sign;								// we divide by average sign actually
-	// with minus
-	//this->avs->av_gr_down /= normalisation_sign / this->Ns;
-	//this->avs->av_gr_up /= normalisation_sign / this->Ns;
-
-	this->avs->av_occupation /= normalisation_sign;
-	this->avs->sd_occupation = variance(this->avs->sd_occupation, this->avs->av_occupation, normalisation_sign);
-
-	this->avs->av_M2z /= normalisation_sign;
-	this->avs->sd_M2z = variance(this->avs->sd_M2z, this->avs->av_M2z, normalisation_sign);
-	this->avs->av_M2x /= normalisation_sign;
-	this->avs->sd_M2x = variance(this->avs->sd_M2x, this->avs->av_M2x, normalisation_sign);
+	// mz2
+	INVOKE_SINGLE_PARTICLE_CAL(this->avs_, Mz2);
+	// mx2
+	INVOKE_SINGLE_PARTICLE_CAL(this->avs_, Mx2);
+	// n
+	INVOKE_SINGLE_PARTICLE_CAL(this->avs_, Occupation);
 	// Ek
-	this->avs->av_Ek /= normalisation_sign;
-	this->avs->sd_Ek = variance(this->avs->av_Ek2, this->avs->av_Ek, normalisation_sign);
+	INVOKE_SINGLE_PARTICLE_CAL(this->avs_, Ek);
 
+	// save i'th point coordinates
+	const auto xi			=	this->lat_->get_coordinates(_currI, Lattice::X);
+	const auto yi			=	this->lat_->get_coordinates(_currI, Lattice::Y);
+	const auto zi			=	this->lat_->get_coordinates(_currI, Lattice::Z);
+	const auto ith_coord	=	std::make_tuple(xi, yi, zi);
 
-	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
-	// correlations
-	for (int i = 0; i < x_num; i++) {
-		for (int j = 0; j < y_num; j++) {
-			for (int k = 0; k < z_num; k++) {
+	// -------------------------------- CORRELATIONS ----------------------------------------
+	for (int _currJ = 0; _currJ < this->lat_->get_Ns(); _currJ++)
+	{
+		auto [x, y, z]		=	this->lat_->getSiteDifference(ith_coord, _currJ);
+		auto [xx, yy, zz]	=	this->lat_->getSymPos(x, y, z);
 
-				this->avs->av_M2z_corr[i][j][k] /= normalisation_sign;
-				this->avs->av_ch2_corr[i][j][k] /= normalisation_sign;
-				this->avs->av_occupation_corr[i][j][k] = this->Ns * this->avs->av_occupation_corr[i][j][k] / normalisation_sign;
-				//if (times) {
-					//for (int l = 0; l < this->M; l++) {
-						//this->avs->av_green_down[x_pos][y_pos][z_pos][l] /= normalisation_sign/this->M;
-						//this->avs->av_green_up[x_pos][y_pos][z_pos][l] /= normalisation_sign / this->M;
-						//this->avs->av_M2z_corr_uneqTime[x][y][z][l] /= normalisation_sign / this->M_0;
-						//this->avs->av_Charge2_corr_uneqTime[x][y][z][l] /= normalisation_sign / this->M_0;
-				//	}
-			}
-		}
-	}
-}
-
-/*
-* saves the unequal times Green's functions in a special form
-* @param filenum
-* @param useWrapping
-*/
-void hubbard::HubbardModel::save_unequal_greens(int filenum, const vec& signs)
-{
-	this->avs->normaliseGreens(this->lattice);
-	auto [x_num, y_num, z_num] = this->lattice->getNumElems();
-	const std::string sign = this->config_sign == 1 ? "+" : "-";
-
-#ifndef SAVE_UNEQUAL_HDF5
-	std::string information = " Some version\n\n This is the file that contains real space Green's functions for different times.\n";
-	information += " The structure of each is we average over time differences and first row\n";
-	information += " before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
-
-	std::ofstream fileUp;
-	openFile(fileUp, this->dir->time_greens_dir + STR(filenum) + "-up" + sign + this->dir->nameGreensTime);
-	std::ofstream fileDown;
-	openFile(fileDown, this->dir->time_greens_dir + STR(filenum) + "-down" + sign + this->dir->nameGreensTime);
-
-	fileUp << " Up different time, real-space Greens\n" << information;
-	fileDown << " Down different time, real-space Greens\n" << information;
-	std::initializer_list<std::string> enter_params = { "n =\t",
-		STR(this->lattice->get_Lx()),"\n",
-		"l =\t",STR(this->M),"\n",
-		"tausk =\t",STR(this->p),"\n",
-		"doall =\t",std::string("don't know what is that"),"\n",
-		"denswp =\t",STR(BUCKET_NUM),"\n",
-		"histn =\t",std::string("don't know what is that"),"\n",
-		"iran =\t",std::string("don't know what is that"),"\n",
-		"t  =\t",STRP(this->t[0],5),"\n",
-		"mu =\t",STRP(this->mu, 5),"\n",
-		"delmu =\t",std::string("don't know what is that"),"\n",
-		"bpar  =\t",std::string("don't know what is that"),"\n",
-		"dtau = \t",STRP(this->dtau,5),"\n",
-		"warms  =\t",STR(1000),		"\n",
-		"sweeps =\t",STR(2000),"\n",
-		"u =\t",STRP(this->U,5),"\n",
-		"nwrap =\t",STR(this->M_0),"\n",
-		"difflim =\t",std::string("don't know what is that"),"\n",
-		"errrat =\t",std::string("don't know what is that"),	"\n",
-		"doauto = \t0","\n",
-		"orthlen =\t",std::string("don't know what is that"),"\n",
-		"eorth =\t",std::string("don't know what is that"),"\n",
-		"dopair =\t",std::string("don't know what is that"),"\n",
-		"numpair =\t",std::string("don't know what is that"),"\n",
-		"lambda=\t",STRP(this->lambda,4),"\n",
-		"start = \t0", "\n",
-		"signs=\n" };
-
-	printSeparated(fileUp, ' ', enter_params, 30);
-	printSeparated(fileDown, ' ', enter_params, 30);
-	fileUp << signs.t() << "\n\n";
-	fileDown << signs.t() << "\n\n";
-	const u16 width = 12;
-	printSeparated(fileUp, '\t', { std::string(" G(nx,ny,ti):") });
-	printSeparated(fileDown, '\t', { std::string(" G(nx,ny,ti):") });
-
-	for (int nx = 0; nx < x_num; nx++) {
-		for (int ny = 0; ny < y_num; ny++) {
-			auto [x, y, z] = this->lattice->getSymPosInv(nx, ny, 0);
-			printSeparated(fileUp, '\t', 6, true, VEQ(x), VEQ(y));
-			printSeparated(fileDown, '\t', 6, true, VEQ(x), VEQ(y));
-			for (int tau1 = 0; tau1 < this->M; tau1++)
-			{
-				printSeparated(fileUp, '\t', 4, false, tau1);
-				printSeparated(fileUp, '\t', width + 5, false, STRP(this->avs->g_up_diffs[tau1](nx, ny), width));
-				printSeparated(fileUp, '\t', 5, false, "+-");
-				printSeparated(fileUp, '\t', width + 5, true, STRP(this->avs->sd_g_up_diffs[tau1](nx, ny), width));
-
-				printSeparated(fileDown, '\t', 4, false, tau1);
-				printSeparated(fileDown, '\t', width + 5, false, STRP(this->avs->g_down_diffs[tau1](nx, ny), width));
-				printSeparated(fileDown, '\t', 5, false, "+-");
-				printSeparated(fileDown, '\t', width + 5, true, STRP(this->avs->sd_g_down_diffs[tau1](nx, ny), width));
-			}
-		}
-	}
-	fileUp.close();
-	fileDown.close();
-#else
-	for (int tau = 0; tau < this->M; tau++) {
-		this->tempGreen_down = (this->avs->g_up_diffs[tau] + this->avs->g_down_diffs[tau]) / 2.0;
-		this->tempGreen_down.save(arma::hdf5_name(this->dir->time_greens_dir + STR(filenum) + "_" + sign + "_" + this->dir->nameGreensTimeH5,
-			STR(tau), arma::hdf5_opts::append));
-	}
+		INVOKE_TWO_PARTICLE_CAL(this->avs_, Mz2, xx, yy, zz);
+		INVOKE_TWO_PARTICLE_CAL(this->avs_, Occupation, xx, yy, zz);
+#ifdef DQMC_CAL_TIMES
+		this->avSingleStepUneq(xx, yy, zz, _currI, _currJ, _sign);
 #endif
+	}
 }
 
-//! -------------------------------------------------------- SETTERS
-
-
 /*
-* Sets the directories for saving configurations of Hubbard - Stratonovich fields. It adds /negative/ and /positive/ to dir
-* @param dir directory to be used for configurations
+* @brief Calculates the single step for unequal-time simulation properties
+* @param xx X-direction position of saved value
+* @param yy Y-direction position of saved value
+* @param zz Z-direction position of saved value
+* @param _i current Green's function row
+* @param _j current Green's function col
+* @param _s current configuration sign
 */
-//void hubbard::HubbardModel::setConfDir() {
-//	this->dir->neg_dir = this->dir->conf_dir + kPS + this->info;
-//	this->dir->pos_dir = this->dir->conf_dir + kPS + this->info;
-//	// create directories
-//
-//	this->dir->neg_dir += kPS + "negative";
-//	this->dir->pos_dir += kPS + "positive";
-//
-//	fs::create_directories(this->dir->neg_dir);
-//	fs::create_directories(this->dir->pos_dir);
-//
-//	// add a separator
-//	this->dir->neg_dir += kPS;
-//	this->dir->pos_dir += kPS;
-//	// for .log files
-//	std::ofstream fileN, fileP;																	// files for saving the configurations
-//	this->dir->neg_log = this->dir->neg_dir.substr(0, \
-//		this->dir->neg_dir.length() - 9) + "negLog," + info + ".dat";							// for storing the labels of negative files in csv for ML
-//	this->dir->pos_log = this->dir->pos_dir.substr(0, \
-//		this->dir->pos_dir.length() - 9) + "posLog," + info + ".dat";							// for storing the labels of positive files in csv for ML
-//	fileN.open(this->dir->neg_log);
-//	fileP.open(this->dir->pos_log);
-//	fileN.close();																				// close just to create file neg
-//	fileP.close();																				// close just to create file pos
-//}
+void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
+{
+	//? handle zero time difference here in greens
+	//! we handle it with the calculated current Green's functions
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) 
+	{
+		this->avs_->av_GTimeDiff_[_SPIN_][0](xx, yy)		+=		_s * this->G_[_SPIN_](_i, _j);
+		this->avs_->av_GTimeDiff_[_SPIN_][0](xx, yy)		+=		this->G_[_SPIN_](_i, _j) * this->G_[_SPIN_](_i, _j);
+#ifdef DQMC_CAL_TIMES_ALL
+		for (int tim2 = 0; tim2 < this->M_; tim2++) {
+#else
+		for (int tim2 = 0; tim2 < this->tau_; tim2++) {
+#endif
+			auto tim	=	this->tau_ - tim2;
+			if (tim == 0)
+				continue;
+			auto xk		=	_s;
+			// handle antiperiodicity
+#ifdef DQMC_CAL_TIMES_ALL
+			if (tim < 0) {
+				xk *= -1;
+				tim += this->M_;
+			}
+#endif
+			const uint col		=	tim2 * this->Ns_;
+			const uint row		=	tau_ * this->Ns_;
+			const double elem	=	xk * this->G_[_SPIN_](row + _i, col + _j);
+			// save only the positive first half
+			this->avs_->av_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem;
+			this->avs_->sd_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem * elem;
 
-/*
-* @brief setting the model directories
-* @param working_directory current working directory
-*/
-//void hubbard::HubbardModel::setDirs(std::string working_directory)
-//{
-//	using namespace std;
-//	int Lx = this->lattice->get_Lx();
-//	int Ly = this->lattice->get_Ly();
-//	int Lz = this->lattice->get_Lz();
-//
-//	// set the unique token for file names
-//	const auto token = clk::now().time_since_epoch().count();
-//	this->dir->token = STR(token % this->ran.randomInt_uni(0, 1e6));
-//
-//	// -------------------------------------------------------------- file handler ---------------------------------------------------------------
-//	this->dir->info = this->info;
-//	this->dir->LxLyLz = "Lx=" + STR(Lx) + ",Ly=" + STR(Ly) + ",Lz=" + STR(Lz);
-//
-//	this->dir->lat_type = this->lattice->get_type() + kPS;																// making folder for given lattice type
-//	this->dir->working_dir = working_directory + this->dir->lat_type + \
-//		STR(this->lattice->get_Dim()) + \
-//		"D" + kPS + this->dir->LxLyLz + kPS;																		// name of the working directory
-//
-//	// CREATE DIRECTORIES
-//	this->dir->fourier_dir = this->dir->working_dir + "fouriers";
-//	fs::create_directories(this->dir->fourier_dir);																								// create folder for fourier based parameters
-//	fs::create_directories(this->dir->fourier_dir + kPS + "times");																	// and with different times
-//	this->dir->fourier_dir += kPS;
-//
-//	this->dir->params_dir = this->dir->working_dir + "params";																					// rea; space based parameters directory
-//	this->dir->greens_dir = this->dir->working_dir + "greens";																		// greens directory
-//	fs::create_directories(this->dir->greens_dir);
-//	this->dir->greens_dir += kPS + this->dir->info;
-//	this->dir->time_greens_dir = this->dir->greens_dir + kPS + "times";
-//	fs::create_directories(this->dir->params_dir + kPS + "times");
-//	fs::create_directories(this->dir->time_greens_dir);
-//	this->dir->greens_dir += kPS;
-//	this->dir->time_greens_dir += kPS;
-//	this->dir->params_dir += kPS;
-//
-//	this->dir->conf_dir = this->dir->working_dir + "configurations" + kPS;
-//
-//	// FILES
-//	this->setConfDir();
-//	this->dir->setFileNames();
-//}
-
-// -------------------------------------------------------- UPDATERS --------------------------------------------------------
-
-
-
-//! -------------------------------------------------------- GETTERS
-
-//! -------------------------------------------------------- CALCULATORS
+		}
+	}
+}
 
 // TODO ------------------------>
 
@@ -899,209 +793,257 @@ void hubbard::HubbardModel::save_unequal_greens(int filenum, const vec& signs)
 //	}
 //}
 
-
-
-//! -------------------------------------------------------- PRINTERS --------------------------------------------------------
-// TODO ----------->
-/*
-* TODO
-* @param output
-* @param which_time_caused
-* @param which_site_caused
-* @param this_site_spin
-* @param separator
-*/
-//void hubbard::HubbardModel::print_hs_fields(std::string separator) const
+//double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
 //{
-//	std::ofstream file_conf, file_log;														// savefiles
-//	std::string name_conf, name_log;														// filenames to save
-//	if (this->config_sign < 0) {
-//		name_conf = this->dir->neg_dir + "neg_" + this->info + \
-//			",n=" + STR(this->neg_num) + ".dat";
-//		name_log = this->dir->neg_log;
+//	double delta_ij = 0.0L;
+//	if (current_elem_i == current_elem_j) {
+//		delta_ij = 1.0L;
 //	}
-//	else {
-//		name_conf = this->dir->pos_dir + "pos_" + this->info + \
-//			",n=" + STR(this->pos_num) + ".dat";
-//		name_log = this->dir->pos_log;
-//	}
-//	// open files
-//	openFile(file_log, name_log, ios::app);
-//	openFile(file_conf, name_conf);
-//	printSeparated(file_log, ',', { name_conf, str_p(this->probability, 4), STR(this->config_sign) }, 26);
+//	return sign * (((1 - g_up(current_elem_i, current_elem_i)) * (1 - g_up(current_elem_j, current_elem_j))					//sigma = sigma' = up
+//		+ (1 - g_down(current_elem_i, current_elem_i)) * (1 - g_down(current_elem_j, current_elem_j))				//sigma = sigma' = down
+//		+ (1 - g_down(current_elem_i, current_elem_i)) * (1 - g_up(current_elem_j, current_elem_j))					//sigma = down, sigma' = up
+//		+ (1 - g_up(current_elem_i, current_elem_i)) * (1 - g_down(current_elem_j, current_elem_j))					//sigma = up, sigma' = down
+//		+ ((delta_ij - g_up(current_elem_j, current_elem_i)) * g_up(current_elem_i, current_elem_j))				//sigma = sigma' = up
+//		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * g_down(current_elem_i, current_elem_j))));			//sigma = sigma' = down
+//}
+
+//? -------------------------------------------------------- EQUAL
+
+/*
+* Calculate Green with QR decomposition using LOH. Here we calculate the Green matrix at a given time, so we need to take care of the times away from precalculated sectors
+* @cite doi:10.1016/j.laa.2010.06.023
+* @param which_time The time at which the Green's function is calculated
+*/
+//void hubbard::HubbardQR::cal_green_mat(int which_time) {
+//	auto tim = which_time;
+//	int sec = (which_time / this->M_0);							// which sector is used for M_0 multiplication
+//	int sector_end = (sec + 1) * this->M_0 - 1;
+//	// multiply those B matrices that are not yet multiplied
+//	b_mat_mult_left(
+//		tim + 1, sector_end,
+//		this->b_mat_up[tim], this->b_mat_down[tim],
+//		tempGreen_up, tempGreen_down
+//	);
+//	// using tempGreens to store the starting multiplication
 //
-//	for (int i = 0; i < this->M; i++) {
-//		for (int j = 0; j < this->Ns; j++) {
-//			file_conf << (this->hsFields(i, j) > 0 ? 1 : 0) << separator;
-//		}
-//		file_conf << "\n";
+//	// decomposition
+//	setUDTDecomp(this->tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
+//	setUDTDecomp(this->tempGreen_down, Q_down, R_down, P_down, T_down, D_down);
+//
+//	// multiply by new precalculated sectors
+//	for (int i = 1; i < this->p - 1; i++)
+//	{
+//		sec++;
+//		if (sec == this->p) sec = 0;
+//		multiplyMatricesQrFromRight(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
+//		multiplyMatricesQrFromRight(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
 //	}
-//	file_conf.close();
-//	file_log.close();
+//	// we need to handle the last matrices that ale also away from M_0 cycle
+//	sec++;
+//	if (sec == this->p) sec = 0;
+//	sector_end = myModuloEuclidean(which_time - 1, this->M);
+//	tim = sec * this->M_0;
+//	b_mat_mult_left(tim + 1, sector_end,
+//		this->b_mat_up[tim], this->b_mat_down[tim],
+//		tempGreen_up, tempGreen_down);
+//	multiplyMatricesQrFromRight(tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
+//	multiplyMatricesQrFromRight(tempGreen_down, Q_down, R_down, P_down, T_down, D_down);
+//
+//	//stout << EL;
+//	//this->green_up = T_up.i() * (Q_up.t() * T_up.i() + DIAG(R_up)).i()*Q_up.t();
+//	//this->green_down = T_down.i() * (Q_down.t() * T_down.i() + DIAG(R_down)).i()*Q_down.t();
+//
+//	// Correction terms
+//	makeTwoScalesFromUDT(R_up, D_up);
+//	makeTwoScalesFromUDT(R_down, D_down);
+//	// calculate equal time Green
+//	//this->green_up = arma::inv(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up) * DIAG(D_up) * Q_up.t();
+//	//this->green_down = arma::inv(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down) * DIAG(D_down) * Q_down.t();
+//	this->green_up = arma::solve(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up, DIAG(D_up) * Q_up.t());
+//	this->green_down = arma::solve(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down, DIAG(D_down) * Q_down.t());
 //}
 
 /*
-*
-* @param separator
-* @param toPrint
+* Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices.
+* For more look into :
+* @copydetails "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems".
+* In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
+* @param sector Which sector does the Green's function starrts at
 */
-//void hubbard::HubbardModel::print_hs_fields(std::string separator, const arma::mat& toPrint) const
-//{
-//	std::ofstream file_conf, file_log;														// savefiles
-//	std::string name_config = "", name_log = "";												// filenames to save
-//	if (this->config_sign < 0) {
-//		name_config = this->dir->neg_dir + "neg_" + this->info + ",n=" + STR(this->neg_num) + ".dat";
-//		name_log = this->dir->neg_log;
+//void hubbard::HubbardQR::cal_green_mat_cycle(int sector) {
+//	auto sec = sector;
+//	setUDTDecomp(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
+//	setUDTDecomp(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
+//	for (int i = 1; i < this->p; i++) {
+//		sec++;
+//		if (sec == this->p) sec = 0;
+//		multiplyMatricesQrFromRight(this->b_up_condensed[sec], Q_up, R_up, P_up, T_up, D_up);
+//		multiplyMatricesQrFromRight(this->b_down_condensed[sec], Q_down, R_down, P_down, T_down, D_down);
 //	}
-//	else {
-//		name_config = this->dir->pos_dir + "pos_" + this->info + ",n=" + STR(this->pos_num) + ".dat";
-//		name_log = this->dir->pos_log;
-//	}
-//	// open files
-//	openFile(file_log, name_log, ios::app);
-//	openFile(file_conf, name_config);
-//	printSeparated(file_log, ',', { name_config, str_p(this->probability, 4), STR(this->config_sign) }, 26);
+//	// making two scales for the decomposition following Loh
+//	//makeTwoScalesFromUDT(R_up, D_up);
+//	//makeTwoScalesFromUDT(R_down, D_down);
+//	makeTwoScalesFromUDT(R_up, D_min_up, D_max_up);
+//	makeTwoScalesFromUDT(R_down, D_min_down, D_max_down);
 //
-//	for (int i = 0; i < this->M; i++) {
-//		for (int j = 0; j < this->Ns; j++) {
-//			file_conf << (toPrint(i, j) > 0 ? 1 : 0) << separator;
-//		}
-//		file_conf << "\n";
-//	}
-//	file_conf.close();
-//	file_log.close();
+//	//this->green_up = arma::inv(DIAG(D_up) * Q_up.t() + DIAG(R_up) * T_up) * DIAG(D_up) * Q_up.t();
+//	//this->green_down = arma::inv(DIAG(D_down) * Q_down.t() + DIAG(R_down) * T_down) * DIAG(D_down) * Q_down.t();
+//
+//	this->green_up = arma::solve(arma::inv(DIAG(D_min_up)) * Q_up.t() + DIAG(D_max_up) * T_up, arma::inv(DIAG(D_min_up)) * Q_up.t());
+//	this->green_down = arma::solve(arma::inv(DIAG(D_min_down)) * Q_down.t() + DIAG(D_max_down) * T_down, arma::inv(DIAG(D_min_down)) * Q_down.t());
+//
 //}
 
-// -------------------------------------------------------- EQUAL TIME AVERAGES --------------------------------------------------------
-
-double hubbard::HubbardModel::cal_kinetic_en(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
-{
-	const auto nei_num = this->lattice->get_nn_number(current_elem_i);
-	double Ek = 0;
-	for (int nei = 0; nei < nei_num; nei++)
-	{
-		const int where_neighbor = this->lattice->get_nn(current_elem_i, nei);
-		Ek += g_down(current_elem_i, where_neighbor);
-		Ek += g_down(where_neighbor, current_elem_i);
-		Ek += g_up(current_elem_i, where_neighbor);
-		Ek += g_up(where_neighbor, current_elem_i);
-	}
-	return sign * this->t[current_elem_i] * Ek;
-}
-
-double hubbard::HubbardModel::cal_occupation(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
-{
-	return (sign * (1.0 - g_down(current_elem_i, current_elem_i)) + sign * (1.0 - g_up(current_elem_i, current_elem_i)));
-}
-
-double hubbard::HubbardModel::cal_occupation_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
-{
-	return sign * ((g_down(current_elem_j, current_elem_i) + g_up(current_elem_j, current_elem_i)));
-}
-
-double hubbard::HubbardModel::cal_mz2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
-{
-	return sign * (((1.0 - g_up(current_elem_i, current_elem_i)) * (1.0 - g_up(current_elem_i, current_elem_i)))
-		+ ((1.0 - g_up(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i)))
-		- ((1.0 - g_up(current_elem_i, current_elem_i)) * (1.0 - g_down(current_elem_i, current_elem_i)))
-		- ((1.0 - g_down(current_elem_i, current_elem_i)) * (1.0 - g_up(current_elem_i, current_elem_i)))
-		+ ((1.0 - g_down(current_elem_i, current_elem_i)) * (1.0 - g_down(current_elem_i, current_elem_i)))
-		+ ((1.0 - g_down(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))));
-}
-
-double hubbard::HubbardModel::cal_mz2_corr(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
-{
-	double delta_ij = 0.0L;
-	if (current_elem_i == current_elem_j) {
-		delta_ij = 1.0L;
-	}
-	//g_down.print("TEST");
-	return sign * (((1.0L - g_up(current_elem_i, current_elem_i)) * (1.0L - g_up(current_elem_j, current_elem_j)))
-		+ ((delta_ij - g_up(current_elem_j, current_elem_i)) * (g_up(current_elem_i, current_elem_j)))
-		- ((1.0L - g_up(current_elem_i, current_elem_i)) * (1.0L - g_down(current_elem_j, current_elem_j)))
-		- ((1.0L - g_down(current_elem_i, current_elem_i)) * (1.0L - g_up(current_elem_j, current_elem_j)))
-		+ ((1.0L - g_down(current_elem_i, current_elem_i)) * (1.0L - g_down(current_elem_j, current_elem_j)))
-		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * (g_down(current_elem_i, current_elem_j))));
-}
-
-double hubbard::HubbardModel::cal_my2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
-{
-	return 0;
-}
-
-double hubbard::HubbardModel::cal_mx2(int sign, int current_elem_i, const mat& g_up, const mat& g_down)
-{
-	return sign * (1.0 - g_up(current_elem_i, current_elem_i)) * (g_down(current_elem_i, current_elem_i))
-		+ sign * (1.0 - g_down(current_elem_i, current_elem_i)) * (g_up(current_elem_i, current_elem_i));
-}
-
-double hubbard::HubbardModel::cal_ch_correlation(int sign, int current_elem_i, int current_elem_j, const mat& g_up, const mat& g_down)
-{
-	double delta_ij = 0.0L;
-	if (current_elem_i == current_elem_j) {
-		delta_ij = 1.0L;
-	}
-	return sign * (((1 - g_up(current_elem_i, current_elem_i)) * (1 - g_up(current_elem_j, current_elem_j))					//sigma = sigma' = up
-		+ (1 - g_down(current_elem_i, current_elem_i)) * (1 - g_down(current_elem_j, current_elem_j))				//sigma = sigma' = down
-		+ (1 - g_down(current_elem_i, current_elem_i)) * (1 - g_up(current_elem_j, current_elem_j))					//sigma = down, sigma' = up
-		+ (1 - g_up(current_elem_i, current_elem_i)) * (1 - g_down(current_elem_j, current_elem_j))					//sigma = up, sigma' = down
-		+ ((delta_ij - g_up(current_elem_j, current_elem_i)) * g_up(current_elem_i, current_elem_j))				//sigma = sigma' = up
-		+ ((delta_ij - g_down(current_elem_j, current_elem_i)) * g_down(current_elem_i, current_elem_j))));			//sigma = sigma' = down
-}
-
-// ---------------------------------------------------------------------------------------------------------------- PUBLIC CALCULATORS ----------------------------------------------------------------------------------------------------------------
 
 /*
-* @brief Equilivrate the simulation
-* @param algorithm type of equilibration algorithm
-* @param mcSteps Number of Monte Carlo steps
-* @param conf Shall print configurations?
-* @param quiet Shall be quiet?
-*/
-void hubbard::HubbardModel::relaxation(impDef::algMC algorithm, int mcSteps, bool conf, bool quiet)
-{
-	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
-	this->equalibrate = false;
-	switch (algorithm)
-	{
-	case impDef::algMC::heat_bath:
-		this->heat_bath_eq(mcSteps, conf, quiet);
-		break;
-	default:
-		std::cout << "Didn't choose the algorithm type\n";
-		exit(-1);
-		break;
-	}
+//* @brief Calculating unequal time Green's functions given by Bl_1*...*B_{l2+1}*G_{l2+1} \\rightarrow [B_{l2+1}^{-1}...B_l1^{-1} + B_l2...B_1B_{M-1}...B_{l1+1}]^{-1}.
+//* Make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using:
+//* @cite SciPost Phys. Core 2, 011 (2020)
+//* @param t1 left time t1>t2
+//* @param t2 right time t2<t1
+//* @param inv_series_up precalculated inverse matrices multiplication for spin up
+//* @param inv_series_down precalculated inverse matrices multiplication for spin down
+//*/
+//void hubbard::HubbardQR::uneqG_t1gtt2(int t1, int t2, const mat& inv_up, const mat& inv_down, const mat& up, const mat& down)
+//{
+//	assert("t1 should be higher than t2" && t1 >= t2);
+//	const auto row = t1 * this->Ns;
+//	const auto col = t2 * this->Ns;
+//
+//	//! ------------------------------------ up ------------------------------------ 
+//	//? USE DOWN MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
+//	//! B(t2 + 1)^(-1)...B(t1)^(-1)
+//	setUDTDecomp(inv_up, Q_up, R_up, P_up, T_up, D_up);												// decompose the premultiplied inversions to up temporaries
+//
+//	//! B(M-1)...B(t1 + 1)
+//	setUDTDecomp(up, Q_down, R_down, P_down, T_down, D_down);										// decompose and use down matrices as temporaries + equal time Green at [0]
+//
+//	//! SET MATRIX ELEMENT
+//	setSubmatrixFromMatrix(this->g_up_time,
+//		inv_left_plus_right_qr(
+//			Q_up, R_up, P_up, T_up, D_up,
+//			Q_down, R_down, P_down, T_down, D_down,
+//			D_tmp
+//		),
+//		row, col, this->Ns, this->Ns, false);
+//
+//	//! ------------------------------------ down ------------------------------------
+//	//? USE UP MATRICES AS HELPERS FOR RIGHT SUM TO SAVE PRECIOUS MEMORY!
+//	//! B(t2 + 1)^(-1)...B(t1)^(-1)
+//	setUDTDecomp(inv_down, Q_up, R_up, P_up, T_up, D_up);											// decompose the premultiplied inversions to up temporaries
+//
+//	//! B(M-1)...B(t1 + 1)
+//	setUDTDecomp(down, Q_down, R_down, P_down, T_down, D_down);
+//
+//	//! SET MATRIX ELEMENT
+//	setSubmatrixFromMatrix(this->g_down_time,
+//		inv_left_plus_right_qr(
+//			Q_up, R_up, P_up, T_up, D_up,
+//			Q_down, R_down, P_down, T_down, D_down,
+//			D_tmp
+//		),
+//		row, col, this->Ns, this->Ns, false);
+//}
+//
+////TODO ----------------------->
+///**
+//* @param t1
+//* @param t2
+//*/
+//void hubbard::HubbardQR::uneqG_t1ltt2(int t1, int t2)
+//{
+//	if (t2 <= t1) throw "can't do that m8\n";
+//	// make inverse of function of type (Ql*diag(Rl)*Tl + Qr*diag(Rr)*Tr)^(-1) using SciPost Phys. Core 2, 011 (2020)
+//	const auto row = t1 * this->Ns;
+//	const auto col = t2 * this->Ns;
+//
+//	// ------------------------------------ up ------------------------------------ USE DOWN MATRICES AS HELPERS FOR RIGHT SUM!
+//	// B(l2)...B(l1+1)
+//	//setUDTDecomp(inv_series_up, Q_up, R_up, P_up, T_up, D_up);
+//	this->tempGreen_up = arma::inv(T_up) * DIAG(D_up) * Q_up.t();
+//	// B(M-1)...B(t1 + 1)
+//	//setUDTDecomp(this->g_up_eq[t1], Q_down, R_down, P_down, T_down, D_down);
+//	//setUDTDecomp(this->g_up_eq[0], Q_down, R_down, P_down, T_down, D_down);
+//	// B(t2)...B(0)
+//	//multiplyMatricesQrFromRight(this->g_up_tim[t2], Q_down, R_down, P_down, T_down, D_down);
+//	// SET MATRIX ELEMENT
+//	setUDTDecomp(inv_left_plus_right_qr(Q_up, R_up, P_up, T_up, D_up, \
+//		Q_down, R_down, P_down, T_down, D_down, D_tmp), Q_up, R_up, P_up, T_up, D_up);
+//	setUDTDecomp(this->tempGreen_up, Q_down, R_down, P_down, T_down, D_down);
+//	setUDTDecomp(DIAG(R_up) * T_up * T_down.i() - Q_up.t() * Q_down * DIAG(R_down), Q_down, R_up, P_up, T_up, D_up);
+//
+//	setSubmatrixFromMatrix(this->g_up_time, (Q_up * Q_down) * DIAG(R_up) * (T_up * T_down), row, col, this->Ns, this->Ns, false);
+//
+//	// ------------------ down ------------------
+//	// B(l2)...B(l1+1)
+//	//setUDTDecomp(inv_series_down, Q_down, R_down, P_down, T_down, D_down);
+//	this->tempGreen_down = arma::inv(T_down) * DIAG(D_down) * Q_down.t();
+//	// B(M-1)...B(t1 + 1)
+//	//setUDTDecomp(this->g_down_eq[t1], Q_up, R_up, P_up, T_up, D_up);
+//	//setUDTDecomp(this->g_down_eq[0], Q_up, R_up, P_up, T_up, D_up);
+//	// B(t2)...B(0)
+//	//multiplyMatricesQrFromRight(this->g_down_tim[t2], Q_up, R_up, P_up, T_up, D_up);
+//	// SET MATRIX ELEMENT
+//	setUDTDecomp(inv_left_plus_right_qr(Q_down, R_down, P_down, T_down, D_down, \
+//		Q_up, R_up, P_up, T_up, D_up, D_tmp), Q_down, R_down, P_down, T_down, D_down);
+//	setUDTDecomp(this->tempGreen_up, Q_up, R_up, P_up, T_up, D_up);
+//	setUDTDecomp(DIAG(R_down) * T_down * T_up.i() - Q_down.t() * Q_up * DIAG(R_up), Q_up, R_down, P_down, T_down, D_down);
+//
+//	setSubmatrixFromMatrix(this->g_down_time, Q_down * Q_up * DIAG(R_down) * T_down * T_up, row, col, this->Ns, this->Ns, false);
+//}
 
-	if (!quiet && mcSteps != 1) {
-#pragma omp critical
-		stout << "For: " << this->get_info() << "->\n\t\t\t\tRelax time taken: " << tim_s(start) << " seconds. With sign: " << (pos_num - neg_num) / (1.0 * (pos_num + neg_num)) << "\n";
-	}
-}
 
 /*
-* Collect the averages from the simulation
-* @param algorithm type of equilibration algorithm
-* @param corr_time how many times to wait for correlations breakout
-* @param avNum number of averages to take
-* @param bootStraps Number of bootstraps - NOT IMPLEMENTED
-* @param quiet shall be quiet?
+* @brief Calculate time displaced Greens. NOW ONLY t1>t2
+* @TODO make t2>t1
 */
-void hubbard::HubbardModel::average(impDef::algMC algorithm, int corr_time, int avNum, int bootStraps, bool quiet)
-{
-	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
-	this->equalibrate = false;
-	//this->cal_B_mat();
-	switch (algorithm)
-	{
-	case impDef::algMC::heat_bath:
-		this->heat_bath_av(corr_time, avNum, quiet);
-		break;
-	default:
-		std::cout << "Didn't choose the algorithm type\n";
-		exit(-1);
-		break;
-	}
-#pragma omp critical
-	stout << "For: " << this->get_info() << "->\n\t\t\t\tAverages time taken: " << tim_s(start) << std::endl;
-}
+//void hubbard::HubbardQR::cal_green_mat_times()
+//{
+//	// -------------------------------- calculate non-inverses condensed --------------------------------
+//	auto tim = 0;
+//	this->b_downs[tim] = this->b_mat_down[tim];
+//	this->b_ups[tim] = this->b_mat_up[tim];
+//	this->b_downs_i[tim] = this->b_mat_down_inv[tim];
+//	this->b_ups_i[tim] = this->b_mat_up_inv[tim];
+//	for (int i = 1; i < this->M_0; i++) {
+//		this->b_downs[tim + i] = this->b_mat_down[tim + i] * this->b_downs[tim + i - 1];
+//		this->b_ups[tim + i] = this->b_mat_up[tim + i] * this->b_ups[tim + i - 1];
+//		this->b_downs_i[tim + i] = this->b_downs_i[tim + i - 1] * this->b_mat_down_inv[tim + i];
+//		this->b_ups_i[tim + i] = this->b_ups_i[tim + i - 1] * this->b_mat_up_inv[tim + i];
+//	}
+//
+//	// stable multiply it again to get the correct ones
+//	//setUDTDecomp(this->b_downs[this->M_0 - 1], Q_down, R_down, P_down, T_down);
+//	//setUDTDecomp(this->b_ups[this->M_0 - 1], Q_up, R_up, P_up, T_up);
+//	//this->tempGreen_down = T_down;
+//	//this->tempGreen_up = T_up;
+//
+//	arma::svd(Q_down, D_down, T_down, this->b_downs[this->M_0 - 1]);
+//	arma::svd(Q_up, D_up, T_up, this->b_ups[this->M_0 - 1]);
+//	this->tempGreen_down = T_down.t();
+//	this->tempGreen_up = T_up.t();
+//
+//	for (int i = this->M_0; i < this->M; i++) {
+//		//setUDTDecomp(this->b_mat_down[i] * Q_down * DIAG(R_down), Q_down, R_down, P_down, T_down, D_down);
+//		//setUDTDecomp(this->b_mat_up[i] * Q_up * DIAG(R_up), Q_up, R_up, P_up, T_up, D_up);
+//		//this->tempGreen_down = T_down * this->tempGreen_down;
+//		//this->tempGreen_up = T_up * this->tempGreen_up;
+//		//this->b_downs[i] = (Q_down * DIAG(R_down)) * this->tempGreen_down;
+//		//this->b_ups[i] = (Q_up * DIAG(R_up)) * this->tempGreen_up;
+//
+//
+//		arma::svd(Q_down, D_down, T_down, this->b_mat_down[i] * Q_down * DIAG(D_down));
+//		arma::svd(Q_up, D_up, T_up, this->b_mat_up[i] * Q_up * DIAG(D_up));
+//		this->tempGreen_down = T_down.t() * this->tempGreen_down;
+//		this->tempGreen_up = T_up.t() * this->tempGreen_up;
+//
+//		this->b_downs[i] = (Q_down * DIAG(D_down)) * this->tempGreen_down;
+//		this->b_ups[i] = (Q_up * DIAG(D_up)) * this->tempGreen_up;
+//
+//		makeTwoScalesFromUDT(DIAG(D_down), this->D_min_down, this->D_max_down);
+//		makeTwoScalesFromUDT(DIAG(D_up), this->D_min_up, this->D_max_up);
+//
+//		this->b_downs_i[i] = arma::inv(DIAG(D_max_down) * this->tempGreen_down) * arma::solve(DIAG(D_min_down), EYE(Ns), arma::solve_opts::refine) * Q_down.t();
+//		this->b_ups_i[i] = arma::inv(DIAG(D_max_up) * this->tempGreen_up) * arma::solve(DIAG(D_min_up), EYE(Ns), arma::solve_opts::refine) * Q_up.t();
+//
+//	}

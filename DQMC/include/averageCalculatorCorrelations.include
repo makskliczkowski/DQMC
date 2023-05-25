@@ -1,2 +1,2 @@
-DQMC_AV_FUN1(calKinEnergy)
-DQMC_AV_FUN1(calOccupation)
+DQMC_AV_FUN2(Mz2)
+DQMC_AV_FUN2(Occupation)

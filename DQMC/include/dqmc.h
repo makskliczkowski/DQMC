@@ -12,12 +12,34 @@
 	#include "dqmc_av.h"
 #endif
 
-#define DQMC_CAL_TIMES
-#define DQMC_USE_HIRSH
 constexpr int DQMC_BUCKET_NUM = 5;
 
 #ifndef DQMC_H
 #define DQMC_H
+
+
+// ######################### EXISTING MODELS ############################
+enum MY_MODELS {													 // #
+	HUBBARD_M														 // #
+};																	 // #
+BEGIN_ENUM(MY_MODELS)												 // #
+{																	 // #
+	DECL_ENUM_ELEMENT(HUBBARD_M)									 // #
+}																	 // #
+END_ENUM(MY_MODELS)                                                  // #	
+// ######################################################################
+
+// ######################### SAVING EXTENSIONS ##########################
+enum HAM_SAVE_EXT {													 // #
+	dat, h5															 // #
+};																	 // #
+BEGIN_ENUM(HAM_SAVE_EXT)											 // #
+{																	 // #
+	DECL_ENUM_ELEMENT(dat), DECL_ENUM_ELEMENT(h5)					 // #
+}																	 // #
+END_ENUM(HAM_SAVE_EXT)                                               // #	
+// ######################################################################
+
 
 // #################################################################################
 struct DQMCdir
@@ -25,6 +47,27 @@ struct DQMCdir
 	std::string mainDir;
 	std::string equalTimeDir;
 	std::string unequalTimeDir;
+
+	// Green's functions
+	std::string equalGDir;
+	std::string unequalGDir;
+	std::string randomSampleStr;
+
+	// correlations
+	std::string equalCorrDir;
+	std::string uneqalCorrDir;
+
+	void createDQMCDirs(randomGen& _ran) {
+		fs::create_directories(mainDir);
+		fs::create_directories(equalTimeDir);
+		fs::create_directories(unequalTimeDir);
+
+		fs::create_directories(equalGDir);
+		fs::create_directories(unequalGDir);
+		
+		const auto token	= clk::now().time_since_epoch().count();
+		randomSampleStr		= STR(token % _ran.randomInt<int>(1, 1e4));
+	}
 };
 // #################################################################################
 
@@ -57,11 +100,13 @@ protected:
 	// ################ C U R R E N T   P R O P E R T I E S ################
 	uint tau_							=		0;							// current Trotter time
 	int currentSign_					=		1;							// current sign of the HS configuration probability
+	int currentWarmups_					=		1;
+	int currentAverages_				=		1;
 
 	std::shared_ptr<Lattice> lat_;
 	pBar pBar_;																// for printing out the progress
 	// ######################### A V E R A G E S ###########################
-	std::shared_ptr<DQMCavs<spinNum_>> avs_;
+	std::shared_ptr<DQMCavs<spinNum_, double>> avs_;
 
 	// ############### P H Y S I C A L   P R O P E R T I E S ###############
 	double T_							=		1;
@@ -69,7 +114,6 @@ protected:
 	arma::mat TExp_;														// hopping exponential
 
 	// ############# S I M U L A T I O N   P R O P E R T I E S #############
-	std::string info_;
 
 	double proba_						=		0.0;
 	int configSign_						=		1;
@@ -81,10 +125,20 @@ public:
 	randomGen ran_;															// consistent quick random number generator
 	std::string info_;														// information about the model
 
+	DQMC()								=		default;
+	DQMC(double _T, std::shared_ptr<Lattice> _lat, uint _threadNum = 1) 
+		: threadNum_(_threadNum), Ns_(_lat->get_Ns()), lat_(_lat), T_(_T), beta_(1.0 / _T)
+	{
+		LOGINFO("Base DQMC class is constructed.\n", LOG_TYPES::TRACE, 1);
+		this->posNum_					=		0;
+		this->negNum_					=		0;
+	}
+
 	virtual ~DQMC()					
 	{ 
-		LOGINFO("Base DQMC is destroyed...", LOG_TYPES::INFO, 3); 
+		LOGINFO("Base DQMC is destroyed...", LOG_TYPES::INFO, 1); 
 	};
+
 	virtual void init()														= 0;
 
 	// ###################### C A L C U L A T O R S ########################
@@ -99,13 +153,13 @@ public:
 	auto getDim()						const -> uint						{ return this->lat_->get_Dim(); };
 	auto getNs()						const -> uint						{ return this->lat_->get_Ns(); };
 	auto getBC()						const -> BoundaryConditions			{ return this->lat_->get_BC(); };
-	auto getAverages()					const -> std::shared_ptr<DQMCavs<spinNumber_>>	
+	auto getAverages()					const -> std::shared_ptr<DQMCavs<spinNumber_, double>>	
 																			{ return this->avs_; };
 
 	// ########################## S E T T E R S ############################
 	virtual auto setHS(HS_CONF_TYPES _t)-> void								= 0;
 	virtual auto setDir(std::string _m)	-> void								= 0;
-
+	virtual auto setInfo()				-> void								= 0;
 	// ###################### C A L C U L A T O R S ########################
 protected:
 	virtual spinTuple_ calProba(uint _site)									= 0;
@@ -125,6 +179,7 @@ protected:
 #endif
 
 	virtual void avSingleStep(int _currI, int _sign)						= 0;
+	virtual void avSingleStepUneq(int, int, int, int _i, int _j, int _s)	= 0;
 	virtual int eqSingleStep(int _site)										= 0;
 	// ######################### E V O L U T I O N #########################
 	virtual int sweepLattice();
@@ -132,14 +187,14 @@ protected:
 	//virtual double sweepBackward()										= 0;
 
 	virtual void equalibrate(uint MCs, bool _quiet = false)					= 0;
-	virtual void average(uint MCs, uint corrTime, uint avNum,
+	virtual void averaging(uint MCs, uint corrTime, uint avNum,
 						 uint bootStraps, bool _quiet = false)				= 0;
 
 	// ########################## U P D A T E R S ##########################
 	virtual void updPropagatB(uint _site, uint _t)							= 0;
-	virtual void updPropagatB(uint _site)									{ this->updPropagatB(this->tau_); };
+	virtual void updPropagatB(uint _site)									{ this->updPropagatB(_site, this->tau_); };
 	virtual void updInteracts(uint _site, uint _t)							= 0;
-	virtual void updInteracts(uint _site)									{ this->updInteracts(this->tau_); };
+	virtual void updInteracts(uint _site)									{ this->updInteracts(_site, this->tau_); };
 
 	// GREENS
 	virtual void updEqlGreens(uint _site, const spinTuple_& p)				= 0;
@@ -176,9 +231,9 @@ inline int DQMC<spinNum_>::sweepLattice()
 template<size_t spinNum_>
 inline void DQMC<spinNum_>::relaxes(uint MCs, bool _quiet)
 {
-	auto start		=		std::chrono::high_resolution_clock::now();											// starting timer for averages
+	auto start				=		std::chrono::high_resolution_clock::now();											// starting timer for averages
+	this->currentWarmups_	=		MCs;
 	this->equalibrate(MCs, _quiet);
-
 	if (!_quiet && MCs != 1) {
 #pragma omp critical
 		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(start) + ". With sign: " + STRP((posNum_ - negNum_) / (posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
@@ -190,7 +245,8 @@ template<size_t spinNum_>
 inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
 {
 	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
-	this->average(MCs, corrTime, avNum, bootStraps, _quiet);
+	this->currentAverages_	=		MCs;
+	this->averaging(MCs, corrTime, avNum, bootStraps, _quiet);
 
 	if (!_quiet && MCs != 1) {
 #pragma omp critical

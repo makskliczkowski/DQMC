@@ -1,6 +1,12 @@
+// %%%%%%%%%%%%% L O G %%%%%%%%%%%%%%%
+#define DEBUG						//
+//#define LOG_FILE					//
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 #include "include/user_interface.h"
 
 int main(const int argc, char* argv[]) {
+	SET_LOG_TIME();
 	//auto a = 3;
 	//auto b = 4.2;
 	//auto c = 4.13;
@@ -25,9 +31,9 @@ int main(const int argc, char* argv[]) {
 	grr.print("\n\nwith SVD");
 	*/
 
-	std::unique_ptr<user_interface> intface = std::make_unique<hubbard::ui>(argc, argv);
-	intface->make_simulation();
-	cin.get();
+	auto ui = std::make_unique<UI>(argc, argv);
+	//ui->make_simulation();
+	ui->funChoice();
 
 	return 0;
 }
