@@ -171,6 +171,7 @@ protected:
 	// GREENS
 	virtual void compareGreen(uint _tau, double _toll, bool _print)			= 0;
 	virtual void calGreensFun(uint _tau)									= 0;
+	virtual void calGreensFunC(uint _sec)									= 0;
 
 #ifdef DQMC_CAL_TIMES
 	virtual void calGreensFunT()											= 0;
@@ -236,7 +237,7 @@ inline void DQMC<spinNum_>::relaxes(uint MCs, bool _quiet)
 	this->equalibrate(MCs, _quiet);
 	if (!_quiet && MCs != 1) {
 #pragma omp critical
-		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(start) + ". With sign: " + STRP((posNum_ - negNum_) / (posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(start) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
 		LOGINFO(LOG_TYPES::TRACE, 2);
 	}
 }
@@ -248,9 +249,11 @@ inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint bo
 	this->currentAverages_	=		MCs;
 	this->averaging(MCs, corrTime, avNum, bootStraps, _quiet);
 
-	if (!_quiet && MCs != 1) {
+	if (!_quiet) {
 #pragma omp critical
-		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(start) + ". With sign: " + STRP((posNum_ - negNum_) / (posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(start) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO("Average Onsite Occupation = " + STRP(this->avs_->av_Occupation, 4)	, LOG_TYPES::TIME, 3);
+		LOGINFO("Average Onsite Magnetization = " + STRP(this->avs_->av_Mz2, 4)		, LOG_TYPES::TIME, 3);
 		LOGINFO(LOG_TYPES::TRACE, 2);
 	}
 }

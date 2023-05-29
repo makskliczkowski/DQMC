@@ -25,13 +25,13 @@ public:
 	using vecMatArray = std::array<v_1d<arma::mat>, spinNumber_>;
 	enum SPINNUM
 	{
-		_DN_ = 0,
-		_UP_ = 1
+		_UP_ = 0,
+		_DN_ = 1
 	};
 	BEGIN_ENUM_INLINE(SPINNUM)
 	{
-		DECL_ENUM_ELEMENT(_DN_),
-			DECL_ENUM_ELEMENT(_UP_)
+		DECL_ENUM_ELEMENT(_UP_),
+		DECL_ENUM_ELEMENT(_DN_)
 	}
 	END_ENUM_INLINE(SPINNUM, DQMC2);
 
@@ -74,7 +74,6 @@ protected:
 class DQMCavs2 : public virtual DQMCavs<2, double>
 {
 	using _T				=	double;
-	const v_1d<double>* t_nn_;							// nn hopping integrals
 	using GREEN_TYPE		=	DQMCavs<2, double>::GREEN_TYPE;
 	using SINGLE_PART_FUN	=	DQMCavs<2, double>::SINGLE_PART_FUN;
 	using TWO_PARTS_FUN		=	DQMCavs<2, double>::TWO_PARTS_FUN;
@@ -85,8 +84,8 @@ public:
 		LOGINFO("Destroying spin-1/2 averages for DQMC", LOG_TYPES::TRACE, 2);
 	}
 
-	DQMCavs2(std::shared_ptr<Lattice> _lat, int _M)
-		: DQMCavs<2, double>(_lat, _M)
+	DQMCavs2(std::shared_ptr<Lattice> _lat, int _M, const v_1d<double>* _t_nn = nullptr)
+		: DQMCavs<2, double>(_lat, _M, _t_nn)
 	{
 		LOGINFO("Building DQMC SPIN-1/2 averages class", LOG_TYPES::INFO, 3);
 	};
@@ -104,7 +103,7 @@ public:
 			Ek					+=	_g[DQMC2::_UP_](_i, whereNei);
 			Ek					+=	_g[DQMC2::_UP_](whereNei, _i);
 		}
-		return _sign * (*this->t_nn_)[_i] * Ek;
+		return _sign * ((this->t_nn_) ? (*this->t_nn_)[_i] * Ek : 1.0);
 	}
 	virtual _T cal_Occupation(SINGLE_PARTICLE_INPUT)	override
 	{

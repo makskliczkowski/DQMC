@@ -95,12 +95,12 @@ auto Hubbard::calGamma(uint _site) -> void
 */
 auto Hubbard::calDelta() -> spinTuple_
 {
-	spinTuple_ _out;
+	spinTuple_ _out = this->currentGamma_;
 	std::transform	(		
 						this->currentGamma_.begin(),
 						this->currentGamma_.end(),
 						_out.begin(),
-						[&](auto& i) { return i + 1; }
+						[&](auto& i) { return i + 1.0; }
 					);
 	return _out;
 }
@@ -147,8 +147,7 @@ auto Hubbard::calQuadratic() -> void
 auto Hubbard::calInteracts() -> void
 {
 	const arma::Col<double> _dtauVec		=		arma::ones(this->Ns_) * this->dtau_ * (this->mu_);
-	if (this->U_ > 0)
-		// Repulsive case
+	if (this->REPULSIVE_)
 		for (int l = 0; l < this->M_; l++) {
 			// Trotter times
 			this->IExp_[_UP_].col(l)		=		arma::exp(_dtauVec + this->HSFields_.row(l).t() * (	this->lambda_));
@@ -203,43 +202,58 @@ void Hubbard::calPropagatBC(uint _sec)
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
 		auto _time						=		_sec * this->M0_;
 		this->Bcond_[_SPIN_][_sec]		=		this->B_[_SPIN_][_time];
-		for (int i = _time + 1; i < _time + this->M0_; i++)
+		for (int i = _time + 1; i < (_sec + 1) * this->M0_; i++)
 			this->Bcond_[_SPIN_][_sec]	=		this->B_[_SPIN_][i] * this->Bcond_[_SPIN_][_sec];
 	}
 	
 }
 
 /*
-* Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices.
-* For more look into :
-* @copydetails "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems".
-* In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
-* @param _tau starting time sector - always marks the beginning of the sector
+* @brief Directly calculate the Green's function without the decomposition.
+* @param _tau Green's function time
 */
 void Hubbard::calGreensFun(uint _tau)
 {
-	auto _time		[[maybe_unused]]	= _tau;
-	auto _sector	[[maybe_unused]]	= _tau / this->M0_;
-
-	// decompose the matrices
-	this->udt_[SPINNUM::_UP_]->decompose(this->Bcond_[SPINNUM::_UP_][_sector]);
-	this->udt_[SPINNUM::_DN_]->decompose(this->Bcond_[SPINNUM::_DN_][_sector]);
-
-	// go through each sector
-	for (int i = 1; i < this->p_; i++) {
-		_sector++;
-		if (_sector == this->p_)
-			_sector				= 0;
-		this->udt_[SPINNUM::_UP_]->factMult(this->Bcond_[SPINNUM::_UP_][_sector]);
-		this->udt_[SPINNUM::_DN_]->factMult(this->Bcond_[SPINNUM::_DN_][_sector]);
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+	{
+		this->G_[_SPIN_]		=		this->B_[_SPIN_][_tau];
+		for (int i = 1; i < this->M_; i++) 
+		{
+			_tau++;
+			if (_tau == this->M_)
+				_tau = 0;
+			this->G_[_SPIN_]	=		this->B_[_SPIN_][_tau] * this->G_[_SPIN_];
+		}
+		this->G_[_SPIN_]		=		arma::inv(arma::eye(this->G_[_SPIN_].n_rows, this->G_[_SPIN_].n_cols) + this->G_[_SPIN_]);
 	}
-	// making two scales for the decomposition following Loh
-	this->udt_[SPINNUM::_UP_]->loh_inplace();
-	this->udt_[SPINNUM::_DN_]->loh_inplace();
+}
 
-	// save the Green's
-	this->udt_[SPINNUM::_UP_]->inv1P(this->G_[SPINNUM::_UP_]);
-	this->udt_[SPINNUM::_DN_]->inv1P(this->G_[SPINNUM::_DN_]);
+/*
+* Calculate Green with QR decomposition using LOH : doi:10.1016/j.laa.2010.06.023 with premultiplied B matrices composition.
+* For more look into :
+* @copydetails "Advancing Large Scale Many-Body QMC Simulations on GPU Accelerated Multicore Systems".
+* In order to do that the M_0 and p variables will be used to divide the multiplication into smaller chunks of matrices.
+* @param _sec starting time sector
+*/
+void Hubbard::calGreensFunC(uint _sec)
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
+		// decompose the matrices
+		this->udt_[_SPIN_]->decompose(this->Bcond_[_SPIN_][_sec]);
+
+		// go through each sector
+		for (int i = 1; i < this->p_; i++) {
+			_sec++;
+			if (_sec == this->p_)
+				_sec = 0;
+			this->udt_[_SPIN_]->factMult(this->Bcond_[_SPIN_][_sec]);
+		}
+		// making two scales for the decomposition following Loh
+		//this->udt_[_SPIN_]->loh_inplace();
+
+		// save the Green's
+		this->udt_[_SPIN_]->inv1P(this->G_[_SPIN_]);
+	}
 }
 
 // ################################################# U N E Q U A L   T I M E S ####################################################
@@ -342,9 +356,9 @@ void Hubbard::setInfo()
 	this->info_ = "Hubbard,";
 	this->info_ += VEQV(M,		M_);
 	this->info_ += "," + VEQV(M0, M0_);
-	this->info_ += "," + VEQV(beta, beta_);
-	this->info_ += "," + VEQV(U, U_);
-	this->info_ += "," + VEQV(mu, mu_);
+	this->info_ += "," + VEQVP(beta, beta_, 3);
+	this->info_ += "," + VEQVP(U, U_, 3);
+	this->info_ += "," + VEQVP(mu, mu_, 3);
 
 	for (const auto& par : splitStr(this->lat_->get_info(), ","))
 		LOGINFO(par, LOG_TYPES::TRACE, 2);
@@ -378,8 +392,8 @@ void Hubbard::updPropagatB(uint _site, uint _t)
 		this->B_[0][_t]	(i, _site)	*=	_delta[0];
 		this->B_[1][_t]	(i, _site)	*=	_delta[1];
 
-		this->iB_[0][_t](i, _site)	*=	_delta[1];
-		this->iB_[1][_t](i, _site)	*=	_delta[0];
+		this->iB_[0][_t](_site, i)	*=	_delta[1];
+		this->iB_[1][_t](_site, i)	*=	_delta[0];
 	}
 }
 
@@ -395,7 +409,7 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 		this->udt_[_SPIN_]->D	=	this->G_[_SPIN_].row(_site).as_col();
 		const auto gammaOverP	=	this->currentGamma_[_SPIN_] / p[_SPIN_];
 		for (int _a = 0; _a < this->Ns_; _a++) {
-			const auto _kron [[maybe_unused]]		=	(_a == _site) ? 1 : 0;
+			const auto _kron [[maybe_unused]]		=	(_a == _site) ? 1. : 0.;
 			const auto G_ai							=	this->G_[_SPIN_](_a, _site);
 			for (int _b = 0; _b < this->Ns_; _b++)
 				this->G_[_SPIN_](_a, _b)			-=	(_kron - G_ai) * gammaOverP * this->udt_[_SPIN_]->D(_b);
@@ -436,10 +450,10 @@ void Hubbard::updGreenStep(uint _t)
 	{
 		const auto sectorToUpdate = modEUC<int>(static_cast<int>(_t / double(this->M0_)) - 1, this->p_);
 		this->calPropagatBC(sectorToUpdate);
-		this->calGreensFun(sectorToUpdate * this->M0_);
+		this->calGreensFunC(modEUC<int>(static_cast<int>(_t / double(this->M0_)), this->p_));
 	}
 	else
-		this->updNextGreen(_t);
+		this->updNextGreen(_t - 1);
 }
 
 // ###################################################### E V O L U T I O N ########################################################
@@ -454,7 +468,7 @@ int Hubbard::eqSingleStep(int _site)
 	this->calGamma(_site);
 	auto _probaTuple			=	this->calProba(_site);
 	this->proba_				=	1.0;
-	for(auto& p : _probaTuple)
+	for(const auto& p : _probaTuple)	
 		this->proba_			*= p;
 	this->proba_				*=	this->proba_ / (1.0 + this->proba_);
 	const int _sign				=	(this->proba_ >= 0) ? 1 : -1;
@@ -584,7 +598,7 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bo
 		if(!_quiet && step % this->pBar_.percentageSteps == 0)
 			this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS AVERAGES"));
 	}
-	auto avSign = (this->posNum_ - this->negNum_) / (this->posNum_ + this->negNum_);
+	double avSign = double(this->posNum_ - this->negNum_) / double(this->posNum_ + this->negNum_);
 	this->avs_->normalize(avNum, this->M_ * this->lat_->get_Ns(), avSign);
 }
 

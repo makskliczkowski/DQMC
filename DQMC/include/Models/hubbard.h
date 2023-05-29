@@ -39,7 +39,7 @@ public:
 		this->init();
 
 		this->ran_				=			randomGen();
-		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M);
+		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M, &this->t_);
 
 		// lambda
 		this->REPULSIVE_		=			(this->U_ > 0);
@@ -48,7 +48,7 @@ public:
 
 		// calculate Gamma Exponents
 		auto expM				=			std::expm1(-2.0 * this->lambda_);
-		auto expP = std::expm1(2.0 * this->lambda_);
+		auto expP				=			std::expm1(2.0 * this->lambda_);
 		this->gammaExp_ = {{ expM, expP },{ expP, expM }};
 
 		this->fromScratchNum_	=			this->M0_;
@@ -76,6 +76,7 @@ protected:
 	// GREENS
 	void compareGreen(uint _tau, double _toll, bool _print)					override;
 	void calGreensFun(uint _tau)											override;
+	void calGreensFunC(uint _sec)											override;
 #ifdef DQMC_CAL_TIMES
 	void calGreensFunT()													override;
 	void calGreensFunTHirsh()												override;

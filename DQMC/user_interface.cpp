@@ -46,7 +46,7 @@ void UI::parseModel(int argc, cmdArg& argv)
 	this->modP.Ns_			=			this->latP.lat->get_Ns();
 	this->modP.T_			=			1.0 / this->modP.beta_;
 	this->modP.M_			=			this->modP.beta_ / this->modP.dtau_;
-	this->modP.t_			=			v_1d<double>(this->modP.Ns_, this->modP.t_[0]);
+	this->modP.t_			=			v_1d<double>(this->modP.Ns_, -this->modP.t_[0]);
 	// ---------- OTHERS
 	this->setOption(this->quiet		, argv, "q"	);
 	this->setOption(this->threadNum	, argv, "th"	);

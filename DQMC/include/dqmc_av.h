@@ -27,7 +27,7 @@
 
 #define DQMC_SAVE_H5
 #define DQMC_USE_HIRSH
-#define DQMC_CAL_TIMES
+//#define DQMC_CAL_TIMES
 #ifdef DQMC_CAL_TIMES
 	#define DQMC_CAL_TIMES_ALL
 #endif
@@ -55,9 +55,10 @@ class DQMCavs
 {
 protected:
 	std::shared_ptr<Lattice> lat_;
+	const v_1d<double>* t_nn_;							// nn hopping integrals
 public:
-	DQMCavs(std::shared_ptr<Lattice> _lat, int _M)
-		: lat_(_lat)
+	DQMCavs(std::shared_ptr<Lattice> _lat, int _M, const v_1d<double>* _t_nn = nullptr)
+		: lat_(_lat), t_nn_(_t_nn)
 	{
 		LOGINFO("Building DQMC base averages class", LOG_TYPES::INFO, 2);
 		auto [x_num, y_num, z_num] = _lat->getNumElems();
@@ -83,8 +84,8 @@ public:
 					this->normM_ += 1.0;
 				}
 			}
-#endif
 		}
+#endif
 	}
 
 public:
