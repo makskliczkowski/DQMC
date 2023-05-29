@@ -129,7 +129,7 @@ public:
 	DQMC(double _T, std::shared_ptr<Lattice> _lat, uint _threadNum = 1) 
 		: threadNum_(_threadNum), Ns_(_lat->get_Ns()), lat_(_lat), T_(_T), beta_(1.0 / _T)
 	{
-		LOGINFO("Base DQMC class is constructed.\n", LOG_TYPES::TRACE, 1);
+		LOGINFO("Base DQMC class is constructed.", LOG_TYPES::TRACE, 1);
 		this->posNum_					=		0;
 		this->negNum_					=		0;
 	}

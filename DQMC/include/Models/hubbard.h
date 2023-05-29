@@ -40,7 +40,6 @@ public:
 
 		this->ran_				=			randomGen();
 		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M);
-		this->avs_->reset();
 
 		// lambda
 		this->REPULSIVE_		=			(this->U_ > 0);
@@ -53,6 +52,16 @@ public:
 		this->gammaExp_ = {{ expM, expP },{ expP, expM }};
 
 		this->fromScratchNum_	=			this->M0_;
+
+		this->setHS(HS_CONF_TYPES::HIGH_T);
+		this->calQuadratic();
+		this->calInteracts();
+		this->calPropagatB();
+		for (int i = 0; i < this->p_; i++)
+			this->calPropagatBC(i);
+
+		this->B_[0][0].print("");
+		this->Bcond_[0][this->p_ - 1].print("");
 	}
 	void init()																override;
 

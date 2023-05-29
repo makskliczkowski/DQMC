@@ -57,6 +57,22 @@ namespace UI_PARAMS
 			UI_PARAM_SET_DEFAULT(Ns);
 		};
 	};
+	
+	/*
+	* @brief Defines parameters used later for the models
+	*/
+	struct SimP {
+
+		UI_PARAM_CREATE_DEFAULTD(mcS, int, 100);
+		UI_PARAM_CREATE_DEFAULTD(mcC, int, 1);
+		UI_PARAM_CREATE_DEFAULTD(mcA, int, 100); 
+
+		void setDefault() {
+			UI_PARAM_SET_DEFAULT(mcS);
+			UI_PARAM_SET_DEFAULT(mcC);
+			UI_PARAM_SET_DEFAULT(mcA);
+		};
+	};
 
 	/*
 	* @brief Defines lattice used later for the models
@@ -91,6 +107,9 @@ protected:
 	// MODELS params
 	UI_PARAMS::ModP modP;
 
+	// SIMULATION params
+	UI_PARAMS::SimP simP;
+
 	// define basic models
 	std::shared_ptr<DQMC<2>> mod_s2_;
 
@@ -105,6 +124,10 @@ protected:
 			UI_OTHER_MAP(lx			, this->latP._Lx		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(ly			, this->latP._Ly		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(lz			, this->latP._Lz		, FHANDLE_PARAM_HIGHER0			),
+			// ---------------- MC parameters ----------------
+			UI_OTHER_MAP(mcS		, this->simP._mcS		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(mcC		, this->simP._mcC		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(mcA		, this->simP._mcA		, FHANDLE_PARAM_HIGHER0			),
 			// ---------------- model parameters ----------------
 			UI_OTHER_MAP(mod		, this->modP._modTyp	, FHANDLE_PARAM_BETWEEN(0., 2.)	),
 			// -------- Hubbard
@@ -128,6 +151,7 @@ private:
 	
 	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% D E F I N I T I O N S %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	bool defineModels(bool _createLat = true);
+	bool defineLattice();
 	bool defineModel();
 
 	public:

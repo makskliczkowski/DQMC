@@ -203,7 +203,7 @@ void Hubbard::calPropagatBC(uint _sec)
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
 		auto _time						=		_sec * this->M0_;
 		this->Bcond_[_SPIN_][_sec]		=		this->B_[_SPIN_][_time];
-		for (int i = _time; i < _time + this->M0_; i++)
+		for (int i = _time + 1; i < _time + this->M0_; i++)
 			this->Bcond_[_SPIN_][_sec]	=		this->B_[_SPIN_][i] * this->Bcond_[_SPIN_][_sec];
 	}
 	
@@ -347,10 +347,10 @@ void Hubbard::setInfo()
 	this->info_ += "," + VEQV(mu, mu_);
 
 	for (const auto& par : splitStr(this->lat_->get_info(), ","))
-		LOGINFO(par + "\n", LOG_TYPES::TRACE, 2);
+		LOGINFO(par, LOG_TYPES::TRACE, 2);
 
 	for (const auto& par : splitStr(this->info_, ","))
-		LOGINFO(par + "\n", LOG_TYPES::TRACE, 2);
+		LOGINFO(par, LOG_TYPES::TRACE, 2);
 
 }
 
@@ -392,7 +392,7 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
 		// use the D matrix from UDT to save the row which does not change
-		this->udt_[_SPIN_]->D	=	this->G_[_SPIN_].row(_site);
+		this->udt_[_SPIN_]->D	=	this->G_[_SPIN_].row(_site).as_col();
 		const auto gammaOverP	=	this->currentGamma_[_SPIN_] / p[_SPIN_];
 		for (int _a = 0; _a < this->Ns_; _a++) {
 			const auto _kron [[maybe_unused]]		=	(_a == _site) ? 1 : 0;
@@ -453,10 +453,12 @@ int Hubbard::eqSingleStep(int _site)
 {
 	this->calGamma(_site);
 	auto _probaTuple			=	this->calProba(_site);
-	this->proba_				=	std::reduce(_probaTuple.begin(), _probaTuple.end(), 1, std::multiplies<int>());
+	this->proba_				=	1.0;
+	for(auto& p : _probaTuple)
+		this->proba_			*= p;
 	this->proba_				*=	this->proba_ / (1.0 + this->proba_);
 	const int _sign				=	(this->proba_ >= 0) ? 1 : -1;
-	if (this->ran_.bernoulli(proba_) <= _sign * this->proba_)
+	if (this->ran_.random<double>() <= _sign * this->proba_)
 	{
 		this->HSFields_(this->tau_, _site) *= -1;
 		this->updPropagatB(_site, this->tau_);

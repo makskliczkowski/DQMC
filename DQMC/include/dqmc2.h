@@ -18,7 +18,7 @@
 
 // ######################### G E N E R A L   S P I N   2 ############################
 
-class DQMC2 : public virtual DQMC<size_t(2)>
+class DQMC2 : public DQMC<size_t(2)>
 {
 public:
 	using matArray = std::array<arma::mat, spinNumber_>;
@@ -39,7 +39,7 @@ public:
 	DQMC2(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0, int _threadNum = 1)
 		: DQMC<spinNumber_>(_T, _lat, _threadNum), M_(_M), M0_(_M0), p_(_M / _M0)
 	{
-		LOGINFO(std::string("Base DQMC spin-1/2 class is constructed.\n"), LOG_TYPES::TRACE, 2);
+		LOGINFO(std::string("Base DQMC spin-1/2 class is constructed."), LOG_TYPES::TRACE, 2);
 	}
 	virtual ~DQMC2() 
 	{
@@ -88,7 +88,7 @@ public:
 	DQMCavs2(std::shared_ptr<Lattice> _lat, int _M)
 		: DQMCavs<2, double>(_lat, _M)
 	{
-
+		LOGINFO("Building DQMC SPIN-1/2 averages class", LOG_TYPES::INFO, 3);
 	};
 
 	// --- SINGLE ---
@@ -148,47 +148,21 @@ public:
 	// ########################## R E S E T E R S ##########################
 public:
 	
-	/*
-	* @brief Resets all the averages
-	*/
-	void reset()										override {
-		auto [x_num, y_num, z_num]		=		this->lat_->getNumElems();
+	///*
+	//* @brief Resets all the averages
+	//*/
+	//void reset()										override {
 
-		this->av_Ek = 0;
-		this->sd_Ek = 0;
-		
-		this->av_Occupation				=		0;
-		this->sd_Occupation				=		0;
-		
-		this->av_Mz2					=		0;
-		this->sd_Mz2					=		0;
 
-		this->av_Mx2					=		0;
-		this->sd_Mx2					=		0;
+	//}
 
-		this->av_My2					=		0;
-		this->sd_My2					=		0;
+	///*
+	//* @brief Resets the Green's function in time
+	//*/
+	//void resetG()										override
+	//{
 
-		// correlations
-		this->avC_Mz2					=		v_3d<_T>(x_num, v_2d<_T>(y_num, v_1d<_T>(z_num, 0.0)));
-		this->avC_Occupation			=		v_3d<_T>(x_num, v_2d<_T>(y_num, v_1d<_T>(z_num, 0.0)));
-		
-#ifdef DQMC_CAL_TIMES
-		this->resetG();
-#endif
-	}
-
-	/*
-	* @brief Resets the Green's function in time
-	*/
-	void resetG()										override
-	{
-		for(int _SPIN_ = 0; _SPIN_ < this->av_GTimeDiff_.size(); _SPIN_++)
-			for (int tau = 0; tau < this->av_GTimeDiff_[_SPIN_].size(); tau++) {
-				this->av_GTimeDiff_[_SPIN_][tau].zeros();
-				this->sd_GTimeDiff_[_SPIN_][tau].zeros();
-			}
-	}
+	//}
 };
 
 #endif

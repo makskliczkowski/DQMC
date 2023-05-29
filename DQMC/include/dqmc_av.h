@@ -59,6 +59,7 @@ public:
 	DQMCavs(std::shared_ptr<Lattice> _lat, int _M)
 		: lat_(_lat)
 	{
+		LOGINFO("Building DQMC base averages class", LOG_TYPES::INFO, 2);
 		auto [x_num, y_num, z_num] = _lat->getNumElems();
 		this->reset();
 #ifdef DQMC_CAL_TIMES
@@ -100,8 +101,8 @@ public:
 	arma::vec normM_;
 	// ################################## F U N C T I O N S #################################
 	
-	virtual void reset()															= 0;
-	virtual void resetG()															= 0;
+	virtual void reset();
+	virtual void resetG();
 	virtual void normalize(int _avNum, int _normalization, double _avSign);
 	virtual void normalizeG();
 	void calOneSite(SINGLE_PARTICLE_INPUT, const std::string& choice, _retT& av, _retT& stdev);
@@ -223,4 +224,46 @@ inline void DQMCavs<_spinNum, _retT>::calTwoSite(TWO_PARTICLES_INPUT, const std:
 	av[x][y][z]		+=		_val;
 };
 
+// ##########################################################################################
+
+template<size_t _spinNum, typename _retT>
+inline void DQMCavs<_spinNum, _retT>::reset() 
+{
+		auto [x_num, y_num, z_num]		=		this->lat_->getNumElems();
+
+		this->av_Ek = 0;
+		this->sd_Ek = 0;
+		
+		this->av_Occupation				=		0;
+		this->sd_Occupation				=		0;
+		
+		this->av_Mz2					=		0;
+		this->sd_Mz2					=		0;
+
+		this->av_Mx2					=		0;
+		this->sd_Mx2					=		0;
+
+		this->av_My2					=		0;
+		this->sd_My2					=		0;
+
+		// correlations
+		this->avC_Mz2					=		v_3d<_retT>(x_num, v_2d<_retT>(y_num, v_1d<_retT>(z_num, 0.0)));
+		this->avC_Occupation			=		v_3d<_retT>(x_num, v_2d<_retT>(y_num, v_1d<_retT>(z_num, 0.0)));
+		
+#ifdef DQMC_CAL_TIMES
+		this->resetG();
+#endif
+}
+
+// ##########################################################################################
+
+template<size_t _spinNum, typename _retT>
+inline void DQMCavs<_spinNum, _retT>::resetG()
+{
+	for (int _SPIN_ = 0; _SPIN_ < this->av_GTimeDiff_.size(); _SPIN_++)
+		for (int tau = 0; tau < this->av_GTimeDiff_[_SPIN_].size(); tau++) {
+			this->av_GTimeDiff_[_SPIN_][tau].zeros();
+			this->sd_GTimeDiff_[_SPIN_][tau].zeros();
+		}
+}
 #endif // !DQMC_AV_H

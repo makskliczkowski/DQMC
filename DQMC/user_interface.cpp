@@ -20,7 +20,9 @@ void UI::parseModel(int argc, cmdArg& argv)
 	std::string choosen_option = "";
 
 	// -------------------- SIMULATION PARAMETERS --------------------
-	
+	SETOPTION(		simP, mcS			);
+	SETOPTION(		simP, mcA			);
+	SETOPTION(		simP, mcC			);
 	// ---------- LATTICE ----------
 	SETOPTIONV(		latP, typ, "l"		);
 	SETOPTIONV(		latP, dim, "d"		);
@@ -28,6 +30,8 @@ void UI::parseModel(int argc, cmdArg& argv)
 	SETOPTION(		latP, Ly			);
 	SETOPTION(		latP, Lz			);
 	SETOPTION(		latP, bc			);
+	if (!this->defineLattice())
+		throw std::runtime_error("Couldn't create a lattice\n");
 
 	// ---------- MODEL ----------
 
@@ -42,7 +46,7 @@ void UI::parseModel(int argc, cmdArg& argv)
 	this->modP.Ns_			=			this->latP.lat->get_Ns();
 	this->modP.T_			=			1.0 / this->modP.beta_;
 	this->modP.M_			=			this->modP.beta_ / this->modP.dtau_;
-
+	this->modP.t_			=			v_1d<double>(this->modP.Ns_, this->modP.t_[0]);
 	// ---------- OTHERS
 	this->setOption(this->quiet		, argv, "q"	);
 	this->setOption(this->threadNum	, argv, "th"	);
@@ -106,27 +110,37 @@ void UI::funChoice()
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+/*
+* @brief Depending on the lattice type, define it!
+*/
+bool UI::defineLattice()
+{
+	switch (this->latP.typ_)
+	{
+	case LatticeTypes::SQ:
+		this->latP.lat = std::make_shared<SquareLattice>(this->latP.Lx_, this->latP.Ly_, this->latP.Lz_,
+			this->latP.dim_, this->latP.bc_);
+		break;
+	case LatticeTypes::HEX:
+		this->latP.lat = std::make_shared<HexagonalLattice>(this->latP.Lx_, this->latP.Ly_, this->latP.Lz_,
+			this->latP.dim_, this->latP.bc_);
+		break;
+	default:
+		this->latP.lat = std::make_shared<SquareLattice>(this->latP.Lx_, this->latP.Ly_, this->latP.Lz_,
+			this->latP.dim_, this->latP.bc_);
+		break;
+	};
+	return true;
+}
+
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 bool UI::defineModels(bool _createLat)
 {
 	// create lattice
 	if (_createLat && !this->latP.lat)
-	{
-		switch (this->latP.typ_)
-		{
-		case LatticeTypes::SQ:
-			this->latP.lat = std::make_shared<SquareLattice>(this->latP.Lx_, this->latP.Ly_, this->latP.Lz_,
-				this->latP.dim_, this->latP.bc_);
-			break;
-		case LatticeTypes::HEX:
-			this->latP.lat = std::make_shared<HexagonalLattice>(this->latP.Lx_, this->latP.Ly_, this->latP.Lz_,
-				this->latP.dim_, this->latP.bc_);
-			break;
-		default:
-			this->latP.lat = std::make_shared<SquareLattice>(this->latP.Lx_, this->latP.Ly_, this->latP.Lz_,
-				this->latP.dim_, this->latP.bc_);
-			break;
-		};
-	}
+		this->defineLattice();
+
 	return this->defineModel();
 }
 
@@ -154,6 +168,8 @@ void UI::makeSim()
 {
 	if (!this->defineModels(true))
 		return;
+	this->mod_s2_->relaxes(this->simP.mcS_, this->quiet);
+	this->mod_s2_->average(1, this->simP.mcC_, this->simP.mcA_, 1, this->quiet);
 }
 // -------------------------------------------------------- PARSERS
 
