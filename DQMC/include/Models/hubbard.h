@@ -13,8 +13,7 @@
 class Hubbard : public virtual DQMC2
 {
 	// ############################# Q R ################################### 
-	std::array<std::unique_ptr<algebra::UDT<double>>, spinNumber_> udt_;
-	spinTuple_ currentGamma_;
+	std::array<std::unique_ptr<algebra::UDT_QR<double>>, spinNumber_> udt_;
 	
 	// ############### P H Y S I C A L   P R O P E R T I E S ###############
 	v_1d<double> t_;														// hopping integrals
@@ -26,48 +25,59 @@ class Hubbard : public virtual DQMC2
 	double dtau_				=			1e-2;							// Trotter time step
 
 	double lambda_				=			1.0;							// lambda parameter in HS transform
-	arma::Mat<int> HSFields_;												// Hubbard-Stratonovich fields
+	arma::Mat<double> HSFields_;												// Hubbard-Stratonovich fields
 	v_1d<spinTuple_> gammaExp_;
+	spinTuple_* currentGamma_;
 
 public:
 	Hubbard()					=			default;
 	Hubbard(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0,
 		v_1d<double> _t, double _U, double _dtau)
-		: t_(_t), U_(_U), dtau_(_dtau), DQMC2(_T, _lat, _M, _M0)
+		: t_(_t), U_(_U), dtau_(_dtau), gammaExp_({ {0, 0}, {0, 0} }), DQMC2(_T, _lat, _M, _M0)
 	{
 		this->setInfo();
-		this->init();
 
 		this->ran_				=			randomGen();
 		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M, &this->t_);
 
 		// lambda
 		this->REPULSIVE_		=			(this->U_ > 0);
+
 		// lambda couples to the auxiliary spins
-		this->lambda_			=			(this->REPULSIVE_) ? std::acosh(exp((this->U_ * this->dtau_) / 2.0)) : std::acosh(exp((-this->U_ * this->dtau_) * 0.5));
+		this->lambda_			=			std::acosh(std::exp((std::abs(this->U_) * this->dtau_) / 2.0));
 
 		// calculate Gamma Exponents
-		auto expM				=			std::expm1(-2.0 * this->lambda_);
-		auto expP				=			std::expm1(2.0 * this->lambda_);
-		this->gammaExp_ = {{ expM, expP },{ expP, expM }};
-
+		double expM				=			std::expm1(-2.0 * this->lambda_);									// spin * hsfield =  1
+		double expP				=			std::expm1(2.0 * this->lambda_);									// spin * hsfield = -1
+		this->gammaExp_			=			{{ expM, (this->REPULSIVE_) ? expP : expM }, { expP, expM }};		// [hsfield = 1, hsfield = -1]
+		this->currentGamma_		=			&this->gammaExp_[0];
 		this->fromScratchNum_	=			this->M0_;
+		
+		this->init();
 
 		this->setHS(HS_CONF_TYPES::HIGH_T);
 		this->calQuadratic();
 		this->calInteracts();
 		this->calPropagatB();
-		for (int i = 0; i < this->p_; i++)
+		for (uint i = 0; i < this->p_; i++)
 			this->calPropagatBC(i);
+		this->posNum_			=			0;
+		this->negNum_			=			0;
 
-		this->B_[0][0].print("");
-		this->Bcond_[0][this->p_ - 1].print("");
+		//for (uint i = 0; i < this->p_; i++)
+		//{
+		//	stout << i << "\n\n";
+		//	this->calGreensFunC(i );
+		//	this->G_[_UP_].print("\n");
+		//	this->calGreensFun(i * this->M0_);
+		//	this->G_[_UP_].print("\n");
+		//}
 	}
 	void init()																override;
 
 protected:
 	// ####################### C A L C U L A T O R S #######################
-	spinTuple_ calProba(uint _site)											override;
+	void calProba(uint _site)												override;
 	void calQuadratic()														override;
 	void calInteracts()														override;
 	void calPropagatBC(uint _sec)											override;

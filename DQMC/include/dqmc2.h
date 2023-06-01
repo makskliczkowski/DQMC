@@ -21,8 +21,8 @@
 class DQMC2 : public DQMC<size_t(2)>
 {
 public:
-	using matArray = std::array<arma::mat, spinNumber_>;
-	using vecMatArray = std::array<v_1d<arma::mat>, spinNumber_>;
+	using matArray				=			std::array<arma::mat, spinNumber_>;
+	using vecMatArray			=			std::array<v_1d<arma::mat>, spinNumber_>;
 	enum SPINNUM
 	{
 		_UP_ = 0,

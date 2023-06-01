@@ -115,6 +115,7 @@ protected:
 
 	// ############# S I M U L A T I O N   P R O P E R T I E S #############
 
+	spinTuple_ currentProba_;
 	double proba_						=		0.0;
 	int configSign_						=		1;
 	uint fromScratchNum_				=		1;
@@ -162,7 +163,7 @@ public:
 	virtual auto setInfo()				-> void								= 0;
 	// ###################### C A L C U L A T O R S ########################
 protected:
-	virtual spinTuple_ calProba(uint _site)									= 0;
+	virtual void calProba(uint _site)										= 0;
 	virtual void calQuadratic()												= 0;
 	virtual void calInteracts()												= 0;
 	virtual void calPropagatB(uint _tau)									= 0;

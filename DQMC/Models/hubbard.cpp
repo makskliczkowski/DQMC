@@ -32,7 +32,7 @@ void Hubbard::init()
 		this->iB_		[_SPIN_]	=	v_1d<arma::mat>(this->M_, ZEROM(this->Ns_));
 		this->Bcond_	[_SPIN_]	=	v_1d<arma::mat>(this->p_, ZEROM(this->Ns_));
 		// initialize UDT decomposition
-		this->udt_		[_SPIN_].reset(new algebra::UDT_QR(this->G_[_SPIN_]));
+		this->udt_		[_SPIN_]	=	std::make_unique<algebra::UDT_QR<double>>(this->G_[_SPIN_]);
 
 #ifdef DQMC_CAL_TIMES
 
@@ -84,10 +84,15 @@ void Hubbard::compareGreen(uint _tau, double _toll, bool _print)
 */
 auto Hubbard::calGamma(uint _site) -> void
 {
-	if (this->REPULSIVE_)
-		this->currentGamma_ = (this->HSFields_(this->tau_, _site) == 1) ? this->gammaExp_[0] : this->gammaExp_[1];
+	if (this->REPULSIVE_) 
+	{
+		if (this->HSFields_(this->tau_, _site) > 0)
+			this->currentGamma_ = &this->gammaExp_[0];
+		else
+			this->currentGamma_ = &this->gammaExp_[1];
+	}
 	else
-		this->currentGamma_ = { this->gammaExp_[0][0], this->gammaExp_[0][0] };
+		this->currentGamma_		= &this->gammaExp_[0];
 }
 
 /*
@@ -95,13 +100,9 @@ auto Hubbard::calGamma(uint _site) -> void
 */
 auto Hubbard::calDelta() -> spinTuple_
 {
-	spinTuple_ _out = this->currentGamma_;
-	std::transform	(		
-						this->currentGamma_.begin(),
-						this->currentGamma_.end(),
-						_out.begin(),
-						[&](auto& i) { return i + 1.0; }
-					);
+	spinTuple_ _out = { 0, 0 };
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_)
+		_out[_SPIN_] = 1.0 + (*this->currentGamma_)[_SPIN_];
 	return _out;
 }
 
@@ -112,12 +113,10 @@ auto Hubbard::calDelta() -> spinTuple_
 * @returns tuple for probabilities on both spin channels, 
 * @warning remember, 0 is spin up, 1 is spin down
 */
-auto Hubbard::calProba(uint _site) -> spinTuple_
+auto Hubbard::calProba(uint _site) -> void
 {
-	return	{
-				1.0		+	currentGamma_[_UP_]	*	(1.0 - this->G_[SPINNUM::_UP_](_site, _site)),
-				1.0		+	currentGamma_[_DN_]	*	(1.0 - this->G_[SPINNUM::_DN_](_site, _site))
-			};
+	this->currentProba_[_UP_] = 1.0 + ((*currentGamma_)[_UP_] * (1.0 - this->G_[SPINNUM::_UP_](_site, _site)));
+	this->currentProba_[_DN_] = 1.0 + ((*currentGamma_)[_DN_] * (1.0 - this->G_[SPINNUM::_DN_](_site, _site)));
 }
 
 // ################################################### H A M I L T O N I A N ######################################################
@@ -134,7 +133,7 @@ auto Hubbard::calQuadratic() -> void
 		const auto neiSize			=	this->lat_->get_nn(_site);
 		for (int neiNum = 0; neiNum < neiSize; neiNum++) {
 			const auto nei			=	this->lat_->get_nn(_site, neiNum);								// get given nn
-			this->TExp_(_site, nei) +=	this->dtau_ * this->t_[_site];									// assign non-diagonal elements
+			this->TExp_(_site, nei) =	this->dtau_ * this->t_[_site];									// assign non-diagonal elements
 		}
 	}
 #pragma omp critical
@@ -150,8 +149,8 @@ auto Hubbard::calInteracts() -> void
 	if (this->REPULSIVE_)
 		for (int l = 0; l < this->M_; l++) {
 			// Trotter times
-			this->IExp_[_UP_].col(l)		=		arma::exp(_dtauVec + this->HSFields_.row(l).t() * (	this->lambda_));
-			this->IExp_[_DN_].col(l)		=		arma::exp(_dtauVec + this->HSFields_.row(l).t() * (-this->lambda_));
+			this->IExp_[_UP_].col(l)		=		arma::exp((_dtauVec + this->HSFields_.row(l).as_col() * (	this->lambda_ )));
+			this->IExp_[_DN_].col(l)		=		arma::exp((_dtauVec + this->HSFields_.row(l).as_col() * (	-this->lambda_)));
 		}
 	else if (this->U_ < 0)
 		// Attractive case
@@ -172,12 +171,14 @@ auto Hubbard::calInteracts() -> void
 */
 auto Hubbard::calPropagatB() -> void
 {
-	for(auto _spin = 0; _spin < this->spinNumber_; _spin++)
-		for (int l = 0; l < this->M_; l++) {
+	for(int _spin = 0; _spin < this->spinNumber_; ++_spin)
+	{
+		for (int l = 0; l < this->M_; ++l) {
 			// Trotter times
 			this->B_[_spin][l]		=		this->TExp_ * DIAG(this->IExp_[_spin].col(l));
-			this->iB_[_spin][l]		=		this->B_[_spin][l].i();
+			this->iB_[_spin][l]		=		arma::inv(this->B_[_spin][l]);
 		}
+	}
 }
 
 /*
@@ -189,7 +190,7 @@ auto Hubbard::calPropagatB(uint _tau) -> void
 	for (auto _spin = 0; _spin < this->spinNumber_; _spin++) 
 	{
 		this->B_[_spin][_tau]		=		this->TExp_ * DIAG(this->IExp_[_spin].col(_tau));
-		this->iB_[_spin][_tau]		=		this->B_[_spin][_tau].i();
+		this->iB_[_spin][_tau]		=		arma::inv(this->B_[_spin][_tau]);
 	}
 }
 
@@ -199,11 +200,14 @@ auto Hubbard::calPropagatB(uint _tau) -> void
 */
 void Hubbard::calPropagatBC(uint _sec)
 {
-	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
-		auto _time						=		_sec * this->M0_;
+	const int _time						=		_sec * this->M0_;
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_) {
 		this->Bcond_[_SPIN_][_sec]		=		this->B_[_SPIN_][_time];
-		for (int i = _time + 1; i < (_sec + 1) * this->M0_; i++)
-			this->Bcond_[_SPIN_][_sec]	=		this->B_[_SPIN_][i] * this->Bcond_[_SPIN_][_sec];
+		for (int i = 1; i < this->M0_; ++i)
+		{
+			const int _timeIn			=		_time + i;
+			this->Bcond_[_SPIN_][_sec]	=		this->B_[_SPIN_][_timeIn] * this->Bcond_[_SPIN_][_sec];
+		}
 	}
 	
 }
@@ -214,10 +218,10 @@ void Hubbard::calPropagatBC(uint _sec)
 */
 void Hubbard::calGreensFun(uint _tau)
 {
-	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_)
 	{
 		this->G_[_SPIN_]		=		this->B_[_SPIN_][_tau];
-		for (int i = 1; i < this->M_; i++) 
+		for (int i = 1; i < this->M_; ++i) 
 		{
 			_tau++;
 			if (_tau == this->M_)
@@ -237,7 +241,7 @@ void Hubbard::calGreensFun(uint _tau)
 */
 void Hubbard::calGreensFunC(uint _sec)
 {
-	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
+	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_) {
 		// decompose the matrices
 		this->udt_[_SPIN_]->decompose(this->Bcond_[_SPIN_][_sec]);
 
@@ -252,7 +256,7 @@ void Hubbard::calGreensFunC(uint _sec)
 		//this->udt_[_SPIN_]->loh_inplace();
 
 		// save the Green's
-		this->udt_[_SPIN_]->inv1P(this->G_[_SPIN_]);
+		this->G_[_SPIN_] = this->udt_[_SPIN_]->inv1P();
 	}
 }
 
@@ -327,6 +331,7 @@ auto Hubbard::setHS(HS_CONF_TYPES _t) -> void
 		this->HSFields_.ones(this->M_, this->Ns_);
 		break;
 	}
+	//this->HSFields_.print();
 }
 
 /*
@@ -354,11 +359,13 @@ auto Hubbard::setDir(std::string _m) -> void
 void Hubbard::setInfo()
 {
 	this->info_ = "Hubbard,";
-	this->info_ += VEQV(M,		M_);
-	this->info_ += "," + VEQV(M0, M0_);
-	this->info_ += "," + VEQVP(beta, beta_, 3);
-	this->info_ += "," + VEQVP(U, U_, 3);
-	this->info_ += "," + VEQVP(mu, mu_, 3);
+	this->info_ +=			VEQV(M,		M_);
+	this->info_ += "," +	VEQV(M0,	M0_);
+	this->info_ += "," +	VEQV(p,		p_);
+	this->info_ += "," +	VEQVP(dt,	dtau_,	3);
+	this->info_ += "," +	VEQVP(beta, beta_,	3);
+	this->info_ += "," +	VEQVP(U,	U_,		3);
+	this->info_ += "," +	VEQVP(mu,	mu_,	3);
 
 	for (const auto& par : splitStr(this->lat_->get_info(), ","))
 		LOGINFO(par, LOG_TYPES::TRACE, 2);
@@ -386,14 +393,13 @@ void Hubbard::updInteracts(uint _site, uint _t)
 */
 void Hubbard::updPropagatB(uint _site, uint _t)
 {
-	auto _delta = this->calDelta();
+	const auto _delta					=	this->calDelta();
 	for (int i = 0; i < this->Ns_; i++) 
 	{
-		this->B_[0][_t]	(i, _site)	*=	_delta[0];
-		this->B_[1][_t]	(i, _site)	*=	_delta[1];
-
-		this->iB_[0][_t](_site, i)	*=	_delta[1];
-		this->iB_[1][_t](_site, i)	*=	_delta[0];
+		this->B_[_UP_][_t](i, _site)	*=	_delta[_UP_];
+		this->B_[_DN_][_t](i, _site)	*=	_delta[_DN_];
+		this->iB_[_UP_][_t](_site, i)	*=	_delta[_DN_];
+		this->iB_[_DN_][_t](_site, i)	*=	_delta[_UP_];
 	}
 }
 
@@ -406,11 +412,11 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
 		// use the D matrix from UDT to save the row which does not change
-		this->udt_[_SPIN_]->D	=	this->G_[_SPIN_].row(_site).as_col();
-		const auto gammaOverP	=	this->currentGamma_[_SPIN_] / p[_SPIN_];
+		this->udt_[_SPIN_]->D	=	((this->G_[_SPIN_].row(_site)).t());
+		const double gammaOverP	=	(*this->currentGamma_)[_SPIN_] / p [_SPIN_];
 		for (int _a = 0; _a < this->Ns_; _a++) {
-			const auto _kron [[maybe_unused]]		=	(_a == _site) ? 1. : 0.;
-			const auto G_ai							=	this->G_[_SPIN_](_a, _site);
+			const double _kron [[maybe_unused]]		=	(_a == _site) ? 1.0 : 0.0;
+			const double G_ai						=	this->G_[_SPIN_](_a, _site);
 			for (int _b = 0; _b < this->Ns_; _b++)
 				this->G_[_SPIN_](_a, _b)			-=	(_kron - G_ai) * gammaOverP * this->udt_[_SPIN_]->D(_b);
 		}
@@ -436,7 +442,7 @@ void Hubbard::updNextGreen(uint _t)
 void Hubbard::updPrevGreen(uint _t)
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
-		this->G_[_SPIN_]		=	(this->iB_[_SPIN_][_t - 1] * this->G_[_SPIN_]) * this->iB_[_SPIN_][_t - 1];
+		this->G_[_SPIN_]		=	(this->iB_[_SPIN_][int(_t) - 1] * this->G_[_SPIN_]) * this->iB_[_SPIN_][int(_t) - 1];
 }
 
 /*
@@ -448,12 +454,15 @@ void Hubbard::updGreenStep(uint _t)
 {
 	if (_t % this->fromScratchNum_ == 0)
 	{
-		const auto sectorToUpdate = modEUC<int>(static_cast<int>(_t / double(this->M0_)) - 1, this->p_);
+		const int cast				= static_cast<int>(_t / double(this->M0_));
+		const int sectorToUpdate	= modEUC<int>((cast - 1), this->p_);
 		this->calPropagatBC(sectorToUpdate);
-		this->calGreensFunC(modEUC<int>(static_cast<int>(_t / double(this->M0_)), this->p_));
+		this->calGreensFunC(cast);
 	}
 	else
 		this->updNextGreen(_t - 1);
+	this->calGreensFun(_t);
+
 }
 
 // ###################################################### E V O L U T I O N ########################################################
@@ -466,17 +475,17 @@ void Hubbard::updGreenStep(uint _t)
 int Hubbard::eqSingleStep(int _site)
 {
 	this->calGamma(_site);
-	auto _probaTuple			=	this->calProba(_site);
-	this->proba_				=	1.0;
-	for(const auto& p : _probaTuple)	
-		this->proba_			*= p;
-	this->proba_				*=	this->proba_ / (1.0 + this->proba_);
+	this->calProba(_site);
+	this->proba_				=	this->currentProba_[_UP_] * this->currentProba_[_DN_];
+	this->proba_				=	this->proba_ / (1.0 + this->proba_);
 	const int _sign				=	(this->proba_ >= 0) ? 1 : -1;
-	if (this->ran_.random<double>() <= _sign * this->proba_)
+	if (this->ran_.random<double>(0.0, 1.0) <= _sign * this->proba_)
 	{
-		this->HSFields_(this->tau_, _site) *= -1;
+		this->HSFields_(this->tau_, _site) *= -1.0;
+		//this->updInteracts(_site, this->tau_);
 		this->updPropagatB(_site, this->tau_);
-		this->updEqlGreens(_site, _probaTuple);
+		this->updEqlGreens(_site, this->currentProba_);
+		this->calGreensFun(this->tau_);
 	}
 	return _sign;
 }
@@ -486,12 +495,12 @@ int Hubbard::eqSingleStep(int _site)
 */
 double Hubbard::sweepForward()
 {
-	this->configSign_	=	{};
+	this->configSigns_	=	{};
 	this->configSign_	=	1;
-	for (int _tau = 0; _tau < this->M_; _tau++)
+	for (uint _tau = 0; _tau < this->M_; ++_tau)
 	{
 		this->tau_		=	_tau;
-		this->updGreenStep(_tau);
+		this->updGreenStep(this->tau_);
 		configSign_		=	(this->sweepLattice() > 0) ? +this->configSign_ : -this->configSign_;
 		configSigns_.push_back(configSign_);
 	}
@@ -524,7 +533,7 @@ void Hubbard::equalibrate(uint MCs, bool _quiet)
 
 	// sweep all
 	for (int step = 0; step < MCs; step++) {
-		this->sweepForward();
+		auto _sign			=		this->sweepForward();
 #ifdef DQMC_SAVE_CONF
 		this->saveConfig("\t");
 #endif
