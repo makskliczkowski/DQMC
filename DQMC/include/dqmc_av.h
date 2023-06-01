@@ -27,7 +27,7 @@
 
 #define DQMC_SAVE_H5
 #define DQMC_USE_HIRSH
-//#define DQMC_CAL_TIMES
+#define DQMC_CAL_TIMES
 #ifdef DQMC_CAL_TIMES
 	#define DQMC_CAL_TIMES_ALL
 #endif
@@ -94,8 +94,11 @@ public:
 	typedef std::function<_retT(TWO_PARTICLES_INPUT)>								TWO_PARTS_FUN;			// =	std::add_pointer<_retT(TWO_PARTICLES_INPUT)>	::type;
 
 	SINGLE_PARTICLE_PARAM(sign, double);
+
+#ifdef DQMC_CAL_TIMES
 	std::array<v_1d<arma::mat>, _spinNum>	av_GTimeDiff_;
 	std::array<v_1d<arma::mat>, _spinNum>	sd_GTimeDiff_;
+#endif // DQMC_CAL_TIMES
 
 	int norm_					=	1;
 	int normSign_				=	1;

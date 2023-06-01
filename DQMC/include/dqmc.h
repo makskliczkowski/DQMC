@@ -57,6 +57,11 @@ struct DQMCdir
 	std::string equalCorrDir;
 	std::string uneqalCorrDir;
 
+	void setup(const std::string& _mainDir)
+	{
+		mainDir = _mainDir;
+	}
+
 	void createDQMCDirs(randomGen& _ran) {
 		fs::create_directories(mainDir);
 		fs::create_directories(equalTimeDir);
@@ -64,6 +69,9 @@ struct DQMCdir
 
 		fs::create_directories(equalGDir);
 		fs::create_directories(unequalGDir);
+
+		fs::create_directories(equalCorrDir);
+		fs::create_directories(uneqalCorrDir);
 		
 		const auto token	= clk::now().time_since_epoch().count();
 		randomSampleStr		= STR(token % _ran.randomInt<int>(1, 1e4));
@@ -130,6 +138,7 @@ public:
 	DQMC(double _T, std::shared_ptr<Lattice> _lat, uint _threadNum = 1) 
 		: threadNum_(_threadNum), Ns_(_lat->get_Ns()), lat_(_lat), T_(_T), beta_(1.0 / _T)
 	{
+		this->dir_						=		std::make_shared<DQMCdir>();
 		LOGINFO("Base DQMC class is constructed.", LOG_TYPES::TRACE, 1);
 		this->posNum_					=		0;
 		this->negNum_					=		0;
@@ -206,6 +215,9 @@ protected:
 	virtual void updGreenStep(uint _t)										= 0;
 	
 	// ############################ S A V E R S ############################
+public:
+	virtual void saveAverages()												= 0;
+	virtual void saveCorrelations()											= 0;
 	virtual void saveGreensT(uint _step)									= 0;
 	virtual void saveGreens(uint _step)										= 0;
 };

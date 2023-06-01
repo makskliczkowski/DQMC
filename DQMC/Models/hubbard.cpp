@@ -35,7 +35,11 @@ void Hubbard::init()
 		this->udt_		[_SPIN_]	=	std::make_unique<algebra::UDT_QR<double>>(this->G_[_SPIN_]);
 
 #ifdef DQMC_CAL_TIMES
-
+	#ifdef DQMC_CAL_TIMES_ALL
+		this->Gtime_	[_SPIN_].zeros(this->M_ * this->Ns_, this->M_ * this->Ns_);
+	#else
+		this->Gtime_	[_SPIN_].zeros(this->p_ * this->Ns_, this->p_ * this->Ns_);
+	#endif
 #endif // CAL_TIMES
 	}
 }
@@ -713,6 +717,21 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 		}
 	}
 }
+
+// ######################################################### S A V E R S ###########################################################
+
+/*
+* @brief Save the equal time Green's functions
+* @param _step current step time
+*/
+void Hubbard::saveGreens(uint _step)
+{
+	const std::string _signStr = this->configSign_ == 1 ? "+" : "-";
+	this->tmpG_[0] = (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
+	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5", "G(t)"));
+	this->HSFields_.save(arma::hdf5_name(this->dir_->equalGDir + "G_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5", "HS"	, arma::hdf5_opts::append));
+}
+
 
 // TODO ------------------------>
 

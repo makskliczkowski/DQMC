@@ -78,7 +78,69 @@ void DQMC2::saveGreensT(uint _step)
 */
 void DQMC2::saveGreens(uint _step)
 {
-	const std::string _signStr	= this->configSign_ == 1 ? "+" : "-";
-	this->tmpG_[0]				= (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
-	this->tmpG_[0].save(arma::hdf5_name(this->dir_->equalGDir + "G_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr, "G(t)", arma::hdf5_opts::append));
+	const std::string _signStr = this->configSign_ == 1 ? "+" : "-";
+	this->tmpG_[0] = (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
+	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" + this->dir_->randomSampleStr, "G(" + STR(_step) + ")", arma::hdf5_opts::append));
+}
+
+/*
+* @brief Saves the averages after finishing the simulation
+*/
+void DQMC2::saveAverages()
+{
+	LOGINFO("Saving averages after the simulation.", LOG_TYPES::FINISH, 2);
+	std::ofstream fileLog, fileSigns;
+
+	// open log file
+	openFile(fileLog, this->dir_->mainDir	+ "HubbardLog.csv"	, std::ios::in | std::ios::app);
+	openFile(fileSigns, this->dir_->mainDir + "HubbardSigns.csv", std::ios::in | std::ios::app);
+
+	printSeparatedP(fileLog, ',', 26, true, 5, 
+					this->lat_->get_info(), 
+					this->getInfo(),
+					this->avs_->av_sign, 
+					this->avs_->av_Occupation, this->avs_->sd_Occupation,
+					this->avs_->av_Ek, this->avs_->sd_Ek,
+					this->avs_->av_Mz2, this->avs_->sd_Mz2,
+					this->avs_->av_Mx2, this->avs_->sd_Mx2,
+					this->dir_->randomSampleStr
+		);
+	printSeparatedP(fileSigns	, '\t', 25, true, 5, this->getInfo(), this->avs_->av_Occupation, this->avs_->av_sign);
+	printSeparatedP(stout		, '\t', 25, true, 5, this->getInfo(), this->avs_->av_Occupation, this->avs_->av_sign);
+	fileLog.close();
+	fileSigns.close();
+
+	// save the Green's functions
+	LOGINFO("Saving Green's functions after the simulation.", LOG_TYPES::FINISH, 3);
+	for (int _t = 0; _t < this->M_; ++_t)
+	{
+		this->updGreenStep(_t);
+		this->saveGreens(_t);
+	}
+	this->saveCorrelations();
+
+	LOGINFO("Finished saving averages after the simulation.", LOG_TYPES::FINISH, 2);
+}
+
+void DQMC2::saveCorrelations()
+{
+	LOGINFO("Saving correlation functions after the simulation.", LOG_TYPES::FINISH, 3);
+	const auto prec = 8;
+	std::ofstream file, fileTime;
+	openFile(file, this->dir_->equalCorrDir + "correlation" + this->dir_->randomSampleStr + ".dat");
+
+	auto [x_num, y_num, z_num] = this->lat_->getNumElems();
+	for (int x = 0; x < x_num; x++)
+		for (int y = 0; y < y_num; y++)
+			for (int z = 0; z < z_num; z++) {
+				auto [xx, yy, zz] = this->lat_->getSymPosInv(x, y, z);
+				printSeparated	(file, ',', 2 * prec, false	, xx, yy, zz);
+				printSeparatedP	(file, ',', 2 * prec, true	, prec	, avs_->avC_Mz2[x][y][z], avs_->avC_Occupation[x][y][z]);
+				//if (times) {
+				//	for (int i = 0; i < M; i++) {
+						//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << (avs.av_M2z_corr_uneqTime[x_pos][y_pos][z_pos][i]) << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
+						//fileP_time << x << "\t" << y << "\t" << z << "\t" << i << "\t" << this->gree << "\t" << (avs.av_Charge2_corr_uneqTime[x_pos][y_pos][z_pos][i]) << endl;
+				//	}
+			}
+	file.close();
 }

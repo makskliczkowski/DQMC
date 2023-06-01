@@ -64,6 +64,9 @@ protected:
 	vecMatArray iB_;														// imaginary time propagators	
 
 	// ############################ S A V E R S ############################
+public:
+	virtual void saveAverages()												override;
+	virtual void saveCorrelations()											override;
 	virtual void saveGreensT(uint _step)									override;
 	virtual void saveGreens(uint _step)										override;
 };
