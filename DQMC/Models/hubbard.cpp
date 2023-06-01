@@ -696,7 +696,7 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 #else
 		for (int tim2 = 0; tim2 < this->tau_; tim2++) {
 #endif
-			auto tim	=	this->tau_ - tim2;
+			int tim		=	this->tau_ - tim2;
 			if (tim == 0)
 				continue;
 			auto xk		=	_s;
@@ -709,7 +709,7 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 #endif
 			const uint col		=	tim2 * this->Ns_;
 			const uint row		=	tau_ * this->Ns_;
-			const double elem	=	xk * this->G_[_SPIN_](row + _i, col + _j);
+			const double elem	=	xk * this->Gtime_[_SPIN_](row + _i, col + _j);
 			// save only the positive first half
 			this->avs_->av_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem;
 			this->avs_->sd_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem * elem;
