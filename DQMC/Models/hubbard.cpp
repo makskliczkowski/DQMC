@@ -75,6 +75,29 @@ void Hubbard::compareGreen(uint _tau, double _toll, bool _print)
 	LOGINFO(LOG_TYPES::TRACE, 2);
 }
 
+void Hubbard::compareGreen()
+{
+	this->tmpG_[_UP_] = this->G_[_UP_];
+	this->tmpG_[_DN_] = this->G_[_DN_];
+	this->calGreensFun(this->tau_);
+	stout << VEQ(this->tau_) << "\n";
+	auto UP = arma::approx_equal(this->G_[_UP_], this->tmpG_[_UP_], "absdiff", 1e-7);
+	auto DN = arma::approx_equal(this->G_[_DN_], this->tmpG_[_DN_], "absdiff", 1e-7);
+	stout << "_UP_: " << UP << "\n";
+	stout << "_DN_: " << DN << "\n";
+	if (!UP)
+	{
+		this->tmpG_[_UP_].print("\n");
+		this->G_[_UP_].print("\n");
+	}
+	if (!DN)
+	{
+		this->tmpG_[_DN_].print("\n");
+		this->G_[_DN_].print("\n");
+	}
+	stout << "--- \n";
+}
+
 // ################################################## C A L C U L A T O R S #######################################################
 
 /*
@@ -220,13 +243,14 @@ void Hubbard::calGreensFun(uint _tau)
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_)
 	{
-		this->G_[_SPIN_]		=		this->B_[_SPIN_][_tau];
+		uint tau				=		_tau;
+		this->G_[_SPIN_]		=		this->B_[_SPIN_][tau];
 		for (int i = 1; i < this->M_; ++i) 
 		{
-			_tau++;
-			if (_tau == this->M_)
-				_tau = 0;
-			this->G_[_SPIN_]	=		this->B_[_SPIN_][_tau] * this->G_[_SPIN_];
+			++tau;
+			if (tau == this->M_)
+				tau = 0;
+			this->G_[_SPIN_]	=		this->B_[_SPIN_][tau] * this->G_[_SPIN_];
 		}
 		this->G_[_SPIN_]		=		arma::inv(arma::eye(this->G_[_SPIN_].n_rows, this->G_[_SPIN_].n_cols) + this->G_[_SPIN_]);
 	}
@@ -242,20 +266,21 @@ void Hubbard::calGreensFun(uint _tau)
 void Hubbard::calGreensFunC(uint _sec)
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_) {
+
+		uint sector		=		_sec;
+
 		// decompose the matrices
-		this->udt_[_SPIN_]->decompose(this->Bcond_[_SPIN_][_sec]);
+		this->udt_[_SPIN_]->decompose(this->Bcond_[_SPIN_][sector]);
 
 		// go through each sector
 		for (int i = 1; i < this->p_; i++) {
-			_sec++;
-			if (_sec == this->p_)
-				_sec = 0;
-			this->udt_[_SPIN_]->factMult(this->Bcond_[_SPIN_][_sec]);
+			sector++;
+			if (sector == this->p_)
+				sector = 0;
+			this->udt_[_SPIN_]->factMult(this->Bcond_[_SPIN_][sector]);
 		}
-		// making two scales for the decomposition following Loh
-		//this->udt_[_SPIN_]->loh_inplace();
 
-		// save the Green's
+		// save the Green's - using LOH already
 		this->G_[_SPIN_] = this->udt_[_SPIN_]->inv1P();
 	}
 }
@@ -412,7 +437,7 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) {
 		// use the D matrix from UDT to save the row which does not change
-		this->udt_[_SPIN_]->D	=	((this->G_[_SPIN_].row(_site)).t());
+		this->udt_[_SPIN_]->D	=	((this->G_[_SPIN_].row(_site)).as_col());
 		const double gammaOverP	=	(*this->currentGamma_)[_SPIN_] / p [_SPIN_];
 		for (int _a = 0; _a < this->Ns_; _a++) {
 			const double _kron [[maybe_unused]]		=	(_a == _site) ? 1.0 : 0.0;
@@ -461,8 +486,6 @@ void Hubbard::updGreenStep(uint _t)
 	}
 	else
 		this->updNextGreen(_t - 1);
-	this->calGreensFun(_t);
-
 }
 
 // ###################################################### E V O L U T I O N ########################################################
@@ -482,10 +505,8 @@ int Hubbard::eqSingleStep(int _site)
 	if (this->ran_.random<double>(0.0, 1.0) <= _sign * this->proba_)
 	{
 		this->HSFields_(this->tau_, _site) *= -1.0;
-		//this->updInteracts(_site, this->tau_);
 		this->updPropagatB(_site, this->tau_);
 		this->updEqlGreens(_site, this->currentProba_);
-		this->calGreensFun(this->tau_);
 	}
 	return _sign;
 }

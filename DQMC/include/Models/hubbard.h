@@ -36,6 +36,7 @@ public:
 		: t_(_t), U_(_U), dtau_(_dtau), gammaExp_({ {0, 0}, {0, 0} }), DQMC2(_T, _lat, _M, _M0)
 	{
 		this->setInfo();
+		if (this->M_ % this->M0_ != 0)		throw std::runtime_error("Cannot have M0 times that do not divide M.");
 
 		this->ran_				=			randomGen();
 		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M, &this->t_);
@@ -63,15 +64,6 @@ public:
 			this->calPropagatBC(i);
 		this->posNum_			=			0;
 		this->negNum_			=			0;
-
-		//for (uint i = 0; i < this->p_; i++)
-		//{
-		//	stout << i << "\n\n";
-		//	this->calGreensFunC(i );
-		//	this->G_[_UP_].print("\n");
-		//	this->calGreensFun(i * this->M0_);
-		//	this->G_[_UP_].print("\n");
-		//}
 	}
 	void init()																override;
 
@@ -85,6 +77,7 @@ protected:
 	void calPropagatB()														override;
 	// GREENS
 	void compareGreen(uint _tau, double _toll, bool _print)					override;
+	void compareGreen()														override;
 	void calGreensFun(uint _tau)											override;
 	void calGreensFunC(uint _sec)											override;
 #ifdef DQMC_CAL_TIMES

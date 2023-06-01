@@ -171,6 +171,7 @@ protected:
 	virtual void calPropagatB()												= 0;
 	// GREENS
 	virtual void compareGreen(uint _tau, double _toll, bool _print)			= 0;
+	virtual void compareGreen()												= 0;
 	virtual void calGreensFun(uint _tau)									= 0;
 	virtual void calGreensFunC(uint _sec)									= 0;
 

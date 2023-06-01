@@ -166,10 +166,12 @@ bool UI::defineModel()
 
 void UI::makeSim()
 {
+	BEGIN_CATCH_HANDLER
 	if (!this->defineModels(true))
 		return;
 	this->mod_s2_->relaxes(this->simP.mcS_, this->quiet);
 	this->mod_s2_->average(1, this->simP.mcC_, this->simP.mcA_, 1, this->quiet);
+	END_CATCH_HANDLER(std::string(__FUNCTION__));
 }
 // -------------------------------------------------------- PARSERS
 
