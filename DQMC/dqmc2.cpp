@@ -65,7 +65,7 @@ void DQMC2::saveGreensT(uint _step)
 		}
 #else
 	for (int _tau = 0; _tau < this->M_; _tau++) {
-		this->tmpG_[0]	= ((this->avs_->av_GTimeDiff_[_UP_][_tau] + this->avs_->av_GTimeDiff_[_DN_][_tau]) / 2.0);
+		this->tmpG_[0]	= ((this->avs_->av_GTimeDiff_[_UP_][_tau] + this->avs_->av_GTimeDiff_[_DN_][_tau]) / 2.0) / DQMC_BUCKET_NUM;
 		if(_tau != 0)
 			this->tmpG_[0].save(arma::hdf5_name(this->dir_->unequalGDir + "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5",
 				STR(_tau), arma::hdf5_opts::append));

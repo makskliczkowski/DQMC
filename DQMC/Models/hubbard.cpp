@@ -623,7 +623,8 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bo
 #ifdef DQMC_CAL_TIMES
 		if (step % DQMC_BUCKET_NUM == (DQMC_BUCKET_NUM - 1)) {
 			LOGINFO("Saving " + STR(step / DQMC_BUCKET_NUM) + ". " + VEQ(DQMC_BUCKET_NUM) + ":" + TMS(start), LOG_TYPES::TRACE, 3);
-			this->saveGreensT(step);
+			this->saveGreensT(step / DQMC_BUCKET_NUM);
+			this->avs_->resetG();
 		}
 #endif
 		// kill correlations
