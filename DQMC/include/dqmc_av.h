@@ -24,6 +24,7 @@
 #ifndef DQMC_AV_H
 #define DQMC_AV_H
 
+constexpr int DQMC_BUCKET_NUM = 5;
 
 #define DQMC_SAVE_H5
 #define DQMC_USE_HIRSH

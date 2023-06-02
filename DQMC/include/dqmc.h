@@ -12,8 +12,6 @@
 	#include "dqmc_av.h"
 #endif
 
-constexpr int DQMC_BUCKET_NUM = 5;
-
 #ifndef DQMC_H
 #define DQMC_H
 
