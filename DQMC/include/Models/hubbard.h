@@ -10,7 +10,7 @@
 	#include "../../source/src/lin_alg.h"
 #endif
 
-class Hubbard : public virtual DQMC2
+class Hubbard : public DQMC2
 {
 	// ############################# Q R ################################### 
 	std::array<std::unique_ptr<algebra::UDT_QR<double>>, spinNumber_> udt_;
