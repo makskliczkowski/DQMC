@@ -152,11 +152,11 @@ bool UI::defineModel()
 	{
 	case MY_MODELS::HUBBARD_M:
 		this->mod_s2_	= std::make_shared<Hubbard>(this->modP.T_, this->latP.lat, this->modP.M_, this->modP.M0_,
-													this->modP.t_, this->modP.U_, this->modP.dtau_);
+													this->modP.t_, this->modP.U_, this->modP.dtau_, this->modP.mu_);
 		break;
 	default:
 		this->mod_s2_ = std::make_shared<Hubbard>(this->modP.T_, this->latP.lat, this->modP.M_, this->modP.M0_,
-			this->modP.t_, this->modP.U_, this->modP.dtau_);
+			this->modP.t_, this->modP.U_, this->modP.dtau_, this->modP.mu_);
 		break;
 	}
 	return true;

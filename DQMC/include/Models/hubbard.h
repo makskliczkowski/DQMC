@@ -36,8 +36,8 @@ public:
 	}
 	Hubbard()					=			default;
 	Hubbard(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0,
-		v_1d<double> _t, double _U, double _dtau)
-		: t_(_t), U_(_U), dtau_(_dtau), gammaExp_({ {0, 0}, {0, 0} }), DQMC2(_T, _lat, _M, _M0)
+		v_1d<double> _t, double _U, double _dtau, double _mu)
+		: DQMC2(_T, _lat, _M, _M0), t_(_t), U_(_U), mu_(_mu), dtau_(_dtau), gammaExp_({{0, 0}, {0, 0}})
 	{
 		this->setInfo();
 		if (this->M_ % this->M0_ != 0)		throw std::runtime_error("Cannot have M0 times that do not divide M.");
