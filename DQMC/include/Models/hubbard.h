@@ -30,6 +30,10 @@ class Hubbard : public DQMC2
 	spinTuple_* currentGamma_;
 
 public:
+	~Hubbard()
+	{
+		LOGINFO("Deleting the DQMC Hubbard model class...", LOG_TYPES::INFO, 1);
+	}
 	Hubbard()					=			default;
 	Hubbard(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0,
 		v_1d<double> _t, double _U, double _dtau)
