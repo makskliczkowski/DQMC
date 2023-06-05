@@ -82,7 +82,7 @@ public:
 					auto tim = (tau1 - tau2);
 					if (tim < 0)
 						tim += _M;
-					this->normM_ += 1.0;
+					this->normM_(tim)	+= 1.0;
 				}
 			}
 		}
@@ -202,8 +202,8 @@ inline void DQMCavs<_spinNum, _retT>::normalizeG()
 			for (int x = 0; x < xx; x++) {
 				for (int y = 0; y < yy; y++) {
 					const auto norm2 = norm * lat_->getNorm(x, y, 0);
-					this->av_GTimeDiff_[_SPIN_][tau](x, y) /= norm2;
-					this->sd_GTimeDiff_[_SPIN_][tau](x, y) /= norm2;
+					this->av_GTimeDiff_[_SPIN_][tau](x, y) /=	norm2;
+					this->sd_GTimeDiff_[_SPIN_][tau](x, y) =	variance(this->sd_GTimeDiff_[_SPIN_][tau](x, y), this->av_GTimeDiff_[_SPIN_][tau](x, y), norm2);
 				}
 			}
 		}
