@@ -691,26 +691,24 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 	//! we handle it with the calculated current Green's functions
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++) 
 	{
-		this->avs_->av_GTimeDiff_[_SPIN_][0](xx, yy)		+=		_s * this->G_[_SPIN_](_i, _j);
-		this->avs_->av_GTimeDiff_[_SPIN_][0](xx, yy)		+=		this->G_[_SPIN_](_i, _j) * this->G_[_SPIN_](_i, _j);
+		//this->avs_->av_GTimeDiff_[_SPIN_][0](xx, yy)		+=		_s * this->G_[_SPIN_](_i, _j);
+		//this->avs_->sd_GTimeDiff_[_SPIN_][0](xx, yy)		+=		this->G_[_SPIN_](_i, _j) * this->G_[_SPIN_](_i, _j);
 #ifdef DQMC_CAL_TIMES_ALL
 		for (int tim2 = 0; tim2 < this->M_; tim2++) {
 #else
 		for (int tim2 = 0; tim2 < this->tau_; tim2++) {
 #endif
-			int tim		=	this->tau_ - tim2;
-			if (tim == 0)
-				continue;
+			int tim		=	(int)this->tau_ - tim2;
 			auto xk		=	_s;
 			// handle antiperiodicity
 #ifdef DQMC_CAL_TIMES_ALL
 			if (tim < 0) {
-				xk *= -1;
-				tim += this->M_;
+				xk		*=	-1;
+				tim		+=	this->M_;
 			}
 #endif
-			const uint col		=	tim2 * this->Ns_;
-			const uint row		=	tau_ * this->Ns_;
+			const int col		=	tim2 * this->Ns_;
+			const int row		=	this->tau_ * this->Ns_;
 			const double elem	=	xk * this->Gtime_[_SPIN_](row + _i, col + _j);
 			// save only the positive first half
 			this->avs_->av_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem;
