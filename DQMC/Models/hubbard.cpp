@@ -12,7 +12,7 @@
 void Hubbard::init()
 {
 	// set the write lock
-	WriteLock lock(this->Mutex);
+	// WriteLock lock(this->Mutex);
 
 	// hopping exponent
 	this->TExp_.zeros(this->Ns_, this->Ns_);
@@ -42,6 +42,7 @@ void Hubbard::init()
 	#endif
 #endif // CAL_TIMES
 	}
+	LOGINFO("Finished initializing Hubbard-DQMC properties.", LOG_TYPES::INFO, 4);
 }
 
 // ###################################################### H E L P E R S ###########################################################
