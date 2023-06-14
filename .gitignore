@@ -20,6 +20,9 @@
 *.png
 *c_cpp_properties.json
 *.json
+*.o
+*.txt
+
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

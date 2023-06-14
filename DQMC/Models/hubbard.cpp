@@ -330,7 +330,7 @@ void Hubbard::calGreensFunTHirsh()
 			const auto col = (_sec)*this->Ns_;
 			algebra::setSubMFromM(this->Gtime_[_SPIN_], this->B_[_SPIN_][_sec], row, col, this->Ns_, this->Ns_, true, true);
 		}
-		arma::inv(this->Gtime_[_SPIN_], this->Gtime_[_SPIN_]);
+		this->Gtime_[_SPIN_] = arma::inv(this->Gtime_[_SPIN_]);
 	}
 }
 

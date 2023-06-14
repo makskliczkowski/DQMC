@@ -193,7 +193,7 @@ template<size_t _spinNum, typename _retT>
 inline void DQMCavs<_spinNum, _retT>::normalizeG()
 {
 	// time number
-	const auto _M		=	this->av_GTimeDiff_.size();
+	const auto _M		=	this->av_GTimeDiff_[0].size();
 	auto [xx, yy, zz]	=	this->lat_->getNumElems();
 	
 	for (int _SPIN_ = 0; _SPIN_ < _spinNum; _SPIN_++) {
