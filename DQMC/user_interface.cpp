@@ -175,7 +175,7 @@ void UI::makeSim()
 	this->mod_s2_->average(this->simP.mcS_, this->simP.mcC_, this->simP.mcA_, 1, this->quiet);
 	LOGINFO(LOG_TYPES::TIME, 1);
 	this->mod_s2_->saveAverages();
-	END_CATCH_HANDLER(std::string(__FUNCTION__));
+	END_CATCH_HANDLER(std::string(__FUNCTION__), ;);
 }
 // -------------------------------------------------------- PARSERS
 

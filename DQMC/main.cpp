@@ -3,6 +3,10 @@
 //#define LOG_FILE					//
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+#ifdef _DEBUG
+#include "vld.h"
+#endif
+
 #include "include/user_interface.h"
 
 int main(const int argc, char* argv[]) {
