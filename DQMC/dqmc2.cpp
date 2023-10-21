@@ -1,4 +1,4 @@
-#include "include/dqmc2.h"
+#include "./include/dqmc2.h"
 
 /*
 * @brief Saves the unequal times Green's functions in a special form.
