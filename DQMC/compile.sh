@@ -2,6 +2,7 @@
 
 # DQMC makefile for Intel OneApi compiler
 # compiler
+source /opt/intel/oneapi
 icpx -V
 
 cd $HOME/Codes/DQMC/DQMC/
@@ -12,10 +13,10 @@ CXX="icpx"
 LOG=compile_log.txt
 
 # compiler flags
-CPPFLAGS="-pthread -qopenmp -fopenmp -qmkl=sequential -std=c++17 -O3"
+CPPFLAGS="-pthread -qopenmp -fopenmp -qmkl=sequential -std=c++20 -O3"
 
 # linker flags
-LDLIBS=-"larpack -lsuperlu -lhdf5 -Wall -Wformat=0 -lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -lblas -ldl -lmkl_sequential -lstdc++fs"
+LDLIBS="-lhdf5 -Wall -Wformat=0 -lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -lblas -ldl -lmkl_sequential -lstdc++fs"
 
 # the target is
 TARGET="dqmc"

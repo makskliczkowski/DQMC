@@ -1,4 +1,4 @@
-#include "include/dqmc2.h"
+#include "./include/dqmc2.h"
 
 /*
 * @brief Saves the unequal times Green's functions in a special form.
@@ -7,7 +7,7 @@
 void DQMC2::saveGreensT(uint _step)
 {
 	this->avs_->normalizeG();
-	auto [x_num, y_num, z_num] = this->lat_->getNumElems();
+	auto [x_num, y_num, z_num] 	= this->lat_->getNumElems();
 	const std::string _signStr	= this->configSign_ == 1 ? "+" : "-";
 
 #ifndef DQMC_SAVE_H5

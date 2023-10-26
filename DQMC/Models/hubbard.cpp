@@ -1,6 +1,6 @@
 #include "../include/Models/hubbard.h"
 
-#include <execution>
+// #include <execution>
 #include <numeric>
 #include <utility>
 
@@ -530,7 +530,7 @@ double Hubbard::sweepForward()
 		configSign_		=	(this->sweepLattice() > 0) ? +this->configSign_ : -this->configSign_;
 		configSigns_.push_back(configSign_);
 	}
-	return std::reduce(configSigns_.begin(), configSigns_.end()) / configSigns_.size();
+	return std::accumulate(configSigns_.begin(), configSigns_.end(), 0.0) / configSigns_.size();
 }
 
 // ##################################################### S I M U L A T I O N #######################################################
