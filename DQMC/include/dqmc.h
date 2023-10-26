@@ -42,27 +42,39 @@ END_ENUM(HAM_SAVE_EXT)                                               // #
 // ######################################################################
 struct DQMCdir
 {
-	std::string mainDir;
-	std::string equalTimeDir;
-	std::string unequalTimeDir;
+	std::string mainDir				=	"";
+	std::string equalTimeDir		=	"";
+	std::string unequalTimeDir		=	"";
 
 	// Green's functions
-	std::string equalGDir;
-	std::string unequalGDir;
-	std::string randomSampleStr;
+	std::string equalGDir			=	"";
+	std::string equalGDirSpin		=	"";
+	std::string unequalGDir			=	"";
+	std::string randomSampleStr		=	"";
 
 	// correlations
-	std::string equalCorrDir;
-	std::string uneqalCorrDir;
+	std::string equalCorrDir		=	"";
+	std::string uneqalCorrDir		=	"";
 
+	/*
+	* @brief Sets up the main directory
+	*/
 	void setup(const std::string& _mainDir)
 	{
 		mainDir = _mainDir;
 	}
 
-	void createDQMCDirs(randomGen& _ran) {
+	/*
+	* @brief Create the folders
+	* @param _ran - random class to be used to create a token
+	*/
+	void createDQMCDirs(randomGen& _ran) 
+	{
 		fs::create_directories(mainDir);
 		fs::create_directories(equalTimeDir);
+		equalGDirSpin = makeDir(equalTimeDir, "SPIN");
+
+		fs::create_directories(equalGDirSpin);
 		fs::create_directories(unequalTimeDir);
 
 		fs::create_directories(equalGDir);
@@ -247,26 +259,30 @@ inline void DQMC<spinNum_>::relaxes(uint MCs, bool _quiet)
 	auto start				=		std::chrono::high_resolution_clock::now();											// starting timer for averages
 	this->currentWarmups_	=		MCs;
 	this->equalibrate(MCs, _quiet);
-	if (!_quiet && MCs != 1) {
+	if (!_quiet && MCs != 1) 
+	{
 #pragma omp critical
 		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(start) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
-		LOGINFO(LOG_TYPES::TRACE, 2);
+		LOGINFO(LOG_TYPES::TRACE, "", 50, '#', 2);
 	}
 }
 
 template<size_t spinNum_>
 inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
 {
-	auto start = std::chrono::high_resolution_clock::now();											// starting timer for averages
+	LOGINFO(2);
+	auto start				= std::chrono::high_resolution_clock::now();											// starting timer for averages
 	this->currentAverages_	=		MCs;
 	this->averaging(MCs, corrTime, avNum, bootStraps, _quiet);
 
-	if (!_quiet) {
+	if (!_quiet) 
+	{
 #pragma omp critical
 		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(start) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
 		LOGINFO("Average Onsite Occupation = " + STRP(this->avs_->av_Occupation, 4)	, LOG_TYPES::TIME, 3);
 		LOGINFO("Average Onsite Magnetization = " + STRP(this->avs_->av_Mz2, 4)		, LOG_TYPES::TIME, 3);
-		LOGINFO(LOG_TYPES::TRACE, 2);
+		LOGINFO(LOG_TYPES::TRACE, "", 50, '#', 2);
+		LOGINFO(2);
 	}
 }
 
