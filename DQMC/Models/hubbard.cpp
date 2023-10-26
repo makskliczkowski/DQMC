@@ -581,28 +581,36 @@ void Hubbard::equalibrate(uint MCs, bool _quiet)
 void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
 {
 #pragma omp critical
-	LOGINFO("Starting the averaging for " + this->info_, LOG_TYPES::TRACE, 2);
+	LOGINFO(LOG_TYPES::TRACE, "Starting the averaging for " + this->info_, 50, '#', 1);
+	LOGINFO(2);
+
+	// calculate the time
 	auto start						=		std::chrono::high_resolution_clock::now();
-	
+
 	// initialize stuff
 	// this->configSigns_			=		{};
 	this->negNum_					=		0;
 	this->posNum_					=		0;
 	this->avs_->reset();
-	this->pBar_						=		pBar(25, avNum);
+	this->pBar_						=		pBar(10, avNum);
 
 	// check if this saved already
-	for (int step = 1; step < avNum; step++) {
+	for (int step = 1; step < avNum; step++) 
+	{
+		// check the calculation of time Green's
 #ifdef DQMC_CAL_TIMES
+		// check the usage of Hirsh or by hand
 	#ifdef DQMC_USE_HIRSH
 		this->calGreensFunTHirsh();
 	#else
 		this->calGreensFunT();
 	#endif
 #endif
+		// go through the imaginary times
 		for (auto _tau = 0; _tau < this->M_; _tau++) 
 		{
 			this->tau_				=		_tau;
+			// if Hirsh is performed, we don't need to calculate the update of the Green's function to next time
 #if !defined DQMC_CAL_TIMES || defined DQMC_CAL_TIMES && !defined DQMC_USE_HIRSH
 			this->updGreenStep(this->tau_);
 #endif
@@ -616,9 +624,11 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bo
 				algebra::setSubMFromM(this->Gtime_[_SPIN_], this->G_[_SPIN_], _element, _element, Ns_, Ns_, false);
 	#endif
 #endif
+			// go through the lattice sites
 			for (int _site = 0; _site < this->Ns_; _site++)
 				this->avSingleStep(_site, this->configSign_);
 		}
+		// check the sign
 		this->configSigns_.push_back(this->configSign_);
 		this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
 #ifdef DQMC_CAL_TIMES
@@ -631,9 +641,11 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bo
 		// kill correlations
 		for (int _cor = 0; _cor < corrTime; _cor++)
 			this->sweepForward();
+		// print if necessary
 		if(!_quiet && step % this->pBar_.percentageSteps == 0)
 			this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS AVERAGES"));
 	}
+	// calculate the average sign
 	double avSign = double(this->posNum_ - this->negNum_) / double(this->posNum_ + this->negNum_);
 	this->avs_->normalize(avNum, this->M_ * this->lat_->get_Ns(), avSign);
 }
@@ -702,17 +714,18 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 			auto xk		=	_s;
 			// handle antiperiodicity
 #ifdef DQMC_CAL_TIMES_ALL
-			if (tim < 0) {
+			if (tim < 0) 
+			{
 				xk		*=	-1;
 				tim		+=	this->M_;
 			}
 #endif
-			const int col		=	tim2 * this->Ns_;
-			const int row		=	this->tau_ * this->Ns_;
-			const double elem	=	xk * this->Gtime_[_SPIN_](row + _i, col + _j);
+			const auto col		=	tim2 * this->Ns_;
+			const auto row		=	this->tau_ * this->Ns_;
+			const auto elem		=	xk * this->Gtime_[_SPIN_](row + _i, col + _j);
 			// save only the positive first half
-			this->avs_->av_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem;
-			this->avs_->sd_GTimeDiff_[_SPIN_][tim](xx, yy)	+=		elem * elem;
+			this->avs_->av_GTimeDiff_[_SPIN_][tim](xx, yy, zz)	+=		elem;
+			this->avs_->sd_GTimeDiff_[_SPIN_][tim](xx, yy, zz)	+=		elem * elem;
 
 		}
 	}
@@ -726,10 +739,13 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 */
 void Hubbard::saveGreens(uint _step)
 {
-	const std::string _signStr = this->configSign_ == 1 ? "+" : "-";
-	this->tmpG_[0] = (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
-	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5", "G(t)"));
-	this->HSFields_.save(arma::hdf5_name(this->dir_->equalGDir + "G_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5", "HS"	, arma::hdf5_opts::append));
+	const std::string _signStr	= (this->configSign_ == 1) ? "+" : "-";
+	this->tmpG_[0]				= (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
+
+	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir		+ "G_" + STR(_step) + "_" + _signStr + "_"		+ this->dir_->randomSampleStr + ".h5", "G(t)"));
+	this->G_[_UP_].save	(arma::hdf5_name(this->dir_->equalGDir		+ "G_" + STR(_step) + "_" + _signStr + "_"		+ this->dir_->randomSampleStr + ".h5", "Gup(t)", arma::hdf5_opts::append));
+	this->G_[_DN_].save	(arma::hdf5_name(this->dir_->equalGDir		+ "G_" + STR(_step) + "_" + _signStr + "_"		+ this->dir_->randomSampleStr + ".h5", "Gdn(t)", arma::hdf5_opts::append));
+	this->HSFields_.save(arma::hdf5_name(this->dir_->equalGDir		+ "G_" + STR(_step) + "_" + _signStr + "_"		+ this->dir_->randomSampleStr + ".h5", "HS",	 arma::hdf5_opts::append));
 }
 
 

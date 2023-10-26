@@ -6,14 +6,17 @@
 */
 void DQMC2::saveGreensT(uint _step)
 {
+	// normalize the Green's function
 	this->avs_->normalizeG();
-	auto [x_num, y_num, z_num] = this->lat_->getNumElems();
+	// get number of elements
+	// get the configuration sign
 	const std::string _signStr	= this->configSign_ == 1 ? "+" : "-";
-
+	//const auto _dim				= this->lat_->get_Dim();
 #ifndef DQMC_SAVE_H5
 	std::string information =	" Some version\n\n This is the file that contains real space Green's functions for different times.\n";
 	information				+=	" The structure of each is we average over time differences and first row\n";
 	information				+=	" before each Green matrix <cicj^+(t1, t2)> is an information about the difference\n";
+	auto [x_num, y_num, z_num]	= this->lat_->getNumElems();
 
 	std::ofstream _file;
 	openFile(_file, this->dir_->unequalGDir +  "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".dat");
@@ -64,18 +67,25 @@ void DQMC2::saveGreensT(uint _step)
 			}
 		}
 #else
-	for (int _tau = 0; _tau < this->M_; _tau++) {
-		this->tmpG_[0]	= ((this->avs_->av_GTimeDiff_[_UP_][_tau] + this->avs_->av_GTimeDiff_[_DN_][_tau]) / 2.0);
-		this->tmpG_[1]	= ((this->avs_->sd_GTimeDiff_[_UP_][_tau] + this->avs_->sd_GTimeDiff_[_DN_][_tau]) / 2.0);
+	// go through imaginary times
+	std::string _filename		= this->dir_->unequalGDir + "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5";
+	for (int _tau = 0; _tau < this->M_; _tau++) 
+	{
+		this->tmpG_[0]	= ((this->avs_->av_GTimeDiff_[_UP_][_tau] + this->avs_->av_GTimeDiff_[_DN_][_tau]) / 2.0).slice();
+		this->tmpG_[1]	= ((this->avs_->sd_GTimeDiff_[_UP_][_tau] + this->avs_->sd_GTimeDiff_[_DN_][_tau]) / 2.0).slice();
+
+		// append if necessary
 		if (_tau != 0) 
-			this->tmpG_[0].save(arma::hdf5_name(this->dir_->unequalGDir + "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5",
-				STR(_tau), arma::hdf5_opts::append));
+			this->tmpG_[0].save(arma::hdf5_name(_filename, STR(_tau), arma::hdf5_opts::append));
 		else
-			this->tmpG_[0].save(arma::hdf5_name(this->dir_->unequalGDir + "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5",
-				STR(_tau)));
+			this->tmpG_[0].save(arma::hdf5_name(_filename, STR(_tau)));
+		
+		// SPINS
+		this->avs_->av_GTimeDiff_[_UP_][_tau].slice().save(arma::hdf5_name(_filename, "UP_" + STR(_tau), arma::hdf5_opts::append));
+		this->avs_->av_GTimeDiff_[_DN_][_tau].slice().save(arma::hdf5_name(_filename, "DN_" + STR(_tau), arma::hdf5_opts::append));
+		
 		// STD
-		this->tmpG_[1].save(arma::hdf5_name(this->dir_->unequalGDir + "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5",
-			"SD_" + STR(_tau), arma::hdf5_opts::append));
+		this->tmpG_[1].save(arma::hdf5_name(_filename, "SD_" + STR(_tau), arma::hdf5_opts::append));
 	}
 #endif
 }
@@ -86,9 +96,11 @@ void DQMC2::saveGreensT(uint _step)
 */
 void DQMC2::saveGreens(uint _step)
 {
-	const std::string _signStr = this->configSign_ == 1 ? "+" : "-";
-	this->tmpG_[0] = (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
+	const std::string _signStr	= this->configSign_ == 1 ? "+" : "-";
+	this->tmpG_[0]				= (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
 	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" + this->dir_->randomSampleStr, "G(" + STR(_step) + ")", arma::hdf5_opts::append));
+	this->G_[_UP_].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" + this->dir_->randomSampleStr, "G_UP(" + STR(_step) + ")", arma::hdf5_opts::append));
+	this->G_[_DN_].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" + this->dir_->randomSampleStr, "G_DN(" + STR(_step) + ")", arma::hdf5_opts::append));
 }
 
 /*

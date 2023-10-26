@@ -25,7 +25,7 @@ class Hubbard : public DQMC2
 	double dtau_				=			1e-2;							// Trotter time step
 
 	double lambda_				=			1.0;							// lambda parameter in HS transform
-	arma::Mat<double> HSFields_;												// Hubbard-Stratonovich fields
+	arma::Mat<double> HSFields_;											// Hubbard-Stratonovich fields
 	v_1d<spinTuple_> gammaExp_;
 	spinTuple_* currentGamma_;
 
