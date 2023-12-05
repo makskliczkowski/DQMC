@@ -29,22 +29,24 @@ namespace UI_PARAMS
 	/*
 	* @brief Defines parameters used later for the models
 	*/
-	struct ModP {
+	struct ModP 
+	{
 		// ############### TYPE ################
-		UI_PARAM_CREATE_DEFAULT(modTyp		, MY_MODELS	, MY_MODELS::HUBBARD_M);
+		UI_PARAM_CREATE_DEFAULT(modTyp		, MY_MODELS,	MY_MODELS::HUBBARD_M);
 
 		// ############### Hubbard ###############
 		v_1d<double>	t_;
-		UI_PARAM_CREATE_DEFAULTD(M		, double, 4.0);
-		UI_PARAM_CREATE_DEFAULTD(U		, double, 2.0);
-		UI_PARAM_CREATE_DEFAULTD(beta	, double, 2.0);
-		UI_PARAM_CREATE_DEFAULTD(T		, double, 0.5);
-		UI_PARAM_CREATE_DEFAULTD(mu		, double, 0.0);
-		UI_PARAM_CREATE_DEFAULTD(dtau	, double, 0.1);
-		UI_PARAM_CREATE_DEFAULTD(M0		, double, 1.0);
-		UI_PARAM_CREATE_DEFAULTD(Ns		, double, 1.0);
+		UI_PARAM_CREATE_DEFAULTD(M			, double,		4.0);
+		UI_PARAM_CREATE_DEFAULTD(U			, double,		2.0);
+		UI_PARAM_CREATE_DEFAULTD(beta		, double,		2.0);
+		UI_PARAM_CREATE_DEFAULTD(T			, double,		0.5);
+		UI_PARAM_CREATE_DEFAULTD(mu			, double,		0.0);
+		UI_PARAM_CREATE_DEFAULTD(dtau		, double,		0.1);
+		UI_PARAM_CREATE_DEFAULTD(M0			, double,		1.0);
+		UI_PARAM_CREATE_DEFAULTD(Ns			, double,		1.0);
 
-		void setDefault() {
+		void setDefault() 
+		{
 			UI_PARAM_SET_DEFAULT(modTyp);
 			// Hubbard
 			this->t_	=	v_1d<double>(Ns_, 1.0);
@@ -59,18 +61,24 @@ namespace UI_PARAMS
 	};
 	
 	/*
-	* @brief Defines parameters used later for the models
+	* @brief Defines parameters used later for the simulation
 	*/
 	struct SimP {
 
 		UI_PARAM_CREATE_DEFAULTD(mcS, int, 100);
 		UI_PARAM_CREATE_DEFAULTD(mcC, int, 1);
+		UI_PARAM_CREATE_DEFAULTD(mcB, int, 100); 
 		UI_PARAM_CREATE_DEFAULTD(mcA, int, 100); 
+		UI_PARAM_CREATE_DEFAULTD(mcCheckLoad, std::string, "");
+		UI_PARAM_CREATE_DEFAULTD(mcCheckSave, std::string, "");
 
 		void setDefault() {
 			UI_PARAM_SET_DEFAULT(mcS);
 			UI_PARAM_SET_DEFAULT(mcC);
+			UI_PARAM_SET_DEFAULT(mcB);
 			UI_PARAM_SET_DEFAULT(mcA);
+			UI_PARAM_SET_DEFAULT(mcCheckLoad);
+			UI_PARAM_SET_DEFAULT(mcCheckLoad);
 		};
 	};
 
@@ -98,7 +106,8 @@ namespace UI_PARAMS
 	};
 }
 
-class UI : public UserInterface {
+class UI : public UserInterface 
+{
 protected:
 
 	// LATTICE params
@@ -113,8 +122,8 @@ protected:
 	// define basic models
 	std::shared_ptr<DQMC<2>> mod_s2_;
 
-
-	void setDefaultMap()					final override {
+	void setDefaultMap() final override 
+	{
 		this->defaultParams = {
 			{			"f"			, std::make_tuple(""	, FHANDLE_PARAM_DEFAULT)		},			// file to read from directory
 			// ---------------- lattice parameters ----------------
@@ -124,11 +133,14 @@ protected:
 			UI_OTHER_MAP(lx			, this->latP._Lx		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(ly			, this->latP._Ly		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(lz			, this->latP._Lz		, FHANDLE_PARAM_HIGHER0			),
-			// ---------------- MC parameters ----------------
+			// ------------------- MC parameters ------------------
 			UI_OTHER_MAP(mcS		, this->simP._mcS		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(mcC		, this->simP._mcC		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(mcB		, this->simP._mcB		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(mcA		, this->simP._mcA		, FHANDLE_PARAM_HIGHER0			),
-			// ---------------- model parameters ----------------
+			UI_OTHER_MAP(mcCPL		, this->simP._mcCheckLoad, FHANDLE_PARAM_DEFAULT		),
+			UI_OTHER_MAP(mcCPS		, this->simP._mcCheckSave, FHANDLE_PARAM_DEFAULT		),
+			// ----------------- model parameters -----------------
 			UI_OTHER_MAP(mod		, this->modP._modTyp	, FHANDLE_PARAM_BETWEEN(0., 2.)	),
 			// -------- Hubbard
 			UI_PARAM_MAP(M			, this->modP._M			, FHANDLE_PARAM_DEFAULT			),
@@ -138,7 +150,7 @@ protected:
 			UI_PARAM_MAP(mu			, this->modP._mu		, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(dtau		, this->modP._dtau		, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(M0			, this->modP._M0		, FHANDLE_PARAM_DEFAULT			),
-			// ---------------- other ----------------
+			// ----------------------- other ----------------------
 			UI_OTHER_MAP(fun		, -1.					, FHANDLE_PARAM_HIGHERV(-1.0)	),			// choice of the function to be calculated
 			UI_OTHER_MAP(th			, 1.0					, FHANDLE_PARAM_HIGHER0			),			// number of threads
 			UI_OTHER_MAP(q			, 0.0					, FHANDLE_PARAM_DEFAULT			),			// quiet?
@@ -154,8 +166,9 @@ private:
 	bool defineLattice();
 	bool defineModel();
 
-	public:
-	// -----------------------------------------------        CONSTRUCTORS  		-------------------------------------------
+public:
+
+	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% C O N S T R U C T O R S %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	~UI()													= default;
 	UI()													= default;
 	UI(int argc, char** argv)
@@ -164,80 +177,78 @@ private:
 		this->init(argc, argv);
 	};
 
-	// -----------------------------------------------   	 PARSER FOR HELP  		-------------------------------------------
-	void exitWithHelp() override {
+	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% P A R S E R  F O R   H E L P %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	void exitWithHelp() override
+	{
+		UserInterface::exitWithHelp();
 		printf(
-			"Usage: name [options] outputDir \n"
+			" ------------------------------------------------- General DQMC parser for C++ ------------------------------------------------ \n"
+			"Usage of the DQMC library:\n"
 			"options:\n"
-			" The input can be both introduced with [options] described below or with giving the input directory \n"
-			" (which also is the flag in the options) \n"
-			" options:\n"
-			"-f input file for all of the options : (default none) \n"
-			"-m monte carlo steps : bigger than 0 (default 300) \n"
-			"-d dimension : set dimension (default 2) \n"
+			"-m monte carlo steps	: bigger than 0 (default 300) \n"
+			"-d dimension			: set dimension (default 2) \n"
 			"	1 -- 1D \n"
 			"	2 -- 2D \n"
-			"	3 -- 3D -> NOT IMPLEMENTED YET \n"
-			"-l lattice type : (default square) -> CHANGE NOT IMPLEMENTED YET \n"
+			"	3 -- 3D \n"
+			"-l lattice type		: (default square) -> \n"
 			"   square \n"
-			"-t exchange constant : set hopping (default 1) \n"
-			"   is numeric? - constant value \n"
-			"   'r' - uniform random on each (NOT IMPLEMENTED YET) \n"
-			"-a averages number : set tolerance for statistics, bigger than 0 (default 50) \n"
-			"-c correlation time : whether to wait to collect observables, bigger than 0 (default 1) \n"
-			"-M0 all Trotter slices sections : this sets how many slices in division our Trotter times number has, bigger than 0 (default 10)\n"
-			"-dt dtau : Trotter step (default 0.1)\n"
-			"-dts dtau : Trotter step step (default 0)\n"
-			"-dtn dtau : Trotter steps number(default 1)\n"
+			"-t exchange constant	: set hopping (default 1) [VECTOR VALUE] \n"
+			"-a averages number		: set tolerance for statistics, bigger than 0 (default 50) \n"
+			"-c correlation time	: whether to wait to collect observables, bigger than 0 (default 1) \n"
+			"-M0 Trotter slices		: this sets how many slices in division our Trotter times number has, bigger than 0 (default 10)\n"
+			"-dt dtau				: Trotter step (default 0.1)\n"
+			"-dts dtau				: Trotter step step (default 0)\n"
+			"-dtn dtau				: Trotter steps number (default 1)\n"
 			// SIMULATIONS STEPS
-			"-lx x-length : bigger than 0(default 4)\n"
-			"-lxs x-length step : integer, bigger than 0 (default 1)\n"
-			"-lxn x-length steps number : integer bigger than 0(default 1)\n"
+			"-lx  x-length			: bigger than 0(default 4)\n"
+			"-lxs x-length step		: integer, bigger than 0 (default 1)\n"
+			"-lxn x-length steps #	: integer bigger than 0 (default 1)\n"
 			"\n"
-			"-ly y-length : bigger than 0(default 4)\n"
-			"-lys y-length step : integer, bigger than 0 (default 1)\n"
-			"-lyn y-length steps number : integer bigger than 0(default 1)\n"
+			"-ly  y-length			: bigger than 0(default 4)\n"
+			"-lys y-length step		: integer, bigger than 0 (default 1)\n"
+			"-lyn y-length steps #	: integer bigger than 0 (default 1)\n"
 			"\n"
-			"-lz z-length : bigger than 0(default 1)\n"
-			"-lzs z-length step : integer, bigger than 0 (default 1)\n"
-			"-lzn z-length steps number : integer bigger than 0(default 1)\n"
+			"-lz  z-length			: bigger than 0(default 1)\n"
+			"-lzs z-length step		: integer, bigger than 0 (default 1)\n"
+			"-lzn z-length steps #	: integer bigger than 0 (default 1)\n"
 			"\n"
-			"-b inversed temperature :bigger than 0 (default 6)\n"
-			"-bs inversed temperature step : bigger than 0 (default 1)\n"
-			"-bn inversed temperature number : integer bigger than 0(default 1)\n"
+			"-b  inversed temp		: bigger than 0 (default 6)\n"
+			"-bs inversed temp step : bigger than 0 (default 1)\n"
+			"-bn inversed temp #	: integer bigger than 0 (default 1)\n"
 			"\n"
-			"-u interaction U : (default 2) -> CURRENTLy ONLY U>0\n"
-			"-us interaction step : bigger than 0, start from smaller (default 1)\n"
-			"-un interaction number : integer bigger than 0(default 1)\n"
+			"-u  interaction U		: (default 2)\n"
+			"-us interaction step	: bigger than 0, start from smaller (default 1)\n"
+			"-un interaction number : integer bigger than 0 (default 1)\n"
 			"\n"
-			"-mu chemical potential mu : (default 0 -> half filling)\n"
-			"-mus chemical potential mu step : bigger than 0, start from smaller (default 1)\n"
-			"-mun chemical potential mu number : integer bigger than 0(default 1)\n"
+			"-mu  chemical potential: (default 0.0 -> half filling)\n"
+			"-mus mu step			: bigger than 0, start from smaller (default 1)\n"
+			"-mun mu number			: integer bigger than 0 (default 1)\n"
 			"\n"
-			"-th outer threads : number of outer threads (default 1)\n"
-			"-ti inner threads : number of inner threads (default 1)\n"
-			"-q : 0 or 1 -> quiet mode (no outputs) (default false)\n"
+			"-th outer threads		: number of outer threads (default 1)\n"
+			"-ti inner threads		: number of inner threads (default 1)\n"
 			"\n"
-			"-cg save-config : for machine learning -> we will save all Trotter times at the same time(default false)\n"
-			"-ct collect time averages - slower \n"
+			"-cg save-config		: for machine learning -> we will save all Trotter times at the same time (default false)\n"
+			"-ct collect non-equal time averages \n"
 			"-hs use hirsh for collecting time averages \n"
 			"\n"
-			"-sf use self-learning : 0(default) - do not use, 1 (just train parameters and exit), 2 (just make simulation from the existing network)\n"
-			"-sfn - the number of configurations saved to train(default 50)\n"
-			"-h - help\n"
+			"-sf use self-learning	: ->\n"
+			"	0 (default - do not use),\n"
+			"	1 (just train) [NOT-IMPLEMENTED],\n"
+			"	2 (make simulation from existing network) [NOT-IMPLEMENTED]\n"
+			" ------------------------------------------ Copyright : Maksymilian Kliczkowski, 2023 ------------------------------------------ "
 		);
 		std::exit(1);
 	}
 	
-	// -----------------------------------------------    	   REAL PARSER          -------------------------------------------
-	// the function to parse the command line
+	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% R E A L   P A R S E R %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 	void funChoice()						final override;
 	void parseModel(int argc, cmdArg& argv) final override;
 
-	// ----------------------------------------------- 			HELPERS  			-------------------------------------------
+	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% H E L P E R S %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	void setDefault()						final override;
 
-	// -----------------------------------------------  	   SIMULATION 
+	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% S I M U L A T I O N %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 };
 
 ////

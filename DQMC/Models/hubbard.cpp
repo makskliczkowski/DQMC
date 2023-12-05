@@ -1,6 +1,4 @@
 #include "../include/Models/hubbard.h"
-
-//#include <execution>
 #include <numeric>
 #include <utility>
 
@@ -35,12 +33,12 @@ void Hubbard::init()
 		this->udt_		[_SPIN_]	=	std::make_unique<algebra::UDT_QR<double>>(this->G_[_SPIN_]);
 
 #ifdef DQMC_CAL_TIMES
-	#ifdef DQMC_CAL_TIMES_ALL
+#	ifdef DQMC_CAL_TIMES_ALL
 		this->Gtime_	[_SPIN_].zeros(this->M_ * this->Ns_, this->M_ * this->Ns_);
-	#else
+#	else
 		this->Gtime_	[_SPIN_].zeros(this->p_ * this->Ns_, this->p_ * this->Ns_);
-	#endif
-#endif // CAL_TIMES
+#	endif
+#endif
 	}
 	LOGINFO("Finished initializing Hubbard-DQMC properties.", LOG_TYPES::INFO, 4);
 }
@@ -77,7 +75,6 @@ void Hubbard::compareGreen(uint _tau, double _toll, bool _print)
 			LOGINFO(this->G_[_SPIN_], LOG_TYPES::TRACE, 3);
 		}
 	}
-	LOGINFO(LOG_TYPES::TRACE, 2);
 }
 
 void Hubbard::compareGreen()
@@ -540,7 +537,7 @@ double Hubbard::sweepForward()
 * @param MCs number of Monte Carlo steps
 * @param _quiet wanna talk?
 */
-void Hubbard::equalibrate(uint MCs, bool _quiet)
+void Hubbard::equalibrate(uint MCs, bool _quiet, clk::time_point _t)
 {
 	if (_quiet && MCs != 1)
 	{
@@ -555,20 +552,16 @@ void Hubbard::equalibrate(uint MCs, bool _quiet)
 #endif
 
 	// reset the progress bar
-	this->pBar_ = pBar(20, MCs);
+	this->pBar_ = pBar(20, MCs, _t);
 
 	// sweep all
 	for (int step = 0; step < MCs; step++) {
-		auto _sign			=		this->sweepForward();
+		auto _sign	[[maybe_unused]] = this->sweepForward();
 #ifdef DQMC_SAVE_CONF
 		this->saveConfig("\t");
 #endif
-		if (!_quiet)
-		{
-			this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
-			if (step % this->pBar_.percentageSteps == 0)
-				this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS RELAXATION"));
-		}
+		this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
+		PROGRESS_UPD_Q(step, this->pBar_, "PROGRESS RELAXATION", !_quiet);
 	}
 }
 
@@ -578,33 +571,29 @@ void Hubbard::equalibrate(uint MCs, bool _quiet)
 * @param avNum number of averages to be taken
 * @param quiet quiet?
 */
-void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
+void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint buckets, bool _quiet, clk::time_point _t)
 {
 #pragma omp critical
 	LOGINFO(LOG_TYPES::TRACE, "Starting the averaging for " + this->info_, 50, '#', 1);
 	LOGINFO(2);
 
-	// calculate the time
-	auto start						=		std::chrono::high_resolution_clock::now();
-
 	// initialize stuff
-	// this->configSigns_			=		{};
 	this->negNum_					=		0;
 	this->posNum_					=		0;
-	this->avs_->reset();
-	this->pBar_						=		pBar(10, avNum);
+	this->avs_->reset(buckets);
+	this->pBar_						=		pBar(10, avNum * buckets, _t);
 
 	// check if this saved already
-	for (int step = 1; step < avNum; step++) 
+	for (int step = 1; step < avNum * buckets; step++) 
 	{
 		// check the calculation of time Green's
 #ifdef DQMC_CAL_TIMES
 		// check the usage of Hirsh or by hand
-	#ifdef DQMC_USE_HIRSH
+#	ifdef DQMC_USE_HIRSH
 		this->calGreensFunTHirsh();
-	#else
+#	else
 		this->calGreensFunT();
-	#endif
+#	endif
 #endif
 		// go through the imaginary times
 		for (auto _tau = 0; _tau < this->M_; _tau++) 
@@ -618,11 +607,11 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bo
 #ifdef DQMC_CAL_TIMES
 			const uint _element		=		this->tau_ * this->Ns_;
 			for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
-	#ifdef DQMC_USE_HIRSH
+#	ifdef DQMC_USE_HIRSH
 				algebra::setMFromSubM(this->G_[_SPIN_], this->Gtime_[_SPIN_], _element, _element, Ns_, Ns_, false);
-	#else
+#	else
 				algebra::setSubMFromM(this->Gtime_[_SPIN_], this->G_[_SPIN_], _element, _element, Ns_, Ns_, false);
-	#endif
+#	endif
 #endif
 			// go through the lattice sites
 			for (int _site = 0; _site < this->Ns_; _site++)
@@ -632,22 +621,20 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint bootStraps, bo
 		this->configSigns_.push_back(this->configSign_);
 		this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
 #ifdef DQMC_CAL_TIMES
-		if (step % DQMC_BUCKET_NUM == (DQMC_BUCKET_NUM - 1)) {
-			LOGINFO("Saving " + STR(step / DQMC_BUCKET_NUM) + ". " + VEQ(DQMC_BUCKET_NUM) + ":" + TMS(start), LOG_TYPES::TRACE, 3);
-			this->saveGreensT(step / DQMC_BUCKET_NUM);
+		if (step % buckets == (buckets - 1)) {
+			LOGINFO("Saving " + STR(step / buckets) + ". " + VEQ(buckets) + ":" + TMS(_t), LOG_TYPES::TRACE, 3);
+			this->saveGreensT(step / buckets);
 			this->avs_->resetG();
 		}
 #endif
 		// kill correlations
 		for (int _cor = 0; _cor < corrTime; _cor++)
 			this->sweepForward();
-		// print if necessary
-		if(!_quiet && step % this->pBar_.percentageSteps == 0)
-			this->pBar_.printWithTime(LOG_LVL2 + SSTR("PROGRESS AVERAGES"));
+
+		PROGRESS_UPD_Q(step, this->pBar_, "PROGRESS AVERAGES", !_quiet);
 	}
 	// calculate the average sign
-	double avSign = double(this->posNum_ - this->negNum_) / double(this->posNum_ + this->negNum_);
-	this->avs_->normalize(avNum, this->M_ * this->lat_->get_Ns(), avSign);
+	this->avs_->normalize(avNum, this->M_ * this->lat_->get_Ns(), this->getAvSign());
 }
 
 // ####################################################### A V E R A G E S #########################################################

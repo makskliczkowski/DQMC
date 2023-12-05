@@ -24,14 +24,13 @@
 #ifndef DQMC_AV_H
 #define DQMC_AV_H
 
-constexpr int DQMC_BUCKET_NUM = 5;
-
 #define DQMC_SAVE_H5
 #define DQMC_USE_HIRSH
 #define DQMC_CAL_TIMES
 #ifdef DQMC_CAL_TIMES
-	#define DQMC_CAL_TIMES_ALL
+#	define DQMC_CAL_TIMES_ALL
 #endif
+
 // ##########################################################################################
 
 #define SINGLE_PARTICLE_INPUT	int _sign, uint _i,			 const GREEN_TYPE& _g
@@ -255,6 +254,7 @@ template <size_t _spinNum, typename _retT>
 class DQMCavs 
 {
 protected:
+	size_t bucketNum_									= 100;
 	std::shared_ptr<Lattice> lat_;
 	const v_1d<double>* t_nn_;							// nn hopping integrals
 public:
@@ -310,7 +310,9 @@ public:
 	// ################################## F U N C T I O N S #################################
 	
 	virtual void reset();
+	virtual void reset(size_t buckets);
 	virtual void resetG();
+	virtual void setBucketNum(size_t buckets);
 	virtual void normalize(int _avNum, int _normalization, double _avSign);
 	virtual void normalizeG();
 	void calOneSite(SINGLE_PARTICLE_INPUT, const std::string& choice, _retT& av, _retT& stdev);
@@ -343,6 +345,18 @@ public:
 	};
 #undef DQMC_AV_FUN2
 };
+
+// ##########################################################################################
+
+/*
+* @brief Setups the bucket number for the averages
+* @param buckets number of the buckets used
+*/
+template<size_t _spinNum, typename _retT>
+inline void DQMCavs<_spinNum, _retT>::setBucketNum(size_t buckets)
+{
+	this->bucketNum_ = buckets;
+}
 
 // ##########################################################################################
 
@@ -406,7 +420,7 @@ inline void DQMCavs<_spinNum, _retT>::normalizeG()
 		for (int tau = 0; tau < _M; tau++) 
 		{
 			// find time normalization
-			auto norm = -DQMC_BUCKET_NUM * this->normM_(tau);
+			auto norm = -this->bucketNum_ * this->normM_(tau);
 			for (int x = 0; x < xx; x++) {
 				for (int y = 0; y < yy; y++) 
 					for (int z = 0; z < zz; z++)
@@ -476,6 +490,17 @@ inline void DQMCavs<_spinNum, _retT>::reset()
 #ifdef DQMC_CAL_TIMES
 		this->resetG();
 #endif
+}
+
+/*
+* @brief Resets all averages calculated previously and additionally sets the bucket number
+* @param buckets number of the buckets used
+*/
+template<size_t _spinNum, typename _retT>
+inline void DQMCavs<_spinNum, _retT>::reset(size_t buckets)
+{
+	this->setBucketNum(buckets);
+	this->reset();
 }
 
 // ##########################################################################################

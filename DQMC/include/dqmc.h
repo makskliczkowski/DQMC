@@ -15,6 +15,7 @@
 #ifndef DQMC_H
 #define DQMC_H
 
+#define DQMC_RANDOM_SEED 0
 
 // ######################### EXISTING MODELS ############################
 enum MY_MODELS {													 // #
@@ -114,6 +115,7 @@ protected:
 	uint Ns_							=		1;
 	u64 posNum_							=		0;
 	u64 negNum_							=		0;
+	arma::Mat<double> HSFields_;											// Hubbard-Stratonovich fields
 
 	// ################ C U R R E N T   P R O P E R T I E S ################
 	uint tau_							=		0;							// current Trotter time
@@ -162,24 +164,34 @@ public:
 	virtual void init()														= 0;
 
 	// ###################### C A L C U L A T O R S ########################
-	virtual void relaxes(uint MCs, bool _quiet = false);
-	virtual void average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet = false);
+	virtual void relaxes(uint MCs			= 100, 
+						 bool _quiet		= false, 
+						 clk::time_point _t = NOW);
+	virtual void average(uint MCs			= 100,
+						 uint corrTime		= 1, 
+						 uint avNum			= 50, 
+						 uint buckets		= 50, 
+						 bool _quiet		= false, 
+						 clk::time_point _t = NOW);
 
 	// ########################## G E T T E R S ############################
-	auto getInvTemperature()			const -> double						{ return this->beta_; };
-	auto getTemperature()				const -> double						{ return this->T_; };
-	auto getInfo()						const -> std::string				{ return this->info_; };
-	auto getLat()						const -> std::shared_ptr<Lattice>	{ return this->lat_; };
-	auto getDim()						const -> uint						{ return this->lat_->get_Dim(); };
-	auto getNs()						const -> uint						{ return this->lat_->get_Ns(); };
-	auto getBC()						const -> BoundaryConditions			{ return this->lat_->get_BC(); };
+	auto getInvTemperature()			const -> double						{ return this->beta_;																	};
+	auto getTemperature()				const -> double						{ return this->T_;																		};
+	auto getInfo()						const -> std::string				{ return this->info_;																	};
+	auto getLat()						const -> std::shared_ptr<Lattice>	{ return this->lat_;																	};
+	auto getDim()						const -> uint						{ return this->lat_->get_Dim();															};
+	auto getNs()						const -> uint						{ return this->lat_->get_Ns();															};
+	auto getBC()						const -> BoundaryConditions			{ return this->lat_->get_BC();															};
 	auto getAverages()					const -> std::shared_ptr<DQMCavs<spinNumber_, double>>	
-																			{ return this->avs_; };
-
+																			{ return this->avs_;																	};
+	auto getAvSign()					const -> double						{ return double(this->posNum_ - this->negNum_) / double(this->posNum_ + this->negNum_); };
+	
 	// ########################## S E T T E R S ############################
+	virtual auto setHS(std::string)		-> void;
 	virtual auto setHS(HS_CONF_TYPES _t)-> void								= 0;
 	virtual auto setDir(std::string _m)	-> void								= 0;
 	virtual auto setInfo()				-> void								= 0;
+
 	// ###################### C A L C U L A T O R S ########################
 protected:
 	virtual void calProba(uint _site)										= 0;
@@ -208,9 +220,15 @@ protected:
 	virtual double sweepForward()											= 0;
 	//virtual double sweepBackward()										= 0;
 
-	virtual void equalibrate(uint MCs, bool _quiet = false)					= 0;
-	virtual void averaging(uint MCs, uint corrTime, uint avNum,
-						 uint bootStraps, bool _quiet = false)				= 0;
+	virtual void equalibrate(uint MCs			= 100, 
+							 bool _quiet		= false, 
+							 clk::time_point _t = NOW)						= 0;
+	virtual void averaging(	 uint MCs			= 100, 
+							 uint corrTime		= 1, 
+							 uint avNum			= 50,
+							 uint buckets		= 50, 
+							 bool _quiet		= false,
+							 clk::time_point _t = NOW)						= 0;
 
 	// ########################## U P D A T E R S ##########################
 	virtual void updPropagatB(uint _site, uint _t)							= 0;
@@ -230,6 +248,7 @@ public:
 	virtual void saveCorrelations()											= 0;
 	virtual void saveGreensT(uint _step)									= 0;
 	virtual void saveGreens(uint _step)										= 0;
+	virtual void saveCheckPoint(std::string);
 };
 
 // ################################################## C A L C U L A T O R S #######################################################
@@ -254,35 +273,88 @@ inline int DQMC<spinNum_>::sweepLattice()
 // #################################################### E V O L U T O R S #########################################################
 
 template<size_t spinNum_>
-inline void DQMC<spinNum_>::relaxes(uint MCs, bool _quiet)
+inline void DQMC<spinNum_>::relaxes(uint MCs, bool _quiet, clk::time_point _t)
 {
-	auto start				=		std::chrono::high_resolution_clock::now();											// starting timer for averages
-	this->currentWarmups_	=		MCs;
-	this->equalibrate(MCs, _quiet);
+	this->currentWarmups_	=	MCs;
+	this->equalibrate(MCs, _quiet, _t);
 	if (!_quiet && MCs != 1) 
 	{
 #pragma omp critical
-		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(start) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO("For " + this->getInfo() + " relaxation taken: " + TMS(_t) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
 		LOGINFO(LOG_TYPES::TRACE, "", 50, '#', 2);
 	}
 }
 
 template<size_t spinNum_>
-inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint bootStraps, bool _quiet)
+inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint buckets, bool _quiet, clk::time_point _t)
 {
-	LOGINFO(2);
-	auto start				= std::chrono::high_resolution_clock::now();											// starting timer for averages
-	this->currentAverages_	=		MCs;
-	this->averaging(MCs, corrTime, avNum, bootStraps, _quiet);
+	LOGINFO(1);
+	this->currentAverages_	=	MCs;
+	this->averaging(MCs, corrTime, avNum, buckets, _quiet, _t);
 
 	if (!_quiet) 
 	{
 #pragma omp critical
-		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(start) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
+		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(_t) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
 		LOGINFO("Average Onsite Occupation = " + STRP(this->avs_->av_Occupation, 4)	, LOG_TYPES::TIME, 3);
 		LOGINFO("Average Onsite Magnetization = " + STRP(this->avs_->av_Mz2, 4)		, LOG_TYPES::TIME, 3);
 		LOGINFO(LOG_TYPES::TRACE, "", 50, '#', 2);
 		LOGINFO(2);
+	}
+}
+
+// ################################################### C H E C K P O I N T ########################################################
+
+/*
+* @brief Uses the checkpoint configuration from a specific path to setup the simulation
+* @param _path path to configuration file
+*/
+template<size_t spinNum_>
+inline void DQMC<spinNum_>::setHS(std::string _path)
+{
+	LOGINFO(LOG_TYPES::INFO, "Loading the checkpoint configuration from", 2);
+	LOGINFO(LOG_TYPES::INFO, _path, 3);
+	if (_path.ends_with(".h5"))
+	{
+		this->HSFields_.load(arma::hdf5_name(_path, "HS"));
+		return;
+	}
+	else if (_path.ends_with(".bin"))
+	{
+		this->HSFields_.load(_path);
+		return;
+	}
+	else if (_path.ends_with(".txt") || _path.ends_with(".dat"))
+	{
+		this->HSFields_.load(_path, arma::arma_ascii);
+		return;
+	}
+	throw std::runtime_error("Couldn't read the file: " + _path);
+}
+
+/*
+* @brief Save the checkpoint configuration to a specific path
+* @param _path path to configuration file
+*/
+template<size_t spinNum_>
+inline void DQMC<spinNum_>::saveCheckPoint(std::string _path)
+{
+	LOGINFO(LOG_TYPES::INFO, "Saving the checkpoint configuration to", 2);
+	LOGINFO(LOG_TYPES::INFO, _path, 3);
+	if (_path.ends_with(".h5"))
+	{
+		this->HSFields_.save(arma::hdf5_name(_path, "HS"));
+		return;
+	}
+	else if (_path.ends_with(".bin"))
+	{
+		this->HSFields_.save(_path);
+		return;
+	}
+	else if (_path.ends_with(".txt") || _path.ends_with(".dat"))
+	{
+		this->HSFields_.save(_path, arma::arma_ascii);
+		return;
 	}
 }
 

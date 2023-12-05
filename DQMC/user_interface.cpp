@@ -10,63 +10,68 @@ int LASTLVL = 0;
 */
 void UI::parseModel(int argc, cmdArg& argv)
 {
-	// --------- HELP
-	if (std::string option = this->getCmdOption(argv, "-hlp"); option != "")
+	// ------------------ HELP -------------------
+	if (std::string option = this->getCmdOption(argv, "-h"); option != "")
 		this->exitWithHelp();
 
 	// set default at first
 	this->setDefault();
 
 	std::string choosen_option = "";
+	// ---------- SIMULATION PARAMETERS ----------
+	{
+		SETOPTION(		simP, mcS					);	// relaxation size
+		SETOPTION(		simP, mcA					);	// averages size
+		SETOPTION(		simP, mcB					);	// buckets size
+		SETOPTION(		simP, mcC					);	// correlation size
+		SETOPTIONV(		simP, mcCheckLoad, "mcCPL"	);	// should I use the checkpoint coefficients?
+		SETOPTIONV(		simP, mcCheckSave, "mcCPS"	);	// should I use the checkpoint coefficients?
+	}
+	// ----------------- LATTICE -----------------
+	{
+		SETOPTIONV(		latP, typ, "l"		);
+		SETOPTIONV(		latP, dim, "d"		);
+		SETOPTION(		latP, Lx			);
+		SETOPTION(		latP, Ly			);
+		SETOPTION(		latP, Lz			);
+		SETOPTION(		latP, bc			);
+		if (!this->defineLattice())
+			throw std::runtime_error("Couldn't create a lattice\n");
+	}
+	// ------------------ MODEL ------------------
+	{
+		SETOPTIONV(		modP, modTyp, "mod"	);	// model type
 
-	// -------------------- SIMULATION PARAMETERS --------------------
-	SETOPTION(		simP, mcS			);
-	SETOPTION(		simP, mcA			);
-	SETOPTION(		simP, mcC			);
-	// ---------- LATTICE ----------
-	SETOPTIONV(		latP, typ, "l"		);
-	SETOPTIONV(		latP, dim, "d"		);
-	SETOPTION(		latP, Lx			);
-	SETOPTION(		latP, Ly			);
-	SETOPTION(		latP, Lz			);
-	SETOPTION(		latP, bc			);
-	if (!this->defineLattice())
-		throw std::runtime_error("Couldn't create a lattice\n");
+		// Hubbard
+		SETOPTION(		modP, U				);
+		SETOPTION(		modP, dtau			);
+		SETOPTION(		modP, beta			);
+		SETOPTION(		modP, mu			);
+		SETOPTION(		modP, M0			);
+		this->setOption(this->modP.Ns_, this->latP.lat->get_Ns());
+		this->setOption(this->modP.T_, 1.0 / this->modP.beta_);
+		this->setOption(this->modP.M_, this->modP.beta_ / this->modP.dtau_);
+		this->modP.t_.resize(this->latP.lat->get_Ns());
+		SETOPTION(		modP, t				);
+	}
 
-	// ---------- MODEL ----------
+	// ------------------ OTHERS ------------------
+	{
+		this->setOption(this->quiet		, argv, "q"		);
+		this->setOption(this->threadNum	, argv, "th"	);
 
-	// model type
-	SETOPTIONV(		modP, modTyp, "mod"	);
-	// --- Hubbard ---
-	SETOPTION(		modP, U				);
-	SETOPTION(		modP, dtau			);
-	SETOPTION(		modP, beta			);
-	SETOPTION(		modP, mu			);
-	SETOPTION(		modP, M0			);
-	this->modP.Ns_			=			this->latP.lat->get_Ns();
-	this->modP.T_			=			1.0 / this->modP.beta_;
-	this->modP.M_			=			this->modP.beta_ / this->modP.dtau_;
-	this->modP.t_			=			v_1d<double>(this->modP.Ns_, this->modP.t_[0]);
-	// ---------- OTHERS
-	this->setOption(this->quiet		, argv, "q"	);
-	this->setOption(this->threadNum	, argv, "th"	);
-
-	// later function choice
-	this->setOption(this->chosenFun	, argv, "fun"	);
-
-	//---------- DIRECTORY
-
+		// later function choice
+		this->setOption(this->chosenFun	, argv, "fun"	);
+	}
+	// ---------------- DIRECTORY -----------------
 	bool setDir		[[maybe_unused]] =	this->setOption(this->mainDir, argv, "dir");
-	this->mainDir	=	fs::current_path().string() + kPS + "DATA" + kPS + this->mainDir + kPS;
-
-	// create the directories
-	createDir(this->mainDir);
+	this->mainDir	=	makeDirsC(fs::current_path().string(), "DATA", this->mainDir);
 }
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 /*
-* @brief  Setting parameters to default.
+* @brief Setting parameters to default.
 */
 void UI::setDefault()
 {
@@ -88,6 +93,8 @@ void UI::setDefault()
 void UI::funChoice()
 {
 	LOGINFO_CH_LVL(0);
+	LOGINFO("USING #THREADS=" + STR(this->threadNum), LOG_TYPES::CHOICE, 1);
+	this->_timer.reset();
 	switch (this->chosenFun)
 	{
 	case -1:
@@ -104,8 +111,6 @@ void UI::funChoice()
 		this->exitWithHelp();
 		break;
 	}
-	LOGINFO("USING #THREADS=" + STR(this->threadNum), LOG_TYPES::CHOICE, 1);
-
 }
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -135,6 +140,9 @@ bool UI::defineLattice()
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+/*
+* @brief defines the models based on the input parameters - interacting. Also, defines the lattice
+*/
 bool UI::defineModels(bool _createLat)
 {
 	// create lattice
@@ -146,6 +154,9 @@ bool UI::defineModels(bool _createLat)
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+/*
+* @brief defines the models based on the input parameters - interacting
+*/
 bool UI::defineModel()
 {
 	switch (this->modP.modTyp_)
@@ -156,7 +167,7 @@ bool UI::defineModel()
 		break;
 	default:
 		this->mod_s2_ = std::make_shared<Hubbard>(this->modP.T_, this->latP.lat, this->modP.M_, this->modP.M0_,
-			this->modP.t_, this->modP.U_, this->modP.dtau_, this->modP.mu_);
+												  this->modP.t_, this->modP.U_, this->modP.dtau_, this->modP.mu_);
 		break;
 	}
 	return true;
@@ -164,19 +175,68 @@ bool UI::defineModel()
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+/*
+* @brief Makes the simulation for a single Hamiltonian - without the outer loop
+*/
 void UI::makeSim()
 {
+	_timer.reset();
 	BEGIN_CATCH_HANDLER
-	if (!this->defineModels(true))
-		return;
-	this->mod_s2_->setDir(this->mainDir);
-	this->mod_s2_->relaxes(this->simP.mcS_, this->quiet);
-	LOGINFO(LOG_TYPES::TIME, 1);
-	this->mod_s2_->average(this->simP.mcS_, this->simP.mcC_, this->simP.mcA_, 1, this->quiet);
-	LOGINFO(LOG_TYPES::TIME, 1);
-	this->mod_s2_->saveAverages();
+		// define models
+		if (!this->defineModels(true))
+			return;
+
+		// set directories
+		this->mod_s2_->setDir(this->mainDir);
+		
+		// set the values from the checkpoint
+		try 
+		{
+			if (!this->simP.mcCheckLoad_.empty())
+				this->mod_s2_->setHS(this->simP.mcCheckLoad_);
+		}
+		catch (std::exception& e)
+		{
+			LOGINFO(LOG_TYPES::ERROR, "Couldn't setup the auxiliary fields from the standard path", 2);
+			LOGINFO(LOG_TYPES::ERROR, e.what(), 2);
+		}
+
+		// start the relaxation
+		_timer.checkpoint("relaxation");
+		this->mod_s2_->relaxes(this->simP.mcS_, this->quiet);
+		LOGINFO(_timer.point("relaxation"), "DQMC: relaxation ", 0);
+
+		// save the configuration
+		try
+		{
+			if (this->simP.mcCheckSave_ == "date")
+			{
+				std::string time = prettyTime();
+				this->mod_s2_->saveCheckPoint(this->mainDir + "HS_" + time + ".h5");
+			}
+			else if (!this->simP.mcCheckSave_.empty())
+				this->mod_s2_->saveCheckPoint(this->simP.mcCheckSave_);
+			else
+				this->mod_s2_->saveCheckPoint(this->mainDir + "HS.h5");
+		}
+		catch (std::exception& e)
+		{
+			LOGINFO(LOG_TYPES::ERROR, "Couldn't setup the auxiliary fields to the standard path", 2);
+			LOGINFO(LOG_TYPES::ERROR, e.what(), 2);
+		}
+
+		// start the averaging
+		_timer.checkpoint("average");
+		this->mod_s2_->average(this->simP.mcS_, this->simP.mcC_, this->simP.mcA_, this->simP.mcB_, this->quiet);
+		LOGINFO(_timer.point("average"), "DQMC: average ", 0);
+
+		// start the saving
+		_timer.checkpoint("save");
+		this->mod_s2_->saveAverages();
+		LOGINFO(_timer.point("save"), "DQMC: save ", 0);
 	END_CATCH_HANDLER(std::string(__FUNCTION__), ;);
 }
+
 // -------------------------------------------------------- PARSERS
 
 ///*

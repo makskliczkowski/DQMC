@@ -10,6 +10,11 @@
 	#include "../../source/src/lin_alg.h"
 #endif
 
+// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+/*
+* @brief A basic Hubbard model class for DQMC simulation
+*/
 class Hubbard : public DQMC2
 {
 	// ############################# Q R ################################### 
@@ -25,7 +30,6 @@ class Hubbard : public DQMC2
 	double dtau_				=			1e-2;							// Trotter time step
 
 	double lambda_				=			1.0;							// lambda parameter in HS transform
-	arma::Mat<double> HSFields_;											// Hubbard-Stratonovich fields
 	v_1d<spinTuple_> gammaExp_;
 	spinTuple_* currentGamma_;
 
@@ -35,17 +39,24 @@ public:
 		LOGINFO("Deleting the DQMC Hubbard model class...", LOG_TYPES::INFO, 1);
 	}
 	Hubbard()					=			default;
-	Hubbard(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0,
-		v_1d<double> _t, double _U, double _dtau, double _mu)
+	Hubbard(double _T, 
+			std::shared_ptr<Lattice> _lat, 
+			uint _M, 
+			uint _M0,
+			v_1d<double> _t, 
+			double _U			=	8.0, 
+			double _dtau		=	0.05, 
+			double _mu			=	0.0)
 		: DQMC2(_T, _lat, _M, _M0), t_(_t), U_(_U), mu_(_mu), dtau_(_dtau)
 	{
 		this->setInfo();
-		if (this->M_ % this->M0_ != 0)		throw std::runtime_error("Cannot have M0 times that do not divide M.");
+		if (this->M_ % this->M0_ != 0)		
+			throw std::runtime_error("Cannot have M0 times that do not divide M.");
 
-		this->ran_				=			randomGen();
+		this->ran_				=			randomGen(DQMC_RANDOM_SEED ? DQMC_RANDOM_SEED : std::random_device{}());
 		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M, &this->t_);
 
-		// lambda
+		// repulsiveness
 		this->REPULSIVE_		=			(this->U_ > 0);
 
 		// lambda couples to the auxiliary spins
@@ -96,11 +107,15 @@ protected:
 
 	// ######################### E V O L U T I O N #########################
 	double sweepForward()													override;
-	//double sweepBackward()													override;
-
-	void equalibrate(uint MCs, bool _quiet = false)							override;
-	void averaging(uint MCs, uint corrTime, uint avNum,
-				 uint bootStraps, bool _quiet = false)						override;
+	void equalibrate(uint MCs			= 100, 
+					 bool _quiet		= false, 
+					 clk::time_point _t = NOW)								override;
+	void averaging(	uint MCs			= 100, 
+					uint corrTime		= 1, 
+					uint avNum			= 50,
+					uint buckets		= 50, 
+					bool _quiet			= false,
+					clk::time_point _t	= NOW)								override;
 	// HELPING
 	auto calGamma(uint _site)				->								void;
 	auto calDelta()							->								spinTuple_;
@@ -114,7 +129,7 @@ protected:
 	void updPropagatB(uint _site, uint _t)									override;
 	void updInteracts(uint _site, uint _t)									override;
 
-	// Greens
+	// GREENS
 	void updEqlGreens(uint _site, const spinTuple_& p)						override;
 	void updNextGreen(uint _t)												override;
 	void updPrevGreen(uint _t)												override;
