@@ -36,27 +36,29 @@ namespace UI_PARAMS
 
 		// ############### Hubbard ###############
 		v_1d<double>	t_;
+		v_1d<double>	U_;
+		v_1d<double>	mu_;
 		UI_PARAM_CREATE_DEFAULTD(M			, double,		4.0);
-		UI_PARAM_CREATE_DEFAULTD(U			, double,		2.0);
 		UI_PARAM_CREATE_DEFAULTD(beta		, double,		2.0);
 		UI_PARAM_CREATE_DEFAULTD(T			, double,		0.5);
-		UI_PARAM_CREATE_DEFAULTD(mu			, double,		0.0);
 		UI_PARAM_CREATE_DEFAULTD(dtau		, double,		0.1);
 		UI_PARAM_CREATE_DEFAULTD(M0			, double,		1.0);
 		UI_PARAM_CREATE_DEFAULTD(Ns			, double,		1.0);
+		UI_PARAM_CREATE_DEFAULTD(Nband		, double,		1.0);
 
 		void setDefault() 
 		{
 			UI_PARAM_SET_DEFAULT(modTyp);
 			// Hubbard
-			this->t_	=	v_1d<double>(Ns_, 1.0);
-			UI_PARAM_SET_DEFAULT(U);
+			this->t_	=	v_1d<double>(Ns_ * Nband_, 1.0);
+			this->U_	=	v_1d<double>(Ns_ * Nband_, 1.0);
+			this->mu_	=	v_1d<double>(Ns_ * Nband_, 0.0);
 			UI_PARAM_SET_DEFAULT(T);
 			UI_PARAM_SET_DEFAULT(beta);
-			UI_PARAM_SET_DEFAULT(mu);
 			UI_PARAM_SET_DEFAULT(dtau);
 			UI_PARAM_SET_DEFAULT(M0);
 			UI_PARAM_SET_DEFAULT(Ns);
+			UI_PARAM_SET_DEFAULT(Nband);
 		};
 	};
 	
@@ -144,7 +146,6 @@ protected:
 			UI_OTHER_MAP(mod		, this->modP._modTyp	, FHANDLE_PARAM_BETWEEN(0., 2.)	),
 			// -------- Hubbard
 			UI_PARAM_MAP(M			, this->modP._M			, FHANDLE_PARAM_DEFAULT			),
-			UI_PARAM_MAP(U			, this->modP._U			, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(beta		, this->modP._beta		, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(T			, this->modP._T			, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(mu			, this->modP._mu		, FHANDLE_PARAM_DEFAULT			),
@@ -217,6 +218,7 @@ public:
 			"-bn inversed temp #	: integer bigger than 0 (default 1)\n"
 			"\n"
 			"-u  interaction U		: (default 2)\n"
+			"	-[VECTOR VALUE]\n"
 			"-us interaction step	: bigger than 0, start from smaller (default 1)\n"
 			"-un interaction number : integer bigger than 0 (default 1)\n"
 			"\n"

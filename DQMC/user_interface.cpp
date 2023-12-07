@@ -43,16 +43,19 @@ void UI::parseModel(int argc, cmdArg& argv)
 		SETOPTIONV(		modP, modTyp, "mod"	);	// model type
 
 		// Hubbard
-		SETOPTION(		modP, U				);
 		SETOPTION(		modP, dtau			);
 		SETOPTION(		modP, beta			);
-		SETOPTION(		modP, mu			);
 		SETOPTION(		modP, M0			);
+		SETOPTION(		modP, Nband			);
 		this->setOption(this->modP.Ns_, this->latP.lat->get_Ns());
 		this->setOption(this->modP.T_, 1.0 / this->modP.beta_);
 		this->setOption(this->modP.M_, this->modP.beta_ / this->modP.dtau_);
-		this->modP.t_.resize(this->latP.lat->get_Ns());
+		this->modP.t_.resize(this->latP.lat->get_Ns() * this->modP.Nband_);
+		this->modP.U_.resize(this->latP.lat->get_Ns() * this->modP.Nband_);
+		this->modP.mu_.resize(this->latP.lat->get_Ns() * this->modP.Nband_);
 		SETOPTION(		modP, t				);
+		SETOPTION(		modP, U				);
+		SETOPTION(		modP, mu			);
 	}
 
 	// ------------------ OTHERS ------------------
@@ -163,11 +166,13 @@ bool UI::defineModel()
 	{
 	case MY_MODELS::HUBBARD_M:
 		this->mod_s2_	= std::make_shared<Hubbard>(this->modP.T_, this->latP.lat, this->modP.M_, this->modP.M0_,
-													this->modP.t_, this->modP.U_, this->modP.dtau_, this->modP.mu_);
+													this->modP.t_, this->modP.U_, this->modP.mu_, this->modP.dtau_,
+													this->modP.Nband_);
 		break;
 	default:
-		this->mod_s2_ = std::make_shared<Hubbard>(this->modP.T_, this->latP.lat, this->modP.M_, this->modP.M0_,
-												  this->modP.t_, this->modP.U_, this->modP.dtau_, this->modP.mu_);
+		this->mod_s2_	= std::make_shared<Hubbard>(this->modP.T_, this->latP.lat, this->modP.M_, this->modP.M0_,
+													this->modP.t_, this->modP.U_, this->modP.mu_, this->modP.dtau_,
+													this->modP.Nband_);
 		break;
 	}
 	return true;
@@ -182,6 +187,7 @@ void UI::makeSim()
 {
 	_timer.reset();
 	BEGIN_CATCH_HANDLER
+	{
 		// define models
 		if (!this->defineModels(true))
 			return;
@@ -202,22 +208,27 @@ void UI::makeSim()
 		}
 
 		// start the relaxation
-		_timer.checkpoint("relaxation");
-		this->mod_s2_->relaxes(this->simP.mcS_, this->quiet);
-		LOGINFO(_timer.point("relaxation"), "DQMC: relaxation ", 0);
+		BEGIN_CATCH_HANDLER
+		{
+			_timer.checkpoint("relaxation");
+			this->mod_s2_->relaxes(this->simP.mcS_, this->quiet);
+			LOGINFO(_timer.point("relaxation"), "DQMC: relaxation ", 0);
+		}
+		END_CATCH_HANDLER("Failed to perform the saving... ", ;);
 
 		// save the configuration
-		try
+		BEGIN_CATCH_HANDLER
 		{
+			bool _saved = false;
 			if (this->simP.mcCheckSave_ == "date")
 			{
 				std::string time = prettyTime();
-				this->mod_s2_->saveCheckPoint(this->mainDir + "HS_" + time + ".h5");
+				_saved = this->mod_s2_->saveCheckPoint(this->mod_s2_->dir_->mainDir, "HS_" + time + ".h5");
 			}
 			else if (!this->simP.mcCheckSave_.empty())
-				this->mod_s2_->saveCheckPoint(this->simP.mcCheckSave_);
+				this->mod_s2_->saveCheckPoint(this->mod_s2_->dir_->mainDir, this->simP.mcCheckSave_);
 			else
-				this->mod_s2_->saveCheckPoint(this->mainDir + "HS.h5");
+				this->mod_s2_->saveCheckPoint(this->mod_s2_->dir_->mainDir, "HS.h5");
 		}
 		catch (std::exception& e)
 		{
@@ -226,14 +237,23 @@ void UI::makeSim()
 		}
 
 		// start the averaging
-		_timer.checkpoint("average");
-		this->mod_s2_->average(this->simP.mcS_, this->simP.mcC_, this->simP.mcA_, this->simP.mcB_, this->quiet);
-		LOGINFO(_timer.point("average"), "DQMC: average ", 0);
+		BEGIN_CATCH_HANDLER
+		{
+			_timer.checkpoint("average");
+			this->mod_s2_->average(this->simP.mcS_, this->simP.mcC_, this->simP.mcA_, this->simP.mcB_, this->quiet);
+			LOGINFO(_timer.point("average"), "DQMC: average ", 0);
+		}
+		END_CATCH_HANDLER("Failed to perform the averages... ", return;);
 
 		// start the saving
-		_timer.checkpoint("save");
-		this->mod_s2_->saveAverages();
-		LOGINFO(_timer.point("save"), "DQMC: save ", 0);
+		//BEGIN_CATCH_HANDLER
+		//{
+		//	_timer.checkpoint("save");
+		//	this->mod_s2_->saveAverages();
+		//	LOGINFO(_timer.point("save"), "DQMC: save ", 0);
+		//}
+		//END_CATCH_HANDLER("Failed to perform the saving... ", ;);
+	}	
 	END_CATCH_HANDLER(std::string(__FUNCTION__), ;);
 }
 

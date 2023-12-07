@@ -21,16 +21,19 @@ class Hubbard : public DQMC2
 	std::array<std::unique_ptr<algebra::UDT_QR<double>>, spinNumber_> udt_;
 	
 	// ############### P H Y S I C A L   P R O P E R T I E S ###############
-	v_1d<double> t_;														// hopping integrals
-	double U_					=			0.0;							// Hubbard U
-	double mu_					=			0.0;							// chemical potential
-
+	v_1d<double> t_;														// hopping integrals ('s for multiple Hubbard bands)
+	v_1d<double> U_;														// Hubbard U ('s for multiple Hubbard bands)
+	v_1d<double> mu_;														// chemical potential ('s for multiple Hubbard bands)
+	v_1d<bool> isRepulsive_;												// U > 0?
+	
 	// ############# S I M U L A T I O N   P R O P E R T I E S #############
-	bool REPULSIVE_				=			true;							// U > 0?
-	double dtau_				=			1e-2;							// Trotter time step
+	double dtau_				=			5e-2;							// Trotter time step
 
-	double lambda_				=			1.0;							// lambda parameter in HS transform
-	v_1d<spinTuple_> gammaExp_;
+	// vector of parameters for the discrete transformation of n_up*n_down
+	v_1d<double> lambda_;													// lambda parameter in HS transform
+
+	// transformation _gammas
+	v_2d<spinTuple_> gammaExp_;
 	spinTuple_* currentGamma_;
 
 public:
@@ -44,42 +47,10 @@ public:
 			uint _M, 
 			uint _M0,
 			v_1d<double> _t, 
-			double _U			=	8.0, 
+			v_1d<double> _U, 
+			v_1d<double> _mu,
 			double _dtau		=	0.05, 
-			double _mu			=	0.0)
-		: DQMC2(_T, _lat, _M, _M0), t_(_t), U_(_U), mu_(_mu), dtau_(_dtau)
-	{
-		this->setInfo();
-		if (this->M_ % this->M0_ != 0)		
-			throw std::runtime_error("Cannot have M0 times that do not divide M.");
-
-		this->ran_				=			randomGen(DQMC_RANDOM_SEED ? DQMC_RANDOM_SEED : std::random_device{}());
-		this->avs_				=			std::make_shared<DQMCavs2>(_lat, _M, &this->t_);
-
-		// repulsiveness
-		this->REPULSIVE_		=			(this->U_ > 0);
-
-		// lambda couples to the auxiliary spins
-		this->lambda_			=			std::acosh(std::exp((std::abs(this->U_) * this->dtau_) / 2.0));
-
-		// calculate Gamma Exponents
-		double expM				=			std::expm1(-2.0 * this->lambda_);									// spin * hsfield =  1
-		double expP				=			std::expm1(2.0 * this->lambda_);									// spin * hsfield = -1
-		this->gammaExp_			=			{{ expM, (this->REPULSIVE_) ? expP : expM }, { expP, expM }};		// [hsfield = 1, hsfield = -1]
-		this->currentGamma_		=			&this->gammaExp_[0];
-		this->fromScratchNum_	=			this->M0_;
-		
-		this->init();
-
-		this->setHS(HS_CONF_TYPES::HIGH_T);
-		this->calQuadratic();
-		this->calInteracts();
-		this->calPropagatB();
-		for (uint i = 0; i < this->p_; i++)
-			this->calPropagatBC(i);
-		this->posNum_			=			0;
-		this->negNum_			=			0;
-	}
+			uint _bands			=	1);
 	void init()																override;
 
 protected:

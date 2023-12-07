@@ -35,18 +35,18 @@
 
 #define SINGLE_PARTICLE_INPUT	int _sign, uint _i,			 const GREEN_TYPE& _g
 #define TWO_PARTICLES_INPUT		int _sign, uint _i, uint _j, const GREEN_TYPE& _g
-#define INVOKE_SINGLE_PARTICLE_CAL(CLS, X)	CLS->calOneSite(_sign, _currI, this->G_, #X, CLS->av_##X, CLS->sd_##X);
-#define INVOKE_TWO_PARTICLE_CAL(CLS,X,x,y,z)CLS->calTwoSite(_sign, _currI, _currJ, this->G_, #X, CLS->avC_##X, x, y, z);
+#define INVOKE_SINGLE_PARTICLE_CAL(CLS,X,BAND)		CLS->calOneSite(_sign, _currI, this->G_, #X, CLS->av_##X##_##BAND, CLS->sd_##X##_##BAND);
+#define INVOKE_TWO_PARTICLE_CAL(CLS,X,BAND,x,y,z)	CLS->calTwoSite(_sign, _currI, _currJ, this->G_, #X, CLS->avC_##X##_##BAND, x, y, z);
 
-#define SINGLE_PARTICLE_NORM(nam, norm)		this->av_##nam /=	norm;						\
-											this->sd_##nam =	variance(this->sd_##nam, this->av_##nam, norm)
-#define SINGLE_PARTICLE_PARAM(name, type)	type av_##name = 0;								\
-											type sd_##name = 0
+#define SINGLE_PARTICLE_NORM(nam, norm, band)		this->av_##nam##_##band /=		norm;						\
+													this->sd_##nam##_##band =		variance(this->sd_##nam##_##band, this->av_##nam##_##band, norm)
+#define SINGLE_PARTICLE_PARAM(name, type, band)		type av_##name##_##band =		0;							\
+													type sd_##name##_##band =		0
 
 
-#define TWO_PARTICLE_NORM(nam, x, y, z, nor)this->avC_##nam[x][y][z] /=	nor;						
-#define TWO_PARTICLE_PARAM(name, type)		VectorGreenCube<type> avC_##name;				\
-											VectorGreenCube<type> sdC_##name					
+#define TWO_PARTICLE_NORM(nam, x, y, z, nor, band)	this->avC_##nam##_##band[x][y][z] /=	nor;						
+#define TWO_PARTICLE_PARAM(name, type, band)		VectorGreenCube<type> avC_##name##_##band;					\
+													VectorGreenCube<type> sdC_##name##_##band					
 
 // ##########################################################################################
 
@@ -255,11 +255,12 @@ class DQMCavs
 {
 protected:
 	size_t bucketNum_									= 100;
+	size_t Nbands_										= 1;
 	std::shared_ptr<Lattice> lat_;
 	const v_1d<double>* t_nn_;							// nn hopping integrals
 public:
-	DQMCavs(std::shared_ptr<Lattice> _lat, int _M, const v_1d<double>* _t_nn = nullptr)
-		: lat_(_lat), t_nn_(_t_nn)
+	DQMCavs(std::shared_ptr<Lattice> _lat, int _M, uint _Nbands, const v_1d<double>* _t_nn = nullptr)
+		: Nbands_(_Nbands), lat_(_lat), t_nn_(_t_nn)
 	{
 
 		LOGINFO(LOG_TYPES::INFO, "Building DQMC base averages class", 30, '%', 2);
@@ -274,8 +275,8 @@ public:
 		for (int _SPIN_ = 0; _SPIN_ < this->av_GTimeDiff_.size(); _SPIN_++)
 		{
 			// create awfull three dimensional vectors
-			this->av_GTimeDiff_[_SPIN_] = v_1d<VectorGreenCube<double>>(_M, VectorGreenCube<double>(x_num, y_num, z_num));
-			this->sd_GTimeDiff_[_SPIN_] = v_1d<VectorGreenCube<double>>(_M, VectorGreenCube<double>(x_num, y_num, z_num));
+			this->av_GTimeDiff_[_SPIN_] = v_1d<VectorGreenCube<double>>(_M, VectorGreenCube<double>(x_num * _Nbands, y_num * _Nbands, z_num * _Nbands));
+			this->sd_GTimeDiff_[_SPIN_] = v_1d<VectorGreenCube<double>>(_M, VectorGreenCube<double>(x_num * _Nbands, y_num * _Nbands, z_num * _Nbands));
 			for (int tau1 = 0; tau1 < _M; tau1++) {
 #ifdef DQMC_CAL_TIMES_ALL
 				for (int tau2 = 0; tau2 < _M; tau2++) {
@@ -294,10 +295,10 @@ public:
 
 public:
 	using GREEN_TYPE			=	std::array<arma::Mat<double>, _spinNum>;
-	typedef std::function<_retT(SINGLE_PARTICLE_INPUT)>								SINGLE_PART_FUN;		// (*_retT)(SINGLE_PARTICLE_INPUT); //std::add_pointer<_retT(SINGLE_PARTICLE_INPUT)>	::type;
-	typedef std::function<_retT(TWO_PARTICLES_INPUT)>								TWO_PARTS_FUN;			// =	std::add_pointer<_retT(TWO_PARTICLES_INPUT)>	::type;
+	typedef std::function<_retT(SINGLE_PARTICLE_INPUT)>								SINGLE_PART_FUN;		
+	typedef std::function<_retT(TWO_PARTICLES_INPUT)>								TWO_PARTS_FUN;	
 
-	SINGLE_PARTICLE_PARAM(sign, double);
+	SINGLE_PARTICLE_PARAM(sign, double, );
 
 #ifdef DQMC_CAL_TIMES
 	std::array<v_1d<VectorGreenCube<double>>, _spinNum>	av_GTimeDiff_;
@@ -321,13 +322,17 @@ public:
 	// ################################ C A L C U L A T O R S ###############################
 	// --- SINGLE ---
 #define DQMC_AV_FUN1(x) virtual _retT cal_##x (SINGLE_PARTICLE_INPUT)	{ return 0;	};		\
-						SINGLE_PARTICLE_PARAM( x, double);
+						SINGLE_PARTICLE_PARAM( x, double, 0);								\
+						SINGLE_PARTICLE_PARAM( x, double, 1);								\
+						SINGLE_PARTICLE_PARAM( x, double, 2);
 
 #include "averageCalculatorSingle.include"
 #undef DQMC_AV_FUN1
-	// --- TWO ---
+	// ----- TWO ----
 #define DQMC_AV_FUN2(x) virtual _retT cal_##x##_C(TWO_PARTICLES_INPUT)	{ return 0;	};		\
-						TWO_PARTICLE_PARAM( x, double);
+						TWO_PARTICLE_PARAM( x, double, 0);									\
+						TWO_PARTICLE_PARAM( x, double, 1);									\
+						TWO_PARTICLE_PARAM( x, double, 2);
 #include "averageCalculatorCorrelations.include"
 #undef DQMC_AV_FUN2
 
@@ -338,7 +343,7 @@ public:
 #include "averageCalculatorSingle.include"
 	};
 #undef DQMC_AV_FUN1
-	// --- TWO ---
+	// ----- TWO ----
 #define DQMC_AV_FUN2(x) {#x ,	[&](TWO_PARTICLES_INPUT)	{ return cal_##x##_C(_sign, _i, _j, _g); }},
 	std::map<std::string, TWO_PARTS_FUN>	calFun2 = {
 #include "averageCalculatorCorrelations.include"
@@ -370,35 +375,93 @@ template<size_t _spinNum, typename _retT>
 inline void DQMCavs<_spinNum, _retT>::normalize(int _avNum, int _normalization, double _avSign)
 {
 	this->norm_			=		_avNum * _normalization;
-	this->av_sign		=		_avSign;
-	this->normSign_		=		this->norm_ * this->av_sign;
+	this->av_sign_		=		_avSign;
+	this->normSign_		=		this->norm_ * this->av_sign_;
 	
-	// OCCUPATION
-	SINGLE_PARTICLE_NORM(Occupation, this->normSign_);
+	// 0
+	{
+		// OCCUPATION
+		SINGLE_PARTICLE_NORM(Occupation, this->normSign_, 0);
 
-	// Mz2
-	SINGLE_PARTICLE_NORM(Mz2, this->normSign_);
+		// Mz2
+		SINGLE_PARTICLE_NORM(Mz2, this->normSign_, 0);
 
-	// My2
-	SINGLE_PARTICLE_NORM(My2, this->normSign_);
+		// My2
+		SINGLE_PARTICLE_NORM(My2, this->normSign_, 0);
 
-	// Mx2
-	SINGLE_PARTICLE_NORM(Mx2, this->normSign_);
+		// Mx2
+		SINGLE_PARTICLE_NORM(Mx2, this->normSign_, 0);
 
-	// Kinetic energy
-	SINGLE_PARTICLE_NORM(Ek, this->normSign_);
+		// Kinetic energy
+		SINGLE_PARTICLE_NORM(Ek, this->normSign_, 0);
+	}
+	// 1
+	{
+		// OCCUPATION
+		SINGLE_PARTICLE_NORM(Occupation, this->normSign_, 1);
+
+		// Mz2
+		SINGLE_PARTICLE_NORM(Mz2, this->normSign_, 1);
+
+		// My2
+		SINGLE_PARTICLE_NORM(My2, this->normSign_, 1);
+
+		// Mx2
+		SINGLE_PARTICLE_NORM(Mx2, this->normSign_, 1);
+
+		// Kinetic energy
+		SINGLE_PARTICLE_NORM(Ek, this->normSign_, 1);
+	}
+	// 2
+	{
+		// OCCUPATION
+		SINGLE_PARTICLE_NORM(Occupation, this->normSign_, 2);
+
+		// Mz2
+		SINGLE_PARTICLE_NORM(Mz2, this->normSign_, 2);
+
+		// My2
+		SINGLE_PARTICLE_NORM(My2, this->normSign_, 2);
+
+		// Mx2
+		SINGLE_PARTICLE_NORM(Mx2, this->normSign_, 2);
+
+		// Kinetic energy
+		SINGLE_PARTICLE_NORM(Ek, this->normSign_, 2);
+	}
 
 	// ----------------- C o r r e l a t i o n s -----------------
 	auto [x_num, y_num, z_num] = this->lat_->getNumElems();
-	for(int x = 0; x < x_num; x++)
-		for(int y = 0; y < y_num; y++)
+	for (int x = 0; x < x_num; x++)
+	{
+		for (int y = 0; y < y_num; y++)
+		{
 			for (int z = 0; z < z_num; z++)
 			{
-				TWO_PARTICLE_NORM(Mz2, x, y, z, this->normSign_);
-				//TWO_PARTICLE_NORM(My2, x, y, z, this->normSign_);
-				//TWO_PARTICLE_NORM(Mx2, x, y, z, this->normSign_);
-				this->avC_Occupation[x][y][z] = this->lat_->get_Ns() * this->avC_Occupation[x][y][z] / this->normSign_;
+				// 0
+				{
+					TWO_PARTICLE_NORM(Mz2, x, y, z, this->normSign_, 0);
+					//TWO_PARTICLE_NORM(My2, x, y, z, this->normSign_);
+					//TWO_PARTICLE_NORM(Mx2, x, y, z, this->normSign_);
+					this->avC_Occupation_0[x][y][z] = this->lat_->get_Ns() * this->avC_Occupation_0[x][y][z] / this->normSign_;
+				}
+				// 1
+				{
+					TWO_PARTICLE_NORM(Mz2, x, y, z, this->normSign_, 1);
+					//TWO_PARTICLE_NORM(My2, x, y, z, this->normSign_);
+					//TWO_PARTICLE_NORM(Mx2, x, y, z, this->normSign_);
+					this->avC_Occupation_1[x][y][z] = this->lat_->get_Ns() * this->avC_Occupation_1[x][y][z] / this->normSign_;
+				}
+				// 2
+				{
+					TWO_PARTICLE_NORM(Mz2, x, y, z, this->normSign_, 2);
+					//TWO_PARTICLE_NORM(My2, x, y, z, this->normSign_);
+					//TWO_PARTICLE_NORM(Mx2, x, y, z, this->normSign_);
+					this->avC_Occupation_2[x][y][z] = this->lat_->get_Ns() * this->avC_Occupation_2[x][y][z] / this->normSign_;
+				}
 			}
+		}
+	}
 }
 
 // ##########################################################################################
@@ -419,19 +482,27 @@ inline void DQMCavs<_spinNum, _retT>::normalizeG()
 		// number of imaginary times
 		for (int tau = 0; tau < _M; tau++) 
 		{
-			// find time normalization
-			auto norm = -this->bucketNum_ * this->normM_(tau);
-			for (int x = 0; x < xx; x++) {
-				for (int y = 0; y < yy; y++) 
-					for (int z = 0; z < zz; z++)
+			for (int _band = 0; _band < this->Nbands_; _band++)
+			{
+				// find time normalization
+				auto norm = -this->bucketNum_ * this->normM_(tau);
+				for (int x = 0; x < xx; x++) 
+				{
+					for (int y = 0; y < yy; y++)
 					{
-						// get norm comming from the lattice sites
-						const auto norm2							=	norm * lat_->getNorm(x, y, z);
-						// divide by the norm
-						this->av_GTimeDiff_[_SPIN_][tau](x, y, z)	/=	norm2;
-						// save the variance 
-						this->sd_GTimeDiff_[_SPIN_][tau](x, y, z)	=	variance(this->sd_GTimeDiff_[_SPIN_][tau](x, y, z), this->av_GTimeDiff_[_SPIN_][tau](x, y, z), norm2);
+						for (int z = 0; z < zz; z++)
+						{
+							// get norm comming from the lattice sites
+							const auto norm2 = norm * lat_->getNorm(x, y, z);
+							// divide by the norm
+							this->av_GTimeDiff_[_SPIN_][tau](x + _band * xx, y + _band * yy, z + _band * zz) /=	norm2;
+							// save the variance 
+							this->sd_GTimeDiff_[_SPIN_][tau](x + _band * xx, y + _band * yy, z + _band * zz) = variance(this->sd_GTimeDiff_[_SPIN_][tau](x + _band * xx, y + _band * yy, z + _band * zz), 
+																														this->av_GTimeDiff_[_SPIN_][tau](x + _band * xx, y + _band * yy, z + _band * zz),
+																														norm2);
+						}
 					}
+				}
 			}
 		}
 	}
@@ -466,26 +537,66 @@ inline void DQMCavs<_spinNum, _retT>::reset()
 {
 		auto [x_num, y_num, z_num]		=		this->lat_->getNumElems();
 
-		this->av_Ek = 0;
-		this->sd_Ek = 0;
+		// 0
+		{
+			this->av_Ek_0					=		0;
+			this->sd_Ek_0					=		0;
 		
-		this->av_Occupation				=		0;
-		this->sd_Occupation				=		0;
+			this->av_Occupation_0			=		0;
+			this->sd_Occupation_0			=		0;
 		
-		this->av_Mz2					=		0;
-		this->sd_Mz2					=		0;
+			this->av_Mz2_0					=		0;
+			this->sd_Mz2_0					=		0;
 
-		this->av_Mx2					=		0;
-		this->sd_Mx2					=		0;
+			this->av_Mx2_0					=		0;
+			this->sd_Mx2_0					=		0;
 
-		this->av_My2					=		0;
-		this->sd_My2					=		0;
+			this->av_My2_0					=		0;
+			this->sd_My2_0					=		0;
+			// correlations
+			this->avC_Mz2_0					=		VectorGreenCube<_retT>(x_num, y_num, z_num);
+			this->avC_Occupation_0			=		VectorGreenCube<_retT>(x_num, y_num, z_num);
+		}
+		// 1
+		{
+			this->av_Ek_1					=		0;
+			this->sd_Ek_1					=		0;
+		
+			this->av_Occupation_1			=		0;
+			this->sd_Occupation_1			=		0;
+		
+			this->av_Mz2_1					=		0;
+			this->sd_Mz2_1					=		0;
 
-		// correlations
-		this->avC_Mz2					=		VectorGreenCube<_retT>(x_num, y_num, z_num); 
-		// v_3d<_retT>(x_num, v_2d<_retT>(y_num, v_1d<_retT>(z_num, 0.0)));
-		this->avC_Occupation			=		VectorGreenCube<_retT>(x_num, y_num, z_num);
-		//= v_3d<_retT>(x_num, v_2d<_retT>(y_num, v_1d<_retT>(z_num, 0.0)));
+			this->av_Mx2_1					=		0;
+			this->sd_Mx2_1					=		0;
+
+			this->av_My2_1					=		0;
+			this->sd_My2_1					=		0;
+			// correlations
+			this->avC_Mz2_1					=		VectorGreenCube<_retT>(x_num, y_num, z_num);
+			this->avC_Occupation_1			=		VectorGreenCube<_retT>(x_num, y_num, z_num);
+		}
+		// 2
+		{
+			this->av_Ek_2					=		0;
+			this->sd_Ek_2					=		0;
+		
+			this->av_Occupation_2			=		0;
+			this->sd_Occupation_2			=		0;
+		
+			this->av_Mz2_2					=		0;
+			this->sd_Mz2_2					=		0;
+
+			this->av_Mx2_2					=		0;
+			this->sd_Mx2_2					=		0;
+
+			this->av_My2_2					=		0;
+			this->sd_My2_2					=		0;
+			// correlations
+			this->avC_Mz2_2					=		VectorGreenCube<_retT>(x_num, y_num, z_num);
+			this->avC_Occupation_2			=		VectorGreenCube<_retT>(x_num, y_num, z_num);
+		}
 		
 #ifdef DQMC_CAL_TIMES
 		this->resetG();
@@ -512,10 +623,12 @@ template<size_t _spinNum, typename _retT>
 inline void DQMCavs<_spinNum, _retT>::resetG()
 {
 	for (int _SPIN_ = 0; _SPIN_ < this->av_GTimeDiff_.size(); _SPIN_++)
+	{
 		for (int tau = 0; tau < this->av_GTimeDiff_[_SPIN_].size(); tau++) 
 		{
 			this->av_GTimeDiff_[_SPIN_][tau].reset();
 			this->sd_GTimeDiff_[_SPIN_][tau].reset();
 		}
+	}
 }
 #endif // !DQMC_AV_H

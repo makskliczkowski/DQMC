@@ -113,6 +113,8 @@ protected:
 	mutable MutexType Mutex;
 	uint threadNum_						=		1;
 	uint Ns_							=		1;
+	uint NBands_						=		1;
+	uint transformSize_					=		1;
 	u64 posNum_							=		0;
 	u64 negNum_							=		0;
 	arma::Mat<double> HSFields_;											// Hubbard-Stratonovich fields
@@ -147,9 +149,10 @@ public:
 	std::string info_;														// information about the model
 
 	DQMC()								=		default;
-	DQMC(double _T, std::shared_ptr<Lattice> _lat, uint _threadNum = 1) 
-		: threadNum_(_threadNum), Ns_(_lat->get_Ns()), lat_(_lat), T_(_T), beta_(1.0 / _T)
+	DQMC(double _T, std::shared_ptr<Lattice> _lat, uint _Nbands, uint _threadNum = 1) 
+		: threadNum_(_threadNum), Ns_(_lat->get_Ns()), NBands_(_Nbands), lat_(_lat), T_(_T), beta_(1.0 / _T)
 	{
+		this->transformSize_			=		this->Ns_;
 		this->dir_						=		std::make_shared<DQMCdir>();
 		LOGINFO("Base DQMC class is constructed.", LOG_TYPES::TRACE, 1);
 		this->posNum_					=		0;
@@ -244,11 +247,11 @@ protected:
 	
 	// ############################ S A V E R S ############################
 public:
-	virtual void saveAverages()												= 0;
-	virtual void saveCorrelations()											= 0;
+	virtual void saveAverages(uint _step)									= 0;
+	virtual void saveCorrelations(uint _step)								= 0;
 	virtual void saveGreensT(uint _step)									= 0;
 	virtual void saveGreens(uint _step)										= 0;
-	virtual void saveCheckPoint(std::string);
+	virtual bool saveCheckPoint(std::string, std::string);
 };
 
 // ################################################## C A L C U L A T O R S #######################################################
@@ -261,7 +264,7 @@ template<size_t spinNum_>
 inline int DQMC<spinNum_>::sweepLattice()
 {
 	int _sign = 1;
-	for (int _site = 0; _site < this->Ns_; _site++)
+	for (int _site = 0; _site < this->Ns_ * this->NBands_; _site++)
 	{
 		auto sign = this->eqSingleStep(_site);
 		if (sign < 0)
@@ -296,8 +299,8 @@ inline void DQMC<spinNum_>::average(uint MCs, uint corrTime, uint avNum, uint bu
 	{
 #pragma omp critical
 		LOGINFO("For " + this->getInfo() + " averages taken: " + TMS(_t) + ". With sign: " + STRP(double(posNum_ - negNum_) / double(posNum_ + negNum_), 4), LOG_TYPES::TIME, 2);
-		LOGINFO("Average Onsite Occupation = " + STRP(this->avs_->av_Occupation, 4)	, LOG_TYPES::TIME, 3);
-		LOGINFO("Average Onsite Magnetization = " + STRP(this->avs_->av_Mz2, 4)		, LOG_TYPES::TIME, 3);
+		LOGINFO("Average Onsite Occupation = " + STRP(this->avs_->av_Occupation_0, 4)	, LOG_TYPES::TIME, 3);
+		LOGINFO("Average Onsite Magnetization = " + STRP(this->avs_->av_Mz2_0, 4)		, LOG_TYPES::TIME, 3);
 		LOGINFO(LOG_TYPES::TRACE, "", 50, '#', 2);
 		LOGINFO(2);
 	}
@@ -337,25 +340,24 @@ inline void DQMC<spinNum_>::setHS(std::string _path)
 * @param _path path to configuration file
 */
 template<size_t spinNum_>
-inline void DQMC<spinNum_>::saveCheckPoint(std::string _path)
+inline bool DQMC<spinNum_>::saveCheckPoint(std::string _path, std::string _file)
 {
 	LOGINFO(LOG_TYPES::INFO, "Saving the checkpoint configuration to", 2);
-	LOGINFO(LOG_TYPES::INFO, _path, 3);
-	if (_path.ends_with(".h5"))
+	LOGINFO(LOG_TYPES::INFO, _path + _file, 3);
+	bool _isSaved	= false;
+	if (_file.ends_with(".h5"))
+		_isSaved	=	this->HSFields_.save(arma::hdf5_name(_path + _file, "HS"));
+	else if (_file.ends_with(".bin"))
+		_isSaved	=	this->HSFields_.save(_path + _file);
+	else if (_file.ends_with(".txt") || _file.ends_with(".dat"))
+		_isSaved	=	this->HSFields_.save(_path + _file, arma::arma_ascii);
+	if (!_isSaved & (_file != "HS.h5"))
 	{
-		this->HSFields_.save(arma::hdf5_name(_path, "HS"));
-		return;
+		LOGINFO(LOG_TYPES::ERROR, "Couldn't setup the auxiliary fields to the standard path.", 3);
+		LOGINFO(LOG_TYPES::ERROR, "Saving to default... ", 3);
+		return this->saveCheckPoint(_path, "HS.h5");
 	}
-	else if (_path.ends_with(".bin"))
-	{
-		this->HSFields_.save(_path);
-		return;
-	}
-	else if (_path.ends_with(".txt") || _path.ends_with(".dat"))
-	{
-		this->HSFields_.save(_path, arma::arma_ascii);
-		return;
-	}
+	return _isSaved;
 }
 
 #endif
