@@ -36,8 +36,8 @@ public:
 	END_ENUM_INLINE(SPINNUM, DQMC2);
 
 	DQMC2()						=			default;
-	DQMC2(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0, int _threadNum = 1)
-		: DQMC<spinNumber_>(_T, _lat, _threadNum), M_(_M), M0_(_M0), p_(_M / _M0)
+	DQMC2(double _T, std::shared_ptr<Lattice> _lat, uint _M, uint _M0, uint _Nbands, int _threadNum = 1)
+		: DQMC<spinNumber_>(_T, _lat, _Nbands, _threadNum), M_(_M), M0_(_M0), p_(_M / _M0)
 	{
 		LOGINFO(std::string("Base DQMC spin-1/2 class is constructed."), LOG_TYPES::TRACE, 2);
 	}
@@ -64,13 +64,39 @@ protected:
 	vecMatArray iB_;														// imaginary time propagators	
 
 	// ############################ S A V E R S ############################
+	virtual void saveBuckets(uint _step, uint _avs, 
+							 clk::time_point _t, bool _reset = true)		override;
 public:
-	virtual void saveAverages()												override;
-	virtual void saveCorrelations()											override;
+	virtual void saveAverages(uint _step)									override;
+	virtual void saveCorrelations(uint _step)								override;
 	virtual void saveGreensT(uint _step)									override;
 	virtual void saveGreens(uint _step)										override;
 };
 
+// ############################################### S A V E R S   B U C K E T S ####################################################
+
+/*
+* @brief Save the buckets to files and reset only if necessary
+* @param _step current Monte Carlo step
+* @param _avs number of averages
+* @param _t starting time point
+* @param _reset shall reset?
+*/
+inline void DQMC2::saveBuckets(uint _step, uint _avs, clk::time_point _t, bool _reset)
+{
+	LOGINFO("Saving " + STR(_step / _avs) + ". " + VEQ(_avs) + ":" + TMS(_t), LOG_TYPES::TRACE, 3);
+	this->avs_->normalize(	_avs,
+							this->M_ * this->lat_->get_Ns() * this->NBands_,
+							this->getAvSign());
+	// save the averages
+	this->saveAverages(_step / _avs);
+	// save the Green's
+#ifdef DQMC_CAL_TIMES
+	this->saveGreensT(_step / _avs);
+#endif
+	if(_reset)
+		this->avs_->reset();
+}
 
 // ##################################################################################
 
@@ -87,8 +113,8 @@ public:
 		LOGINFO("Destroying spin-1/2 averages for DQMC", LOG_TYPES::TRACE, 2);
 	}
 
-	DQMCavs2(std::shared_ptr<Lattice> _lat, int _M, const v_1d<double>* _t_nn = nullptr)
-		: DQMCavs<2, double>(_lat, _M, _t_nn)
+	DQMCavs2(std::shared_ptr<Lattice> _lat, int _M, size_t _NBands, const v_1d<double>* _t_nn = nullptr)
+		: DQMCavs<2, double>(_lat, _M, _NBands, _t_nn)
 	{
 		LOGINFO("Building DQMC SPIN-1/2 averages class", LOG_TYPES::INFO, 3);
 	};
@@ -96,15 +122,17 @@ public:
 	// --- SINGLE ---
 	virtual _T cal_Ek(SINGLE_PARTICLE_INPUT)			override
 	{
-		const auto neiNum	=	this->lat_->get_nn(_i);
+		const auto neiNum	=	this->lat_->get_nn(_i % this->Nbands_);
+		const auto _band	=	static_cast<int>(_i / this->lat_->get_Ns());
 		double Ek			=	0.0;
 		for (int nei = 0; nei < neiNum; nei++)
 		{
-			const int whereNei	=	this->lat_->get_nn(_i, nei);
-			Ek					+=	_g[DQMC2::_DN_](_i, whereNei);
-			Ek					+=	_g[DQMC2::_DN_](whereNei, _i);
-			Ek					+=	_g[DQMC2::_UP_](_i, whereNei);
-			Ek					+=	_g[DQMC2::_UP_](whereNei, _i);
+			const int whereNei	=	this->lat_->get_nn(_i % this->Nbands_, nei);
+			const int trueWhere	=	whereNei + _band * this->lat_->get_Ns();
+			Ek					+=	_g[DQMC2::_DN_](_i, trueWhere);
+			Ek					+=	_g[DQMC2::_DN_](trueWhere, _i);
+			Ek					+=	_g[DQMC2::_UP_](_i, trueWhere);
+			Ek					+=	_g[DQMC2::_UP_](trueWhere, _i);
 		}
 		return _sign * ((this->t_nn_) ? (*this->t_nn_)[_i] * Ek : 1.0);
 	}
@@ -148,23 +176,6 @@ public:
 	}
 
 	// ########################## R E S E T E R S ##########################
-public:
-	
-	///*
-	//* @brief Resets all the averages
-	//*/
-	//void reset()										override {
-
-
-	//}
-
-	///*
-	//* @brief Resets the Green's function in time
-	//*/
-	//void resetG()										override
-	//{
-
-	//}
 };
 
 #endif
