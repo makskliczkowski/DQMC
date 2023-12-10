@@ -13,8 +13,9 @@ Hubbard::Hubbard(double _T,
 				 v_1d<double> _U, 
 				 v_1d<double> _mu,
 				 double _dtau, 
-				 uint _bands)
-	: DQMC2(_T, _lat, _M, _M0, _bands), t_(_t), U_(_U), mu_(_mu), dtau_(_dtau)
+				 uint _bands,
+				 v_1d<double> _tt)
+	: DQMC2(_T, _lat, _M, _M0, _bands), t_(_t), U_(_U), mu_(_mu), tt_(_tt), dtau_(_dtau)
 {
 	this->setInfo();
 	if (this->M_ % this->M0_ != 0)		
@@ -23,6 +24,7 @@ Hubbard::Hubbard(double _T,
 	// initialize band parameters (single value for mu indicates that each band has the same filling)
 	this->transformSize_	=			this->Ns_ * _bands;		
 	if (this->t_.size() != this->transformSize_ && 
+		this->tt_.size()!= this->t_.size()		&&
 		this->U_.size() != this->t_.size()		&&
 		this->mu_.size()!= this->t_.size())
 		throw std::runtime_error("Cannot initialize such Hamiltonian. Check lengths of the parameters...");
@@ -175,7 +177,7 @@ void Hubbard::compareGreen()
 * @param _site site on which the change has been made
 * @returns A pair for gammas for two spin channels, 0 is spin up, 1 is spin down
 */
-auto Hubbard::calGamma(uint _site) -> void
+void Hubbard::calGamma(uint _site)
 {
 	if (this->HSFields_(this->tau_, _site) > 0)
 		this->currentGamma_ = &this->gammaExp_[_site][0];
@@ -188,7 +190,7 @@ auto Hubbard::calGamma(uint _site) -> void
 /*
 * @brief Allows to calculate the change in the interaction exponent
 */
-auto Hubbard::calDelta() -> spinTuple_
+Hubbard::spinTuple_ Hubbard::calDelta()
 {
 	spinTuple_ _out = { 0, 0 };
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_)
@@ -203,7 +205,7 @@ auto Hubbard::calDelta() -> spinTuple_
 * @returns tuple for probabilities on both spin channels, 
 * @warning remember, 0 is spin up, 1 is spin down
 */
-auto Hubbard::calProba(uint _site) -> void
+void Hubbard::calProba(uint _site)
 {
 	this->currentProba_[_UP_] = 1.0 + ((*currentGamma_)[_UP_] * (1.0 - this->G_[SPINNUM::_UP_](_site, _site)));
 	this->currentProba_[_DN_] = 1.0 + ((*currentGamma_)[_DN_] * (1.0 - this->G_[SPINNUM::_DN_](_site, _site)));
@@ -215,7 +217,7 @@ auto Hubbard::calProba(uint _site) -> void
 * @brief Function to calculate the hopping matrix exponential.
 * c_iq^+ * c_jq, where {i,j} are lattice sites and q numbers the band
 */
-auto Hubbard::calQuadratic() -> void
+void Hubbard::calQuadratic()
 {
 	// cacluate the hopping matrix
 	this->TExp_.zeros(this->transformSize_, this->transformSize_);
@@ -234,6 +236,17 @@ auto Hubbard::calQuadratic() -> void
 				const auto nei				=	this->Ns_ * _band + this->lat_->get_nn(_site, neiNum);	// get given nn
 				this->TExp_(bandSite, nei)	=	this->dtau_ * this->t_[bandSite];						// assign non-diagonal elements
 			}
+
+			// check the next nearest neighbors
+			if (this->tt_[bandSite] != 0.0)
+			{
+				const auto neiSizeNN		=	this->lat_->get_nnn(_site);
+				// go through the nearest neighbors
+				for (int neiNum = 0; neiNum < neiSizeNN; neiNum++) {
+					const auto nei				=	this->Ns_ * _band + this->lat_->get_nnn(_site, neiNum);		// get given nn
+					this->TExp_(bandSite, nei)	=	this->dtau_ * this->tt_[bandSite];							// assign non-diagonal elements
+				}
+			}
 		}
 	}
 	// matrix exponential
@@ -245,23 +258,23 @@ auto Hubbard::calQuadratic() -> void
 */
 auto Hubbard::calInteracts() -> void
 {
-	// bands
-	for (auto _band = 0; _band < this->NBands_; _band++)
+	// Trotter times
+	for (int l = 0; l < this->M_; l++) 
 	{
-		// Trotter times
-		for (int l = 0; l < this->M_; l++) 
+		// bands
+		for (auto _band = 0; _band < this->NBands_; _band++)
 		{
 			for (int _site = 0; _site < this->Ns_; _site++)
 			{
-				auto _innerSite				=		_band * this->Ns_ + _site;
-				auto _eta					=		this->isRepulsive_[_innerSite] ? 1.0 : -1.0;
+				auto _innerSite						=		_band * this->Ns_ + _site;
+				auto _eta							=		this->isRepulsive_[_innerSite] ? 1.0 : -1.0;
 
-				this->IExp_[_UP_](_site, l) =		this->dtau_ * this->mu_[_innerSite] + (1.0 + (_eta - 1.0) / 4.0) * this->HSFields_(l, _innerSite) * this->lambda_[_innerSite];
-				this->IExp_[_DN_](_site, l) =		this->dtau_ * this->mu_[_innerSite] + (-_eta + (_eta - 1.0) / 4.0) * this->HSFields_(l, _innerSite) * this->lambda_[_innerSite];
+				this->IExp_[_UP_](_innerSite, l)	=		this->dtau_ * this->mu_[_innerSite] + (1.0 + (_eta - 1.0) / 4.0) * this->HSFields_(l, _innerSite) * this->lambda_[_innerSite];
+				this->IExp_[_DN_](_innerSite, l)	=		this->dtau_ * this->mu_[_innerSite] + (-_eta + (_eta - 1.0) / 4.0) * this->HSFields_(l, _innerSite) * this->lambda_[_innerSite];
 			}
-			this->IExp_[_UP_].col(l)		=		arma::exp(this->IExp_[_UP_].col(l));
-			this->IExp_[_DN_].col(l)		=		arma::exp(this->IExp_[_DN_].col(l));
 		}
+		this->IExp_[_UP_].col(l)		=		arma::exp(this->IExp_[_UP_].col(l));
+		this->IExp_[_DN_].col(l)		=		arma::exp(this->IExp_[_DN_].col(l));
 	}
 }
 
@@ -463,6 +476,11 @@ void Hubbard::setInfo()
 	bool _different_mu	= !std::equal(this->mu_.begin() + 1, this->mu_.end(), this->mu_.begin());
 	bool _different_t	= !std::equal(this->t_.begin() + 1, this->t_.end(), this->t_.begin());
 
+	// next nearest
+	bool _different_tt	= !std::equal(this->tt_.begin() + 1, this->tt_.end(), this->tt_.begin());
+	auto _zeroVec		= v_1d<double>(this->transformSize_, 0);
+	bool _zero_tt		= std::equal(this->tt_.begin(), this->tt_.end(), _zeroVec.begin());
+
 	this->info_ = "Hubbard,";
 	this->info_ +=			VEQV(M,		M_);
 	this->info_ += "," +	VEQV(M0,	M0_);
@@ -472,6 +490,10 @@ void Hubbard::setInfo()
 	this->info_ += "," +	(_different_U	? "U=r"		:	VEQVP(U, U_[0], 3));
 	this->info_ += "," +	(_different_mu	? "mu=r"	:	VEQVP(mu, mu_[0], 3));
 	this->info_ += "," +	(_different_t	? "t=r"		:	VEQVP(t, t_[0], 3));
+
+	// check if next nearest exist
+	if(!_zero_tt)
+		this->info_ += "," + (_different_tt	? "tt=r"	:	VEQVP(tt, tt_[0], 3));
 
 	for (const auto& par : splitStr(this->lat_->get_info(), ","))
 		LOGINFO(par, LOG_TYPES::TRACE, 2);
@@ -489,6 +511,9 @@ void Hubbard::setInfo()
 void Hubbard::updInteracts(uint _site, uint _t)
 {
 	auto _delta							=	this->calDelta();
+#ifndef _DEBUG
+#	pragma omp parallel for num_threads(this->threadNum_)
+#endif
 	for(auto _spin = 0; _spin < this->spinNumber_; _spin++)
 		this->IExp_[_spin](_site, _t)	*=	_delta[_spin];
 }
@@ -500,6 +525,9 @@ void Hubbard::updInteracts(uint _site, uint _t)
 void Hubbard::updPropagatB(uint _site, uint _t)
 {
 	const auto _delta					=	this->calDelta();
+#ifndef _DEBUG
+#	pragma omp parallel for num_threads(this->threadNum_)
+#endif
 	for (int i = 0; i < this->transformSize_; i++)
 	{
 		this->B_[_UP_][_t](i, _site)	*=	_delta[_UP_];
@@ -520,6 +548,9 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 		// use the D matrix from UDT to save the row which does not change
 		this->udt_[_SPIN_]->D	=	((this->G_[_SPIN_].row(_site)).as_col());
 		const double gammaOverP	=	(*this->currentGamma_)[_SPIN_] / p [_SPIN_];
+#ifndef _DEBUG
+#	pragma omp parallel for num_threads(this->threadNum_)
+#endif
 		for (int _a = 0; _a < transformSize_; _a++) {
 			const double _kron [[maybe_unused]]		=	(_a == _site) ? 1.0 : 0.0;
 			const double G_ai						=	this->G_[_SPIN_](_a, _site);
@@ -536,6 +567,9 @@ void Hubbard::updEqlGreens(uint _site, const spinTuple_& p)
 */
 void Hubbard::updNextGreen(uint _t)
 {
+#ifndef _DEBUG
+#	pragma omp parallel for num_threads(this->threadNum_)
+#endif
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
 		this->G_[_SPIN_]		=	(this->B_[_SPIN_][_t] * this->G_[_SPIN_]) * this->iB_[_SPIN_][_t];
 }
@@ -547,6 +581,9 @@ void Hubbard::updNextGreen(uint _t)
 */
 void Hubbard::updPrevGreen(uint _t)
 {
+#ifndef _DEBUG
+#	pragma omp parallel for num_threads(this->threadNum_)
+#endif
 	for (int _SPIN_ = 0; _SPIN_ < this->spinNumber_; _SPIN_++)
 		this->G_[_SPIN_]		=	(this->iB_[_SPIN_][int(_t) - 1] * this->G_[_SPIN_]) * this->iB_[_SPIN_][int(_t) - 1];
 }
@@ -659,11 +696,11 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint buckets, bool 
 	// initialize stuff
 	this->negNum_					=		0;
 	this->posNum_					=		0;
-	this->avs_->reset(buckets);
+	this->avs_->reset(avNum);
 	this->pBar_						=		pBar(10, avNum * buckets, _t);
 
 	// check if this saved already
-	for (int step = 1; step < avNum * buckets; step++) 
+	for (int step = 1; step <= avNum * buckets; step++) 
 	{
 		// check the calculation of time Green's
 #ifdef DQMC_CAL_TIMES
@@ -699,18 +736,11 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint buckets, bool 
 		// check the sign
 		this->configSigns_.push_back(this->configSign_);
 		this->configSign_ > 0 ? this->posNum_++ : this->negNum_++;
-#ifdef DQMC_CAL_TIMES
-		if (step % buckets == (buckets - 1)) 
-		{
-			LOGINFO("Saving " + STR(step / buckets) + ". " + VEQ(buckets) + ":" + TMS(_t), LOG_TYPES::TRACE, 3);
-			this->avs_->normalize(buckets - 1,
-								  this->M_ * this->lat_->get_Ns() * this->NBands_,
-								  this->getAvSign());
-			this->saveAverages(step / buckets);
-			this->saveGreensT(step / buckets);
-			this->avs_->reset();
-		}
-#endif
+
+		// save the averages
+		if (step % avNum == 0)
+			this->saveBuckets(step, avNum, _t, step != (avNum * buckets));
+
 		// kill correlations
 		for (int _cor = 0; _cor < corrTime; _cor++)
 			this->sweepForward();
@@ -731,6 +761,8 @@ void Hubbard::averaging(uint MCs, uint corrTime, uint avNum, uint buckets, bool 
 void Hubbard::avSingleStep(int _currI, int _sign)
 {
 	auto _band	=	static_cast<uint>(_currI / this->Ns_);
+
+	// swich band
 	if (_band == 0)
 	{
 		// mz2
@@ -766,12 +798,15 @@ void Hubbard::avSingleStep(int _currI, int _sign)
 	}
 
 	// save i'th point coordinates
-	const auto xi			=	this->lat_->get_coordinates(_currI % this->NBands_, Lattice::X);
-	const auto yi			=	this->lat_->get_coordinates(_currI % this->NBands_, Lattice::Y);
-	const auto zi			=	this->lat_->get_coordinates(_currI % this->NBands_, Lattice::Z);
+	const auto xi			=	this->lat_->get_coordinates(_currI % this->Ns_, Lattice::X);
+	const auto yi			=	this->lat_->get_coordinates(_currI % this->Ns_, Lattice::Y);
+	const auto zi			=	this->lat_->get_coordinates(_currI % this->Ns_, Lattice::Z);
 	const auto ith_coord	=	std::make_tuple(xi, yi, zi);
 
 	// -------------------------------- CORRELATIONS ----------------------------------------
+#ifdef DQMC_CAL_TIMES
+	auto [xNum, yNum, zNum]	=	this->lat_->getNumElems();
+#endif
 	for (int _J = 0; _J < this->lat_->get_Ns(); _J++)
 	{
 		auto _currJ			=	_band * this->Ns_ + _J;
@@ -794,10 +829,12 @@ void Hubbard::avSingleStep(int _currI, int _sign)
 			INVOKE_TWO_PARTICLE_CAL(this->avs_, Occupation, 2, xx, yy, zz);
 		}
 #ifdef DQMC_CAL_TIMES
-		this->avSingleStepUneq(xx, yy, zz, _currI, _currJ, _sign);
+		this->avSingleStepUneq(xx + _band * xNum, yy + _band * yNum, zz + _band * zNum, _currI, _currJ, _sign);
 #endif
 	}
 }
+
+// ############################################### A V E R A G E S   U N E Q U A L #################################################
 
 /*
 * @brief Calculates the single step for unequal-time simulation properties
@@ -817,6 +854,9 @@ void Hubbard::avSingleStepUneq(int xx, int yy, int zz, int _i, int _j, int _s)
 		//this->avs_->av_GTimeDiff_[_SPIN_][0](xx, yy)		+=		_s * this->G_[_SPIN_](_i, _j);
 		//this->avs_->sd_GTimeDiff_[_SPIN_][0](xx, yy)		+=		this->G_[_SPIN_](_i, _j) * this->G_[_SPIN_](_i, _j);
 #ifdef DQMC_CAL_TIMES_ALL
+#ifndef _DEBUG
+#	pragma omp parallel for num_threads(this->threadNum_)
+#endif
 		for (int tim2 = 0; tim2 < this->M_; tim2++) {
 #else
 		for (int tim2 = 0; tim2 < this->tau_; tim2++) {

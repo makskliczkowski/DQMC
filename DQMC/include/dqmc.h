@@ -111,6 +111,8 @@ protected:
 	using ReadLock						=		std::shared_lock<MutexType>;
 	using WriteLock						=		std::unique_lock<MutexType>;
 	mutable MutexType Mutex;
+	std::mutex fileMutex_;
+
 	uint threadNum_						=		1;
 	uint Ns_							=		1;
 	uint NBands_						=		1;
@@ -190,6 +192,7 @@ public:
 	auto getAvSign()					const -> double						{ return double(this->posNum_ - this->negNum_) / double(this->posNum_ + this->negNum_); };
 	
 	// ########################## S E T T E R S ############################
+	virtual auto setThread(uint _th)	-> void								{ this->threadNum_ = _th;																};
 	virtual auto setHS(std::string)		-> void;
 	virtual auto setHS(HS_CONF_TYPES _t)-> void								= 0;
 	virtual auto setDir(std::string _m)	-> void								= 0;
@@ -246,6 +249,8 @@ protected:
 	virtual void updGreenStep(uint _t)										= 0;
 	
 	// ############################ S A V E R S ############################
+	virtual void saveBuckets(uint _step, uint _avs,
+							 clk::time_point _t, bool reset = false)		= 0;
 public:
 	virtual void saveAverages(uint _step)									= 0;
 	virtual void saveCorrelations(uint _step)								= 0;

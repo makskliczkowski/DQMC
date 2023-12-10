@@ -7,7 +7,11 @@
 #include "vld.h"
 #endif
 
+
+#pragma warning( push )
+#pragma warning( disable : lnt-arithmetic-overflow)
 #include "include/user_interface.h"
+#pragma warning( pop ) 
 
 int main(const int argc, char* argv[]) {
 	SET_LOG_TIME();

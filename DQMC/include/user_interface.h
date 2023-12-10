@@ -31,13 +31,21 @@ namespace UI_PARAMS
 	*/
 	struct ModP 
 	{
-		// ############### TYPE ################
+		// ############################### TYPE ################################
 		UI_PARAM_CREATE_DEFAULT(modTyp		, MY_MODELS,	MY_MODELS::HUBBARD_M);
 
 		// ############### Hubbard ###############
 		v_1d<double>	t_;
-		v_1d<double>	U_;
-		v_1d<double>	mu_;
+		v_1d<double>	tt_;
+		// Hubbard U on various lattice sizes
+		v_1d<double>	U_;										
+		v_1d<double>	dU_;
+		UI_PARAM_CREATE_DEFAULTD(Un, uint, 1.0);
+		// chemical potential on various lattice sizes
+		v_1d<double>	mu_;									
+		v_1d<double>	dmu_;									
+		UI_PARAM_CREATE_DEFAULTD(mun, uint, 1.0);
+
 		UI_PARAM_CREATE_DEFAULTD(M			, double,		4.0);
 		UI_PARAM_CREATE_DEFAULTD(beta		, double,		2.0);
 		UI_PARAM_CREATE_DEFAULTD(T			, double,		0.5);
@@ -49,10 +57,17 @@ namespace UI_PARAMS
 		void setDefault() 
 		{
 			UI_PARAM_SET_DEFAULT(modTyp);
-			// Hubbard
+			// ------ Hubbard ------
 			this->t_	=	v_1d<double>(Ns_ * Nband_, 1.0);
+			this->tt_	=	v_1d<double>(Ns_ * Nband_, 0.0);
+
 			this->U_	=	v_1d<double>(Ns_ * Nband_, 1.0);
+			this->dU_	=	v_1d<double>(Ns_ * Nband_, 0.0);
+
 			this->mu_	=	v_1d<double>(Ns_ * Nband_, 0.0);
+			this->dmu_	=	v_1d<double>(Ns_ * Nband_, 0.0);
+
+			// ------ General ------
 			UI_PARAM_SET_DEFAULT(T);
 			UI_PARAM_SET_DEFAULT(beta);
 			UI_PARAM_SET_DEFAULT(dtau);
@@ -65,7 +80,8 @@ namespace UI_PARAMS
 	/*
 	* @brief Defines parameters used later for the simulation
 	*/
-	struct SimP {
+	struct SimP 
+	{
 
 		UI_PARAM_CREATE_DEFAULTD(mcS, int, 100);
 		UI_PARAM_CREATE_DEFAULTD(mcC, int, 1);
@@ -87,12 +103,23 @@ namespace UI_PARAMS
 	/*
 	* @brief Defines lattice used later for the models
 	*/
-	struct LatP {
+	struct LatP 
+	{
 		UI_PARAM_CREATE_DEFAULT(bc	, BoundaryConditions, BoundaryConditions::PBC	);
 		UI_PARAM_CREATE_DEFAULT(typ	, LatticeTypes		, LatticeTypes::SQ			);
+
 		UI_PARAM_CREATE_DEFAULT(Lx	, uint				, 2							);
+		UI_PARAM_CREATE_DEFAULT(dLx	, uint				, 0							);
+		UI_PARAM_CREATE_DEFAULT(LxN	, uint				, 1							);
+
 		UI_PARAM_CREATE_DEFAULT(Ly	, uint				, 1							);
+		UI_PARAM_CREATE_DEFAULT(dLy	, uint				, 0							);
+		UI_PARAM_CREATE_DEFAULT(LyN	, uint				, 1							);
+
 		UI_PARAM_CREATE_DEFAULT(Lz	, uint				, 1							);
+		UI_PARAM_CREATE_DEFAULT(dLz	, uint				, 0							);
+		UI_PARAM_CREATE_DEFAULT(LzN	, uint				, 1							);
+
 		UI_PARAM_CREATE_DEFAULT(dim	, uint				, 1							);
 
 		std::shared_ptr<Lattice> lat;
@@ -101,8 +128,16 @@ namespace UI_PARAMS
 			UI_PARAM_SET_DEFAULT(typ);
 			UI_PARAM_SET_DEFAULT(bc);
 			UI_PARAM_SET_DEFAULT(Lx);
+			UI_PARAM_SET_DEFAULT(Lx);
+			UI_PARAM_SET_DEFAULT(Lx);
+
 			UI_PARAM_SET_DEFAULT(Ly);
+			UI_PARAM_SET_DEFAULT(dLy);
+			UI_PARAM_SET_DEFAULT(LyN);
+
 			UI_PARAM_SET_DEFAULT(Lz);
+			UI_PARAM_SET_DEFAULT(dLz);
+			UI_PARAM_SET_DEFAULT(LzN);
 			UI_PARAM_SET_DEFAULT(dim);
 		};
 	};
@@ -132,9 +167,18 @@ protected:
 			UI_OTHER_MAP(d			, this->latP._dim		, FHANDLE_PARAM_BETWEEN(1., 3.)	),	
 			UI_OTHER_MAP(bc			, this->latP._bc		, FHANDLE_PARAM_BETWEEN(0., 3.)	),
 			UI_OTHER_MAP(l			, this->latP._typ		, FHANDLE_PARAM_BETWEEN(0., 1.)	),
+			// Lx
 			UI_OTHER_MAP(lx			, this->latP._Lx		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(dlx		, this->latP._dLx		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(lxn		, this->latP._LxN		, FHANDLE_PARAM_HIGHERV(1)		),
+			// Ly
 			UI_OTHER_MAP(ly			, this->latP._Ly		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(dly		, this->latP._dLy		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(lyn		, this->latP._LyN		, FHANDLE_PARAM_HIGHERV(1)		),
+			// Lz
 			UI_OTHER_MAP(lz			, this->latP._Lz		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(dlz		, this->latP._dLz		, FHANDLE_PARAM_HIGHER0			),
+			UI_OTHER_MAP(lzn		, this->latP._LzN		, FHANDLE_PARAM_HIGHERV(1)		),
 			// ------------------- MC parameters ------------------
 			UI_OTHER_MAP(mcS		, this->simP._mcS		, FHANDLE_PARAM_HIGHER0			),
 			UI_OTHER_MAP(mcC		, this->simP._mcC		, FHANDLE_PARAM_HIGHER0			),
@@ -148,12 +192,14 @@ protected:
 			UI_PARAM_MAP(M			, this->modP._M			, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(beta		, this->modP._beta		, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(T			, this->modP._T			, FHANDLE_PARAM_DEFAULT			),
-			UI_PARAM_MAP(mu			, this->modP._mu		, FHANDLE_PARAM_DEFAULT			),
+			UI_PARAM_MAP(mun		, this->modP._mun		, FHANDLE_PARAM_DEFAULT			),
+			UI_PARAM_MAP(Un			, this->modP._Un		, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(dtau		, this->modP._dtau		, FHANDLE_PARAM_DEFAULT			),
 			UI_PARAM_MAP(M0			, this->modP._M0		, FHANDLE_PARAM_DEFAULT			),
 			// ----------------------- other ----------------------
 			UI_OTHER_MAP(fun		, -1.					, FHANDLE_PARAM_HIGHERV(-1.0)	),			// choice of the function to be calculated
 			UI_OTHER_MAP(th			, 1.0					, FHANDLE_PARAM_HIGHER0			),			// number of threads
+			UI_OTHER_MAP(ith		, 1.0					, FHANDLE_PARAM_HIGHER0			),			// number of threads for inner simulation
 			UI_OTHER_MAP(q			, 0.0					, FHANDLE_PARAM_DEFAULT			),			// quiet?
 			UI_OTHER_MAP(dir		, "DEFALUT"				, FHANDLE_PARAM_DEFAULT			),
 		};
@@ -161,11 +207,14 @@ protected:
 private:
 	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% I N N E R    M E T H O D S %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	void makeSim();
+	void makeSimSweep();
 	
 	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% D E F I N I T I O N S %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	bool defineModels(bool _createLat = true);
 	bool defineLattice();
 	bool defineModel();
+	bool defineModel(DQMC<2>* _model);
+	bool defineModels(bool _createLat = true);
+	bool defineModels(bool _createLat, DQMC<2>* _model);
 
 public:
 
@@ -252,272 +301,3 @@ public:
 
 	// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% S I M U L A T I O N %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 };
-
-////
-////namespace hubbard {
-////	// -------------------------------------------------------- CLASS
-////	class ui : public user_interface 
-////	{
-////	private:
-////		v_1d<double> t;																						// hopping coefficients
-////		int lattice_type; 																					// for non_numeric data
-////		double t_fill;
-////		int inner_threads, outer_threads;																	// thread parameters
-////		int sf, sfn;																						// self learning parameters
-////		bool quiet, save_conf, cal_times, useHirsh;															// bool flags
-////		int dim, lx, ly, lz, lx_step, ly_step, lz_step, lx_num, ly_num, lz_num;								// real space proprties
-////		double beta, beta_step, U, U_step, mu, mu_step, dtau, dtau_step;									// physical params
-////		int U_num, mu_num, dtau_num, beta_num;
-////		int M_0, p, M, mcSteps, avsNum, corrTime;															// time properties
-////
-////		// -------------------------------------------------------- HELPER FUNCTIONS
-////		void collectAvs(const HubbardParams& params);
-////		void collectRealSpace(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
-////		void collectFouriers(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
-////	public:
-////		// ----------------------- CONSTRUCTORS
-////		~ui() = default;
-////		ui() = default;
-////		ui(int argc, char** argv);
-//		// ----------------------- PARSER FOR HELP
-//		//void exit_with_help() override;
-//		//// ----------------------- REAL PARSER
-//		//void parseModel(int argc, const v_1d<std::string>& argv) override;									// the function to parse the command line
-//		//// ----------------------- HELPERS
-//		//void set_default() override;																		// set default parameters
-//		//void functionChoice() override {};
-//		//// ----------------------- SIMULATION
-//		//void make_simulation() override;
-//	};
-//}
-//
-//inline void hubbard::ui::collectAvs(const hubbard::HubbardParams& params)
-//{
-//	using namespace std;
-//	auto start = chrono::high_resolution_clock::now();
-//	const auto prec = 10;
-//	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
-//	// parameters and constants
-//	std::shared_ptr<averages_par> avs;
-//	// model
-//	std::shared_ptr<Lattice> lat;
-//	// ------------------------------- set lattice --------------------------------
-//	switch (this->lattice_type) {
-//	case 0:
-//		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-//		break;
-//	case 1:
-//		lat = std::make_shared<HexagonalLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-//		break;
-//	default:
-//		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-//		break;
-//	}
-//	// ------------------------------- set model --------------------------------
-//	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, params, lat, this->inner_threads);
-//
-//	std::ofstream fileLog, fileGup, fileGdown, fileSignLog;
-//
-//	auto dirs = model->get_directories(this->saving_dir);																				// take all the directories needed
-//
-//	// RELAX
-//	if (sf == 0)																														// without using machine learning to self learn
-//	{
-//		model->relaxation(impDef::algMC::heat_bath, this->mcSteps, this->save_conf, this->quiet);										// this can also handle saving configurations
-//		if (!this->save_conf) {
-//			// FILES
-//			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app);
-//			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz + ",U=" + str_p(U, 2) + \
-//				",beta=" + str_p(beta, 2) + ",dtau=" + str_p(dtau, 4) + \
-//				".dat", std::ios::in | std::ios::app);
-//
-//			// REST
-//			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet);
-//			avs = model->get_avs();
-//
-//			// SAVING TO STRING
-//			printSeparatedP(fileLog, ',', 20, true, 4, lat->get_type(), this->mcSteps, this->avsNum,
-//				this->corrTime, M, M_0, dtau,
-//				Lx, Ly, Lz, beta, U,
-//				mu, avs->av_occupation, avs->sd_occupation,
-//				avs->av_sign, avs->sd_sign,
-//				avs->av_Ek, avs->sd_Ek,
-//				avs->av_M2z, avs->sd_M2z,
-//				avs->av_M2x, tim_s(start), dirs->token);
-//			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
-//#pragma omp critical
-//			printSeparatedP(stout, '\t', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
-//#pragma omp critical
-//			fileLog.close();
-//#pragma omp critical
-//			fileSignLog.close();
-//			this->collectRealSpace(dirs->nameNormalTime, dirs->nameNormal, params, avs, lat);
-//			this->collectFouriers(dirs->nameFouriersTime, dirs->nameFouriers, params, avs, lat);
-//		}
-//	}
-//	std::cout << "FINISHED EVERYTHING - Time taken: " << tim_s(start) << " seconds" << endl;
-//}
-//
-//
-//
-//#endif // !UI_H
-#pragma once
-//#ifndef USER_INTERFACE_H
-//#define USER_INTERFACE_H
-//
-//
-////#include "../include/plog/Log.h"
-////#include "../include/plog/Initializers/RollingFileInitializer.h"
-////#include "../source/src/UserInterface/ui.h"
-////#include "../include/hubbard_dqmc_qr.h"
-//
-//
-//// -------------------------------------------------------- HUBBARD USER INTERFACE --------------------------------------------------------
-//
-//// -------------------------------------------------------- MAP OF DEFAULTS FOR HUBBARD
-////std::unordered_map <std::string, std::string> const default_params = {
-////	{"m","300"},
-////	{"d","2"},
-////	{"l","0"},
-////	{"t","1"},
-////	{"a","50"},
-////	{"c","1"},
-////	{"m0","10"},
-////	{"dt","0.1"},
-////	{"dtn","1"},
-////	{"dts","0"},
-////	{"lx","4"},
-////	{"lxs","0"},
-////	{"lxn","1"},
-////	{"ly","4"},
-////	{"lys","0"},
-////	{"lyn","1"},
-////	{"lz","1"},
-////	{"lzs","0"},
-////	{"lzn","1"},
-////	{"b","6"},
-////	{"bs","0"},
-////	{"bn","1"},
-////	{"u","2"},
-////	{"us","0"},
-////	{"un","1"},
-////	{"mu","0"},
-////	{"mus","0"},
-////	{"mun","1"},
-////	{"th","1"},
-////	{"ti","1"},
-////	{"q","0"},
-////	{"qr","1" },
-////	{"cg","0"},
-////	{"ct","0"},
-////	{"sf","0"},
-////	{"sfn","1"}
-////};
-////
-////namespace hubbard {
-////	// -------------------------------------------------------- CLASS
-////	class ui : public user_interface 
-////	{
-////	private:
-////		v_1d<double> t;																						// hopping coefficients
-////		int lattice_type; 																					// for non_numeric data
-////		double t_fill;
-////		int inner_threads, outer_threads;																	// thread parameters
-////		int sf, sfn;																						// self learning parameters
-////		bool quiet, save_conf, cal_times, useHirsh;															// bool flags
-////		int dim, lx, ly, lz, lx_step, ly_step, lz_step, lx_num, ly_num, lz_num;								// real space proprties
-////		double beta, beta_step, U, U_step, mu, mu_step, dtau, dtau_step;									// physical params
-////		int U_num, mu_num, dtau_num, beta_num;
-////		int M_0, p, M, mcSteps, avsNum, corrTime;															// time properties
-////
-////		// -------------------------------------------------------- HELPER FUNCTIONS
-////		void collectAvs(const HubbardParams& params);
-////		void collectRealSpace(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
-////		void collectFouriers(std::string name_times, std::string name, const hubbard::HubbardParams& params, std::shared_ptr<averages_par> avs, std::shared_ptr<Lattice> lat);
-////	public:
-////		// ----------------------- CONSTRUCTORS
-////		~ui() = default;
-////		ui() = default;
-////		ui(int argc, char** argv);
-//		// ----------------------- PARSER FOR HELP
-//		//void exit_with_help() override;
-//		//// ----------------------- REAL PARSER
-//		//void parseModel(int argc, const v_1d<std::string>& argv) override;									// the function to parse the command line
-//		//// ----------------------- HELPERS
-//		//void set_default() override;																		// set default parameters
-//		//void functionChoice() override {};
-//		//// ----------------------- SIMULATION
-//		//void make_simulation() override;
-//	};
-//}
-//
-//inline void hubbard::ui::collectAvs(const hubbard::HubbardParams& params)
-//{
-//	using namespace std;
-//	auto start = chrono::high_resolution_clock::now();
-//	const auto prec = 10;
-//	auto& [dim, beta, mu, U, Lx, Ly, Lz, M, M0, p, dtau] = params;
-//	// parameters and constants
-//	std::shared_ptr<averages_par> avs;
-//	// model
-//	std::shared_ptr<Lattice> lat;
-//	// ------------------------------- set lattice --------------------------------
-//	switch (this->lattice_type) {
-//	case 0:
-//		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-//		break;
-//	case 1:
-//		lat = std::make_shared<HexagonalLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-//		break;
-//	default:
-//		lat = std::make_shared<SquareLattice>(Lx, Ly, Lz, params.dim, this->boundary_conditions);
-//		break;
-//	}
-//	// ------------------------------- set model --------------------------------
-//	std::unique_ptr<hubbard::HubbardModel> model = std::make_unique<hubbard::HubbardQR>(this->t, params, lat, this->inner_threads);
-//
-//	std::ofstream fileLog, fileGup, fileGdown, fileSignLog;
-//
-//	auto dirs = model->get_directories(this->saving_dir);																				// take all the directories needed
-//
-//	// RELAX
-//	if (sf == 0)																														// without using machine learning to self learn
-//	{
-//		model->relaxation(impDef::algMC::heat_bath, this->mcSteps, this->save_conf, this->quiet);										// this can also handle saving configurations
-//		if (!this->save_conf) {
-//			// FILES
-//			openFile(fileLog, this->saving_dir + "HubbardLog.csv", std::ios::in | std::ios::app);
-//			openFile(fileSignLog, this->saving_dir + "HubbardSignLog_" + dirs->LxLyLz + ",U=" + str_p(U, 2) + \
-//				",beta=" + str_p(beta, 2) + ",dtau=" + str_p(dtau, 4) + \
-//				".dat", std::ios::in | std::ios::app);
-//
-//			// REST
-//			model->average(impDef::algMC::heat_bath, this->corrTime, this->avsNum, 1, this->quiet);
-//			avs = model->get_avs();
-//
-//			// SAVING TO STRING
-//			printSeparatedP(fileLog, ',', 20, true, 4, lat->get_type(), this->mcSteps, this->avsNum,
-//				this->corrTime, M, M_0, dtau,
-//				Lx, Ly, Lz, beta, U,
-//				mu, avs->av_occupation, avs->sd_occupation,
-//				avs->av_sign, avs->sd_sign,
-//				avs->av_Ek, avs->sd_Ek,
-//				avs->av_M2z, avs->sd_M2z,
-//				avs->av_M2x, tim_s(start), dirs->token);
-//			printSeparatedP(fileSignLog, '\t', 12, true, prec, avs->av_occupation, avs->av_sign, mu);
-//#pragma omp critical
-//			printSeparatedP(stout, '\t', 15, true, 3, VEQP(avs->av_occupation, 3), VEQP(avs->av_sign, 3), VEQP(avs->av_M2z, 3));
-//#pragma omp critical
-//			fileLog.close();
-//#pragma omp critical
-//			fileSignLog.close();
-//			this->collectRealSpace(dirs->nameNormalTime, dirs->nameNormal, params, avs, lat);
-//			this->collectFouriers(dirs->nameFouriersTime, dirs->nameFouriers, params, avs, lat);
-//		}
-//	}
-//	std::cout << "FINISHED EVERYTHING - Time taken: " << tim_s(start) << " seconds" << endl;
-//}
-//
-//
-//
-//#endif // !UI_H

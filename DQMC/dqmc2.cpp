@@ -8,6 +8,7 @@
 */
 void DQMC2::saveGreensT(uint _step)
 {
+	std::unique_lock(this->fileMutex_);
 	// normalize the Green's function
 	this->avs_->normalizeG();
 	// get number of elements
@@ -70,6 +71,7 @@ void DQMC2::saveGreensT(uint _step)
 		}
 #else
 	// go through imaginary times
+	WriteLock lock(this->Mutex);
 	std::string _filename		= this->dir_->unequalGDir + "G_t_" + STR(_step) + "_" + _signStr + "_" + this->dir_->randomSampleStr + ".h5";
 	for (int _tau = 0; _tau < this->M_; _tau++) 
 	{
@@ -98,16 +100,43 @@ void DQMC2::saveGreensT(uint _step)
 * @brief Save the equal time Green's functions.
 * @param _step step of the save
 */
-void DQMC2::saveGreens(uint _step)
+void DQMC2::saveGreens(uint _t)
 {
+	std::unique_lock(this->fileMutex_);
+	LOGINFO("Saving Green's at " + VEQ(_t), LOG_TYPES::TRACE, 4);
 	const std::string _signStr	= this->configSign_ == 1 ? "+" : "-";
+#ifndef DQMC_USE_HIRSH
 	this->tmpG_[0]				= (this->G_[_UP_] + this->G_[_DN_]) / 2.0;
 	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" 
-		+ this->dir_->randomSampleStr, "G("	  + STR(_step) + ")", arma::hdf5_opts::append));
+		+ this->dir_->randomSampleStr, "G("	  + STR(_t) + ")", arma::hdf5_opts::append));
 	this->G_[_UP_].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_"
-		+ this->dir_->randomSampleStr, "G_UP(" + STR(_step) + ")", arma::hdf5_opts::append));
+		+ this->dir_->randomSampleStr, "G_UP(" + STR(_t) + ")", arma::hdf5_opts::append));
 	this->G_[_DN_].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" 
-		+ this->dir_->randomSampleStr, "G_DN(" + STR(_step) + ")", arma::hdf5_opts::append));
+		+ this->dir_->randomSampleStr, "G_DN(" + STR(_t) + ")", arma::hdf5_opts::append));
+#else
+	this->tmpG_[0]				= (	SUBM(this->G_[_UP_], _t * transformSize_,
+														 _t * transformSize_, 
+															  transformSize_,
+														      transformSize_) + 
+									SUBM(this->G_[_DN_], _t * transformSize_,
+														 _t * transformSize_, 
+															  transformSize_,
+															  transformSize_)) / 2.0;
+	this->tmpG_[0].save	(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_" 
+		+ this->dir_->randomSampleStr, "G("	  + STR(_t) + ")", arma::hdf5_opts::append));
+	DMAT(SUBM(this->G_[_UP_], _t * transformSize_,
+							 _t * transformSize_,
+							 transformSize_,
+							 transformSize_)).save(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_"
+											 + this->dir_->randomSampleStr, "G_UP(" + STR(_t) + ")",
+											 arma::hdf5_opts::append));
+	DMAT(SUBM(this->G_[_DN_], _t * transformSize_,
+							 _t * transformSize_,
+							 transformSize_,
+							 transformSize_)).save(arma::hdf5_name(this->dir_->equalGDir + "G_" + _signStr + "_"
+											 + this->dir_->randomSampleStr, "G_DN(" + STR(_t) + ")",
+											 arma::hdf5_opts::append));
+#endif
 }
 
 /*
@@ -115,15 +144,40 @@ void DQMC2::saveGreens(uint _step)
 */
 void DQMC2::saveAverages(uint _step)
 {
-	LOGINFO("Saving averages at " + VEQ(_step), LOG_TYPES::TRACE, 3);
+	LOGINFO("Saving single site averages at " + VEQ(_step), LOG_TYPES::TRACE, 4);
 	std::ofstream fileLog, fileSigns;
+	auto _logN = this->dir_->mainDir + "HubbardLog.csv";
+	auto _logS = this->dir_->mainDir + "HubbardSign.csv";
 	auto _date = prettyTime();
 
-	// open log file
-	openFile(fileLog, this->dir_->mainDir	+ "HubbardLog.csv"	, std::ios::in | std::ios::app);
-	openFile(fileSigns, this->dir_->mainDir + "HubbardSigns.csv", std::ios::in | std::ios::app);
+	// check if the file already exists - if not create header
+	if (!fs::exists(_logN))
+	{
+		openFile(fileLog, _logN, std::ios::in | std::ios::app);
+		printSeparatedP(fileLog, ';', 70, true, 5, 
+				"RANDOM",
+				"LATTICE",
+				"MODEL",
+				"<s>",
+				"<n>",
+				"dn",
+				"Ek_0",
+				"dEk_0",
+				"mz2",
+				"dmz2",
+				"mx2",
+				"dmx2",
+				"STEP",
+				"DATE");
+		fileLog.close();
+	}
 
-	printSeparatedP(fileLog, ',', 26, true, 5, 
+	// open log file
+	openFile(fileLog, _logN, std::ios::in | std::ios::app);
+	openFile(fileSigns, _logS, std::ios::in | std::ios::app);
+
+	printSeparatedP(fileLog, ';', 70, true, 5,
+					this->dir_->randomSampleStr,
 					this->lat_->get_info(), 
 					this->getInfo(),
 					this->avs_->av_sign_, 
@@ -135,47 +189,37 @@ void DQMC2::saveAverages(uint _step)
 					this->avs_->sd_Mz2_0,
 					this->avs_->av_Mx2_0, 
 					this->avs_->sd_Mx2_0,
-					this->dir_->randomSampleStr,
 					_step,
 					_date);
 
 	printSeparatedP(fileSigns	, '\t', 25, true, 5, 
 		this->getInfo(), this->avs_->av_Occupation_0, this->avs_->av_sign_, _step, _date);
-	printSeparatedP(stout		, '\t', 25, true, 5, 
-		this->getInfo(), this->avs_->av_Occupation_0, this->avs_->av_sign_, _step, _date);
 	fileLog.close();
 	fileSigns.close();
 
 	// save the Green's functions
-	LOGINFO("Saving Green's functions after the simulation.", LOG_TYPES::FINISH, 3);
 	for (int _t = 0; _t < this->M_; ++_t)
 	{
 #ifndef DQMC_USE_HIRSH
 		this->updGreenStep(_t);
+		this->saveGreens(_step);
 #else
-		for(auto _SPIN_ = 0; _SPIN_ < this->spinNumber_; ++_SPIN_)
-			algebra::setMFromSubM(	this->G_[_SPIN_], this->Gtime_[_SPIN_], 
-									_t * transformSize_, 
-									_t * transformSize_, 
-									transformSize_, 
-									transformSize_, 
-									false);
+		this->saveGreens(_step);
 #endif
-		this->saveGreens(_t);
 	}
 	this->saveCorrelations(_step);
 }
 
+/*
+* @brief Save the correlations
+*/
 void DQMC2::saveCorrelations(uint _step)
 {
 	LOGINFO("Saving correlations at " + VEQ(_step), LOG_TYPES::FINISH, 4);
-	const auto prec = 8;
-	//std::ofstream file, fileTime;
 	std::string _filename		= this->dir_->equalCorrDir + "corr_" + STR(_step) + "_" + this->dir_->randomSampleStr;
 	std::string _filenameNoStep = this->dir_->equalCorrDir + "corr_" + this->dir_->randomSampleStr;
-	//openFile(file, _filename + ".dat");
 
-	auto [x_num, y_num, z_num] = this->lat_->getNumElems();
+	auto [x_num, y_num, z_num]	= this->lat_->getNumElems();
 	MAT<double> _outMat(x_num * y_num * z_num, 3 + 2);
 
 	auto _iterator = 0;
@@ -202,6 +246,8 @@ void DQMC2::saveCorrelations(uint _step)
 			}
 		}
 	}
+	std::unique_lock(this->fileMutex_);
+
 	_outMat.save(arma::hdf5_name(_filenameNoStep + ".h5", STR(_step)));
 	_outMat.save(_filename + ".dat", arma::arma_ascii);
 }

@@ -22,6 +22,7 @@ class Hubbard : public DQMC2
 	
 	// ############### P H Y S I C A L   P R O P E R T I E S ###############
 	v_1d<double> t_;														// hopping integrals ('s for multiple Hubbard bands)
+	v_1d<double> tt_;														// hopping integrals ('s for multiple Hubbard bands) - second nearest
 	v_1d<double> U_;														// Hubbard U ('s for multiple Hubbard bands)
 	v_1d<double> mu_;														// chemical potential ('s for multiple Hubbard bands)
 	v_1d<bool> isRepulsive_;												// U > 0?
@@ -50,7 +51,8 @@ public:
 			v_1d<double> _U, 
 			v_1d<double> _mu,
 			double _dtau		=	0.05, 
-			uint _bands			=	1);
+			uint _bands			=	1,
+			v_1d<double> _tt	=	{});
 	void init()																override;
 
 protected:
@@ -91,11 +93,6 @@ protected:
 	auto calGamma(uint _site)				->								void;
 	auto calDelta()							->								spinTuple_;
 
-	// ########################### S E T T E R S ##########################
-	void setHS(HS_CONF_TYPES _t)											override;
-	void setDir(std::string _m)												override;
-	void setInfo()															override;
-
 	// ########################## U P D A T E R S #########################
 	void updPropagatB(uint _site, uint _t)									override;
 	void updInteracts(uint _site, uint _t)									override;
@@ -109,6 +106,11 @@ protected:
 	// ############################ S A V E R S ############################
 	void saveGreens(uint _step)												override;
 
+	// ########################### S E T T E R S ##########################
+public:
+	void setHS(HS_CONF_TYPES _t)											override;
+	void setDir(std::string _m)												override;
+	void setInfo()															override;
 };
 
 #endif

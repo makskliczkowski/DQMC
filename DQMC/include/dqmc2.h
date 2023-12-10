@@ -64,6 +64,8 @@ protected:
 	vecMatArray iB_;														// imaginary time propagators	
 
 	// ############################ S A V E R S ############################
+	virtual void saveBuckets(uint _step, uint _avs, 
+							 clk::time_point _t, bool _reset = true)		override;
 public:
 	virtual void saveAverages(uint _step)									override;
 	virtual void saveCorrelations(uint _step)								override;
@@ -71,6 +73,30 @@ public:
 	virtual void saveGreens(uint _step)										override;
 };
 
+// ############################################### S A V E R S   B U C K E T S ####################################################
+
+/*
+* @brief Save the buckets to files and reset only if necessary
+* @param _step current Monte Carlo step
+* @param _avs number of averages
+* @param _t starting time point
+* @param _reset shall reset?
+*/
+inline void DQMC2::saveBuckets(uint _step, uint _avs, clk::time_point _t, bool _reset)
+{
+	LOGINFO("Saving " + STR(_step / _avs) + ". " + VEQ(_avs) + ":" + TMS(_t), LOG_TYPES::TRACE, 3);
+	this->avs_->normalize(	_avs,
+							this->M_ * this->lat_->get_Ns() * this->NBands_,
+							this->getAvSign());
+	// save the averages
+	this->saveAverages(_step / _avs);
+	// save the Green's
+#ifdef DQMC_CAL_TIMES
+	this->saveGreensT(_step / _avs);
+#endif
+	if(_reset)
+		this->avs_->reset();
+}
 
 // ##################################################################################
 

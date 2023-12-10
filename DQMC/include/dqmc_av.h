@@ -475,17 +475,17 @@ inline void DQMCavs<_spinNum, _retT>::normalizeG()
 	// time number
 	const auto _M		=	this->av_GTimeDiff_[0].size();
 	auto [xx, yy, zz]	=	this->lat_->getNumElems();
-	
+
 	// go through spins in the system
 	for (int _SPIN_ = 0; _SPIN_ < _spinNum; _SPIN_++) 
 	{
 		// number of imaginary times
 		for (int tau = 0; tau < _M; tau++) 
 		{
+			// find time normalization
+			double norm		=		-(int)this->bucketNum_ * this->normM_(tau);
 			for (int _band = 0; _band < this->Nbands_; _band++)
 			{
-				// find time normalization
-				auto norm = -this->bucketNum_ * this->normM_(tau);
 				for (int x = 0; x < xx; x++) 
 				{
 					for (int y = 0; y < yy; y++)
