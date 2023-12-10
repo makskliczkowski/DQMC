@@ -350,11 +350,23 @@ inline bool DQMC<spinNum_>::saveCheckPoint(std::string _path, std::string _file)
 	LOGINFO(LOG_TYPES::INFO, "Saving the checkpoint configuration to", 2);
 	LOGINFO(LOG_TYPES::INFO, _path + _file, 3);
 	bool _isSaved	= false;
+#ifdef HAS_CXX20
 	if (_file.ends_with(".h5"))
+#else
+	if (endsWith(_file, ".h5"))
+#endif
 		_isSaved	=	this->HSFields_.save(arma::hdf5_name(_path + _file, "HS"));
+#ifdef HAS_CXX20
 	else if (_file.ends_with(".bin"))
+#else
+	else if (endsWith(_file, ".bin"))
+#endif
 		_isSaved	=	this->HSFields_.save(_path + _file);
+#ifdef HAS_CXX20
 	else if (_file.ends_with(".txt") || _file.ends_with(".dat"))
+#else
+	else if (endsWith(_file, ".txt") || endsWith(_file, ".dat"))
+#endif
 		_isSaved	=	this->HSFields_.save(_path + _file, arma::arma_ascii);
 	if (!_isSaved & (_file != "HS.h5"))
 	{
